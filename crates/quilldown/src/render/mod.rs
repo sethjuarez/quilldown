@@ -312,7 +312,7 @@ fn code_block(literal: &str) -> Table {
     for line in trimmed.split('\n') {
         cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
     }
-    Table::new(vec![TableRow::new(vec![cell])]).width(9638, WidthType::Dxa)
+    Table::new(vec![TableRow::new(vec![cell])]).width(styles::CONTENT_WIDTH_DXA, WidthType::Dxa)
 }
 
 /// Render a Markdown thematic break (`---`) as a full-width horizontal rule.
@@ -328,7 +328,7 @@ fn horizontal_rule() -> Table {
     let borders = TableBorders::with_empty().set(bottom);
     let cell = TableCell::new().add_paragraph(Paragraph::new());
     Table::new(vec![TableRow::new(vec![cell])])
-        .width(9638, WidthType::Dxa)
+        .width(styles::CONTENT_WIDTH_DXA, WidthType::Dxa)
         .set_borders(borders)
 }
 

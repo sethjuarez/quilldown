@@ -106,6 +106,8 @@ Tradeoffs:
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
 - Markdown footnotes → **native Word footnotes**
+- US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
+  size to the text column so nothing overflows the right margin
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
@@ -126,7 +128,7 @@ Tradeoffs:
 - **Optional light-mode SVG color remap:** real technical-report diagrams are often authored in
   dark/themed colors; remap theme color tokens to print-friendly light-mode values *before*
   rasterizing (as cutready does for its Word export) so diagrams read well on a white page
-- Configurable themes/style templates and page setup (margins, size, orientation)
+- Configurable themes/style templates and page setup (page size, orientation, custom margins)
 - Richer code-block fidelity (syntax highlighting, language label)
 
 ## License

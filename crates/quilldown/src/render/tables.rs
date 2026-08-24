@@ -4,10 +4,7 @@ use comrak::nodes::{AstNode, NodeValue};
 use docx_rs::*;
 
 use super::{render_inlines, Ctx, Inline};
-use crate::styles::{TABLE_BORDER_COLOR, TABLE_HEADER_FILL};
-
-/// Full page-width in DXA (twips) used for rendered tables.
-const TABLE_WIDTH_DXA: usize = 9638;
+use crate::styles::{CONTENT_WIDTH_DXA as TABLE_WIDTH_DXA, TABLE_BORDER_COLOR, TABLE_HEADER_FILL};
 
 /// Single-line table borders in cutready's `BFBFBF` on every edge and gridline.
 fn light_borders() -> TableBorders {
