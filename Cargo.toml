@@ -1,0 +1,26 @@
+# quilldown — Markdown -> DOCX (high fidelity)
+# Cargo workspace: a reusable library crate plus a thin CLI.
+[workspace]
+resolver = "2"
+members = ["crates/quilldown", "crates/quilldown-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/sethjuarez/quilldown"
+authors = ["Seth Juarez"]
+rust-version = "1.74"
+
+[workspace.dependencies]
+# Core conversion deps, shared across crates and pinned to recent stable releases.
+comrak = "0.54"
+docx-rs = "0.4.22"
+anyhow = "1"
+thiserror = "2"
+clap = { version = "4.6", features = ["derive"] }
+# Pure-Rust SVG rasterization (no native/system deps) for embedding diagrams.
+resvg = "0.48"
+usvg = "0.48"
+tiny-skia = "0.12"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

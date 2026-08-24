@@ -1,0 +1,14 @@
+# Rust / Cargo
+/target
+**/target
+Cargo.lock.bak
+
+# Generated output
+*.docx
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

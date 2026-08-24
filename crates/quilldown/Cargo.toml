@@ -1,0 +1,22 @@
+[package]
+name = "quilldown"
+description = "Convert GitHub-Flavored Markdown into high-fidelity Word .docx documents."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+comrak.workspace = true
+docx-rs.workspace = true
+thiserror.workspace = true
+resvg.workspace = true
+usvg.workspace = true
+tiny-skia.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+zip = "2"
+tempfile = "3"

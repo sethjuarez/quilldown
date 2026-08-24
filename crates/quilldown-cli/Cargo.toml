@@ -1,0 +1,18 @@
+[package]
+name = "quilldown-cli"
+description = "Command-line interface for quilldown: Markdown -> Word .docx."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "quilldown"
+path = "src/main.rs"
+
+[dependencies]
+quilldown = { path = "../quilldown" }
+clap.workspace = true
+anyhow.workspace = true
