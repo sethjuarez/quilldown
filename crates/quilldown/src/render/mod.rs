@@ -175,8 +175,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 ctx.stats.tables += 1;
             }
             NodeValue::ThematicBreak => {
-                // TODO(quilldown): render a real horizontal rule (bottom border paragraph).
-                out.push(Block::Para(Paragraph::new()));
+                out.push(Block::Table(horizontal_rule()));
             }
             NodeValue::BlockQuote => {
                 // TODO(quilldown): apply a quote style (indent + left border). For now the
@@ -314,6 +313,23 @@ fn code_block(literal: &str) -> Table {
         cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
     }
     Table::new(vec![TableRow::new(vec![cell])]).width(9638, WidthType::Dxa)
+}
+
+/// Render a Markdown thematic break (`---`) as a full-width horizontal rule.
+///
+/// docx-rs exposes no paragraph-border API, so we emit a borderless 1x1 table whose only
+/// visible edge is a thin gray bottom border — the same trick Word itself uses for rules.
+fn horizontal_rule() -> Table {
+    use TableBorderPosition::*;
+    let bottom = TableBorder::new(Bottom)
+        .border_type(BorderType::Single)
+        .size(4)
+        .color(styles::TABLE_BORDER_COLOR);
+    let borders = TableBorders::with_empty().set(bottom);
+    let cell = TableCell::new().add_paragraph(Paragraph::new());
+    Table::new(vec![TableRow::new(vec![cell])])
+        .width(9638, WidthType::Dxa)
+        .set_borders(borders)
 }
 
 /// Map a Markdown heading level (1-6) to a registered paragraph style id (capped at 3).

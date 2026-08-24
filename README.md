@@ -103,6 +103,7 @@ Tradeoffs:
 - Ordered and unordered lists (real Word numbering/bullets, incl. nesting)
 - GFM tables with a bold, shaded header row
 - Fenced code blocks → shaded monospace (via a 1-cell shaded table)
+- Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
 - Markdown footnotes → **native Word footnotes**
 
@@ -110,7 +111,8 @@ Tradeoffs:
 
 - Hyperlinks render as styled text, not yet native `w:hyperlink` relationships
 - Block quotes preserve content but have no quote styling (indent/left border)
-- Thematic breaks (`---`) render as a blank paragraph, not a real horizontal rule
+- A footnote referenced *N* times emits *N* native footnotes (each numbered separately)
+  rather than one shared, multiply-referenced note
 - Task list items render a checkbox glyph, not a native content control
 - Superscript renders inline without true superscript alignment
 - Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
@@ -118,7 +120,8 @@ Tradeoffs:
 ## Roadmap
 
 - Native hyperlink relationships (`w:hyperlink` + `document.xml.rels`)
-- Block-quote and horizontal-rule styling
+- Shared footnotes: reuse one numbered note when a `[^id]` is referenced multiple times
+- Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
 - **Optional light-mode SVG color remap:** real technical-report diagrams are often authored in
   dark/themed colors; remap theme color tokens to print-friendly light-mode values *before*

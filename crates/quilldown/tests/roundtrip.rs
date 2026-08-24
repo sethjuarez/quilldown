@@ -127,3 +127,25 @@ fn sample_document_converts_and_embeds_svg() {
 /// Keep `Write` in scope (used via Cursor) without an unused-import warning.
 #[allow(dead_code)]
 fn _assert_write_impl<W: Write>(_: &W) {}
+
+#[test]
+fn thematic_break_renders_as_horizontal_rule() {
+    // `---` between paragraphs should become a bottom-bordered rule table, and the
+    // surrounding text must still survive.
+    let md = "Above the line.\n\n---\n\nBelow the line.\n";
+    let docx = to_docx_bytes(md, std::path::Path::new("."));
+
+    let document = read_zip_entry(&docx, "word/document.xml")
+        .expect("word/document.xml must exist in the .docx");
+
+    assert!(
+        document.contains("<w:tbl>") && document.contains("<w:tblBorders>"),
+        "a thematic break should render as a bordered rule table"
+    );
+    for needle in ["Above the line", "Below the line"] {
+        assert!(
+            document.contains(needle),
+            "text around the rule ('{needle}') should survive"
+        );
+    }
+}
