@@ -109,8 +109,9 @@ Tradeoffs:
   `document.xml.rels`; `#fragment` links become in-document anchors, and headings are
   bookmarked with their GitHub-style slug so those anchors resolve)
 - Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end:
-  each `[^id]` becomes a superscript mark in the body, and every unique note is listed once
-  regardless of how many times it is referenced
+  each `[^id]` becomes a **clickable** superscript mark that jumps to its note, every unique
+  note is listed once regardless of how many times it is referenced, and each note's number
+  links back to the first place it was cited
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
@@ -119,7 +120,6 @@ Tradeoffs:
 - Block quotes preserve content but have no quote styling (indent/left border)
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
-- Endnote reference marks are not yet clickable links back to the Notes section
 - Task list items render a checkbox glyph, not a native content control
 - Superscript renders inline without true superscript alignment
 - Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
@@ -130,7 +130,6 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Clickable endnote marks (bookmark each Notes entry, link the body superscript to it)
 - Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
 - **Optional light-mode SVG color remap** for dark/themed diagrams (as cutready does)

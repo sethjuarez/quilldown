@@ -82,3 +82,76 @@ fn hyperlinks_sample_document_is_wired() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #2 — clickable endnote reference marks
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn endnote_mark_links_forward_and_note_links_back() {
+    let (docx, _stats) = convert(
+        "Body text with a citation.[^a]\n\n[^a]: The note body.\n",
+    );
+    let doc = document_xml(&docx);
+
+    // Body mark: anchor hyperlink to the note, plus a bookmark for the back-link target.
+    assert!(
+        doc.contains(r#"w:anchor="qd-note-1""#),
+        "reference mark should be an anchor hyperlink to the note\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd-noteref-1""#),
+        "first reference should be bookmarked so the note can link back"
+    );
+
+    // Notes entry: bookmarked as the forward target, number links back to the reference.
+    assert!(
+        doc.contains(r#"w:name="qd-note-1""#),
+        "the Notes entry should be bookmarked as the forward-link target"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="qd-noteref-1""#),
+        "the note number should be a back-link to the first reference"
+    );
+}
+
+#[test]
+fn repeated_reference_dedups_to_single_note() {
+    let (docx, stats) = convert(
+        "First cite[^x] and second cite[^x] to the same note.\n\n[^x]: Only listed once.\n",
+    );
+    let doc = document_xml(&docx);
+
+    // Two body marks (both link to qd-note-1) but exactly one Notes entry.
+    assert_eq!(stats.endnotes, 1, "a twice-cited note should be listed once");
+    assert_eq!(
+        doc.matches(r#"w:name="qd-note-1""#).count(),
+        1,
+        "there should be exactly one Notes bookmark for the deduplicated note"
+    );
+    // The second reference must not re-emit the noteref bookmark.
+    assert_eq!(
+        doc.matches(r#"w:name="qd-noteref-1""#).count(),
+        1,
+        "only the first reference is bookmarked as the back-link target"
+    );
+}
+
+#[test]
+fn endnotes_sample_document_is_wired() {
+    let (docx, stats) = convert_feature("endnotes");
+    let doc = document_xml(&docx);
+
+    // Sample defines three notes; the attention note is cited twice.
+    assert_eq!(stats.endnotes, 3, "sample has three unique notes");
+    for n in 1..=3 {
+        assert!(
+            doc.contains(&format!(r#"w:name="qd-note-{n}""#)),
+            "note {n} should have a forward-link bookmark"
+        );
+        assert!(
+            doc.contains(&format!(r#"w:anchor="qd-note-{n}""#)),
+            "note {n} should be referenced by an anchor hyperlink"
+        );
+    }
+}
