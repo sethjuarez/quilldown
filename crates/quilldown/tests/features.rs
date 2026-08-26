@@ -155,3 +155,67 @@ fn endnotes_sample_document_is_wired() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #3 — block-quote styling (indent + left border)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn blockquote_gets_indent_and_left_border() {
+    let (docx, _stats) = convert("> Quoted text.\n\nPlain paragraph.\n");
+    let doc = document_xml(&docx);
+
+    // A left paragraph border is the distinctive quote cue — and ONLY the left side (not a box).
+    assert!(
+        doc.contains("<w:pBdr>") && doc.contains(r#"<w:left w:val="single""#),
+        "a block quote should emit a left paragraph border\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"<w:right w:val="single" w:space="0" w:sz="2""#),
+        "a block quote should NOT draw a full box (no default right/top/bottom borders)\n{doc}"
+    );
+    // And a left indent so the block is set in from the margin.
+    assert!(
+        doc.contains("<w:ind") && doc.contains(r#"w:left="360""#),
+        "a block quote paragraph should be indented from the left margin"
+    );
+    // Quote body text is tinted with the muted quote color.
+    assert!(
+        doc.contains(r#"w:val="57606A""#),
+        "quote text should use the muted quote color"
+    );
+}
+
+#[test]
+fn plain_paragraph_has_no_quote_border() {
+    let (docx, _stats) = convert("Just an ordinary paragraph.\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("<w:pBdr>"),
+        "ordinary paragraphs must not get a quote border"
+    );
+}
+
+#[test]
+fn nested_quote_indents_further() {
+    let (docx, _stats) = convert("> outer\n>\n> > inner\n");
+    let doc = document_xml(&docx);
+    // Depth 1 = 360, depth 2 = 720; both indents must be present.
+    assert!(
+        doc.contains(r#"w:left="360""#) && doc.contains(r#"w:left="720""#),
+        "nested quotes should step the indent (360 then 720)\n{doc}"
+    );
+}
+
+#[test]
+fn blockquotes_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("blockquotes");
+    let doc = document_xml(&docx);
+    assert!(doc.contains("<w:pBdr>"), "sample should style quotes with borders");
+    assert!(
+        doc.contains(r#"w:left="720""#),
+        "sample includes a nested quote at depth 2"
+    );
+    // Inline formatting inside a quote should still round-trip (e.g. the hyperlink).
+    assert!(doc.contains("<w:hyperlink"), "quote link should survive styling");
+}

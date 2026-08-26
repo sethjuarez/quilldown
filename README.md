@@ -112,12 +112,12 @@ Tradeoffs:
   each `[^id]` becomes a **clickable** superscript mark that jumps to its note, every unique
   note is listed once regardless of how many times it is referenced, and each note's number
   links back to the first place it was cited
+- **Block quotes** → left accent border + per-level indent (nested quotes step in) + muted text
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
-- Block quotes preserve content but have no quote styling (indent/left border)
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
 - Task list items render a checkbox glyph, not a native content control
@@ -130,7 +130,6 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
 - **Optional light-mode SVG color remap** for dark/themed diagrams (as cutready does)
 - Configurable themes/style templates and page setup (page size, orientation, custom margins)

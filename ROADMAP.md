@@ -33,6 +33,8 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 - Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end,
   with **clickable reference marks**: each body superscript is an anchor hyperlink to its note,
   and each note's number links back to the first place it was cited
+- **Block quotes** → a left accent border, a per-level left indent (nested quotes step
+  further in), and muted body text, so quotes are visually distinct
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
   to the text column (content width 9360 twips) so nothing overflows the right margin
 
@@ -41,7 +43,6 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 Each item below is intentionally limited today; the "why" explains the constraint so nobody
 re-discovers it the hard way.
 
-- **Block quotes preserve content but have no quote styling** (no indent / left border).
 - **Endnote numbers are static text.** docx-rs (0.4.x) has no native endnote support, so
   quilldown assigns numbers at render time and writes them as literal superscript glyphs.
   They will not auto-renumber if you insert/delete notes by hand in Word — re-run quilldown
@@ -57,20 +58,18 @@ re-discovers it the hard way.
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Block-quote styling** — indent + left border (and possibly a subtle background), so
-   quotes are visually distinct instead of reading as ordinary paragraphs.
-2. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
+1. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
    original SVG as the modern Word vector extension with the rasterized PNG as fallback, for
    crisp scaling in recent Word versions. Tradeoff: more complex OOXML and larger files, so
    it stays opt-in; raster PNG remains the safe default.
-3. **Optional light-mode SVG color remap** — real technical-report diagrams are often
+2. **Optional light-mode SVG color remap** — real technical-report diagrams are often
    authored in dark/themed colors. Remap theme color tokens to print-friendly light-mode
    values *before* rasterizing (as cutready does for its Word export) so diagrams read well
    on a white page. Not always needed — diagrams already authored for light backgrounds pass
    through fine — so this is a flag, not default behavior.
-4. **Configurable themes / style templates and page setup** — expose page size, orientation,
+3. **Configurable themes / style templates and page setup** — expose page size, orientation,
    and custom margins (today: US Letter + 1 in), plus swappable style templates.
-5. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
+4. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
    blocks, beyond the current uniform monospace shading.
 
 ## Known constraints to respect

@@ -27,6 +27,17 @@ const HEADING_COLOR: &str = "2F5496";
 /// Hyperlink text color (hex, no `#`) — Word's default hyperlink blue.
 pub const LINK_COLOR: &str = "0563C1";
 
+/// Left-border accent color for block quotes (hex, no `#`) — a mid gray, GitHub-like.
+pub const QUOTE_BORDER_COLOR: &str = "8B949E";
+/// Muted body text color for block quotes (hex, no `#`).
+pub const QUOTE_TEXT_COLOR: &str = "57606A";
+/// Left indent applied per block-quote nesting level, in twips (1/20 pt). 360 = 0.25 in.
+pub const QUOTE_INDENT_DXA: i32 = 360;
+/// Block-quote left-border thickness, in eighths of a point. 24 = 3 pt.
+pub const QUOTE_BORDER_SIZE: usize = 24;
+/// Gap between the block-quote left border and its text, in points.
+pub const QUOTE_BORDER_SPACE: usize = 12;
+
 /// Numbering id used for ordered (decimal) lists.
 pub const ORDERED_NUM_ID: usize = 100;
 /// Numbering id used for unordered (bullet) lists.

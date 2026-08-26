@@ -91,6 +91,8 @@ pub(crate) struct Ctx<'a> {
     pub next_bookmark_id: usize,
     /// GitHub-style heading slug -> times seen, for de-duplicating anchor targets.
     pub heading_slugs: HashMap<String, usize>,
+    /// Current block-quote nesting depth (0 = not inside a quote). Drives quote styling.
+    pub quote_depth: usize,
     pub stats: RenderStats,
 }
 
@@ -130,6 +132,32 @@ fn slugify(text: &str) -> String {
         // everything else (punctuation) is dropped
     }
     s.split_whitespace().collect::<Vec<_>>().join("-")
+}
+
+/// Apply block-quote styling to a paragraph at nesting `depth` (>= 1): a left accent border
+/// plus a cumulative left indent, so quotes read as visually distinct and nested quotes step
+/// further in. Mirrors the structural cue of Word's built-in quote styles.
+fn quote_style(mut p: Paragraph, depth: usize) -> Paragraph {
+    let left = styles::QUOTE_INDENT_DXA * depth as i32;
+    p = p.indent(Some(left), None, None, None);
+    let border = ParagraphBorder::new(ParagraphBorderPosition::Left)
+        .size(styles::QUOTE_BORDER_SIZE)
+        .space(styles::QUOTE_BORDER_SPACE)
+        .color(styles::QUOTE_BORDER_COLOR);
+    // Start from an empty border set so only the left bar is emitted (the default set draws a
+    // full box on all four sides).
+    let borders = ParagraphBorders::with_empty().set(border);
+    p.property = p.property.set_borders(borders);
+    p
+}
+
+/// Tint an inline child with the muted quote text color. Plain runs are recolored; hyperlinks
+/// keep their link color so they still read as links inside a quote.
+fn quote_tint(child: InlineChild) -> InlineChild {
+    match child {
+        InlineChild::Run(r) => InlineChild::Run(r.color(styles::QUOTE_TEXT_COLOR)),
+        other => other,
+    }
 }
 
 /// A top-level block element to be added to the document.
@@ -198,6 +226,7 @@ pub(crate) fn build_docx(
         endnote_numbers: HashMap::new(),
         next_bookmark_id: 1,
         heading_slugs: HashMap::new(),
+        quote_depth: 0,
         stats: RenderStats::default(),
     };
 
@@ -259,7 +288,11 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
                 for r in runs {
+                    let r = if ctx.quote_depth > 0 { quote_tint(r) } else { r };
                     p = add_inline(p, r);
+                }
+                if ctx.quote_depth > 0 {
+                    p = quote_style(p, ctx.quote_depth);
                 }
                 out.push(Block::Para(p));
                 ctx.stats.paragraphs += 1;
@@ -279,9 +312,12 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 out.push(Block::Table(horizontal_rule()));
             }
             NodeValue::BlockQuote => {
-                // TODO(quilldown): apply a quote style (indent + left border). For now the
-                // content is preserved by recursing so no text is lost.
+                // Style the quote's paragraphs with an indent + left accent border. Nesting
+                // increments the depth so inner quotes step further in. Content is rendered
+                // by recursing, so nothing is lost.
+                ctx.quote_depth += 1;
                 render_blocks(child, ctx, out);
+                ctx.quote_depth -= 1;
             }
             // Footnote definitions are rendered as a numbered Notes section at the end.
             NodeValue::FootnoteDefinition(_) => {}
