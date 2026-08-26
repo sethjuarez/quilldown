@@ -95,9 +95,12 @@ the PNG fallback only.
 - **SVG rasterization:** [`resvg`/`usvg`/`tiny-skia`](https://crates.io/crates/resvg) — pure
   Rust, no native/system dependencies.
 
-Document styling (Calibri 11pt body, `Heading1..3`, `D9D9D9` header shading, `BFBFBF` table
-borders, decimal/bullet numbering) mirrors the validated OOXML choices in
-[`sethjuarez/cutready`](https://github.com/sethjuarez/cutready)'s Word export.
+Document styling mirrors Microsoft 365's stock blank document so converted Markdown feels
+native in Word: an **Aptos 12pt** body on 1.08-line / 8pt-after `Normal`, **Aptos Display**
+`Heading1..3` at Word's built-in sizes and spacing, `D9D9D9` header shading, `BFBFBF` table
+borders with padded cells, a smaller 10pt Consolas code face, and decimal/bullet numbering.
+The base OOXML choices build on [`sethjuarez/cutready`](https://github.com/sethjuarez/cutready)'s
+validated Word export.
 
 ## The SVG fidelity note
 

@@ -179,10 +179,10 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// The original quilldown look: Calibri body, Consolas code, Word-blue heading accent.
+    /// The original quilldown look: Aptos body, Consolas code, Word-blue heading accent.
     pub const DEFAULT: Theme = Theme {
-        body_font: "Calibri",
-        heading_font: "Calibri",
+        body_font: "Aptos",
+        heading_font: "Aptos Display",
         heading_color: "2F5496",
         mono_font: "Consolas",
         link_color: "0563C1",
@@ -192,8 +192,8 @@ impl Theme {
 
     /// A GitHub-flavored look: GitHub's blue accent and a cooler code fill.
     pub const GITHUB: Theme = Theme {
-        body_font: "Calibri",
-        heading_font: "Calibri",
+        body_font: "Aptos",
+        heading_font: "Aptos Display",
         heading_color: "0969DA",
         mono_font: "Consolas",
         link_color: "0969DA",
@@ -203,8 +203,8 @@ impl Theme {
 
     /// A Solarized-flavored look: cyan-blue accent, warm code fill, Solarized light highlighting.
     pub const SOLARIZED: Theme = Theme {
-        body_font: "Calibri",
-        heading_font: "Calibri",
+        body_font: "Aptos",
+        heading_font: "Aptos Display",
         heading_color: "268BD2",
         mono_font: "Consolas",
         link_color: "268BD2",

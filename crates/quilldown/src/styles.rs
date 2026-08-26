@@ -1,13 +1,102 @@
 //! Document styling: defaults and heading styles that make output look native in Word.
 //!
-//! Choices mirror the validated prior art in `sethjuarez/cutready`'s Word export:
-//! a Calibri 11pt default run plus built-in-looking `Heading1..3` styles, so documents
-//! open looking like they were authored in Word.
+//! The defaults mirror Microsoft 365's stock blank document so converted Markdown feels like
+//! it was typed in Word: an Aptos 12pt body on a 1.08-line / 8pt-after `Normal`, plus
+//! `Heading1..3` styles in Aptos Display at Word's built-in sizes and spacing.
 
 use docx_rs::*;
 
-/// Half-point size of the default body font (11pt Calibri -> 22 half-points).
-pub const BODY_SIZE: usize = 22;
+/// Half-point size of the default body font (12pt Aptos -> 24 half-points), matching Word's
+/// modern default `Normal` style.
+pub const BODY_SIZE: usize = 24;
+
+/// Half-point size of code text — inline and fenced (10pt -> 20). Slightly smaller than the
+/// body so monospace runs sit comfortably inside 12pt prose (as they do on GitHub).
+pub const CODE_SIZE: usize = 20;
+
+/// Body line spacing in 240ths of a line (`259` = 1.08x), matching Word's default `Normal`
+/// style. Word's blank-document feel comes largely from this slightly-open leading plus the
+/// space *after* each paragraph ([`BODY_AFTER`]).
+pub const BODY_LINE: i32 = 259;
+/// Space after each body paragraph, in twips (`160` = 8pt), matching Word's default `Normal`.
+pub const BODY_AFTER: u32 = 160;
+
+/// Space *before* an `H1`, in twips (`360` = 18pt) — mirrors Word's built-in `Heading 1`.
+const H1_BEFORE: u32 = 360;
+/// Space *before* an `H2`, in twips (`200` = 10pt).
+const H2_BEFORE: u32 = 200;
+/// Space *before* an `H3`, in twips (`160` = 8pt).
+const H3_BEFORE: u32 = 160;
+/// Space *after* any heading, in twips (`80` = 4pt) — mirrors Word's built-in heading styles.
+const HEADING_AFTER: u32 = 80;
+
+/// Vertical gap (twips, `120` = 6pt) placed above and below block elements — tables, fenced
+/// code blocks, and block quotes — so they sit apart from surrounding prose the way headings
+/// do. Combined with the neighboring paragraph's 8pt space-after it reads as roughly a
+/// heading's worth of breathing room.
+pub const BLOCK_GAP: u32 = 120;
+
+/// An empty spacer paragraph exactly [`BLOCK_GAP`] tall, used to air out block elements. Word
+/// tables carry no paragraph spacing, so a thin exact-height spacer is the reliable way to add
+/// space above and below a table or code block; block quotes use the same spacer for symmetry.
+pub fn block_gap_paragraph() -> Paragraph {
+    Paragraph::new().line_spacing(
+        LineSpacing::new()
+            .before(0)
+            .after(0)
+            .line(BLOCK_GAP as i32)
+            .line_rule(LineSpacingType::Exact),
+    )
+}
+
+/// The body paragraph spacing applied document-wide via `<w:pPrDefault>`: 1.08 line height plus
+/// an 8pt gap after each paragraph, so plain text breathes like a native Word document.
+pub fn body_spacing() -> LineSpacing {
+    LineSpacing::new()
+        .line(BODY_LINE)
+        .line_rule(LineSpacingType::Auto)
+        .after(BODY_AFTER)
+}
+
+/// Heading spacing: the shared body leading, a style-specific gap *before* (so headings don't
+/// crowd the preceding block), and a small uniform gap after.
+fn heading_spacing(before: u32) -> LineSpacing {
+    LineSpacing::new()
+        .line(BODY_LINE)
+        .line_rule(LineSpacingType::Auto)
+        .before(before)
+        .after(HEADING_AFTER)
+}
+
+/// Tight spacing for stacked items (list items, table cells): keep the open body leading but
+/// drop the 8pt space-after so consecutive items/cells don't balloon vertically.
+pub fn tight_after() -> LineSpacing {
+    LineSpacing::new()
+        .line(BODY_LINE)
+        .line_rule(LineSpacingType::Auto)
+        .after(0)
+}
+
+/// Single-spaced with no gap — for code-block lines, so consecutive lines read as one block
+/// rather than inheriting the 8pt body space-after between every line.
+pub fn code_spacing() -> LineSpacing {
+    LineSpacing::new()
+        .line(240)
+        .line_rule(LineSpacingType::Auto)
+        .after(0)
+}
+
+/// Internal padding for data-table cells (twips): a little vertical breathing room plus Word's
+/// default ~0.075in left/right inset, so 12pt text never touches the gridlines.
+pub fn table_cell_margins() -> TableCellMargins {
+    TableCellMargins::new().margin(40, 108, 40, 108)
+}
+
+/// Internal padding for the fenced-code-block box (twips): a larger inset so code sits away
+/// from the fill's edges, like a GitHub code block.
+pub fn code_cell_margins() -> TableCellMargins {
+    TableCellMargins::new().margin(80, 120, 80, 120)
+}
 
 /// Fill color (hex, no `#`) for the shaded header row of tables.
 pub const TABLE_HEADER_FILL: &str = "D9D9D9";
@@ -56,6 +145,7 @@ pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx 
                 .hi_ansi(theme.body_font),
         )
         .default_size(BODY_SIZE)
+        .default_line_spacing(body_spacing())
         .page_size(page_w, page_h)
         .page_margin(
             PageMargin::new()
@@ -71,9 +161,9 @@ pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx 
         docx = docx.page_orient(PageOrientationType::Landscape);
     }
 
-    let h1 = heading_style("Heading1", "heading 1", 32, theme);
-    let h2 = heading_style("Heading2", "heading 2", 26, theme);
-    let h3 = heading_style("Heading3", "heading 3", 24, theme);
+    let h1 = heading_style("Heading1", "heading 1", 40, H1_BEFORE, theme);
+    let h2 = heading_style("Heading2", "heading 2", 32, H2_BEFORE, theme);
+    let h3 = heading_style("Heading3", "heading 3", 28, H3_BEFORE, theme);
 
     docx.add_style(h1)
         .add_style(h2)
@@ -84,7 +174,13 @@ pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx 
         .add_numbering(Numbering::new(BULLET_NUM_ID, BULLET_NUM_ID))
 }
 
-fn heading_style(id: &str, name: &str, half_points: usize, theme: &crate::Theme) -> Style {
+fn heading_style(
+    id: &str,
+    name: &str,
+    half_points: usize,
+    before: u32,
+    theme: &crate::Theme,
+) -> Style {
     Style::new(id, StyleType::Paragraph)
         .name(name)
         .bold()
@@ -95,6 +191,7 @@ fn heading_style(id: &str, name: &str, half_points: usize, theme: &crate::Theme)
                 .hi_ansi(theme.heading_font),
         )
         .color(theme.heading_color)
+        .line_spacing(heading_spacing(before))
 }
 
 /// Abstract numbering definition for ordered lists (`1.`, `2.`, ...), 5 nesting levels.

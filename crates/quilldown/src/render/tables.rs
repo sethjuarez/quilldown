@@ -41,7 +41,7 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
             let mut runs = Vec::new();
             render_inlines(cell, Inline::default(), &mut runs, ctx);
 
-            let mut para = Paragraph::new();
+            let mut para = Paragraph::new().line_spacing(crate::styles::tight_after());
             for r in runs {
                 let r = if is_header { bold_inline(r) } else { r };
                 para = add_inline(para, r);
@@ -60,4 +60,5 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
     Table::new(rows)
         .width(width_dxa, WidthType::Dxa)
         .set_borders(light_borders())
+        .margins(crate::styles::table_cell_margins())
 }

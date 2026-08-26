@@ -759,21 +759,25 @@ fn styles_xml(docx: &[u8]) -> String {
 }
 
 #[test]
-fn default_theme_uses_word_blue_accent_and_calibri() {
+fn default_theme_uses_word_blue_accent_and_aptos() {
     let docx = convert_themed(
         "# Heading\n\n[link](https://example.com)\n\n`code`\n",
         Theme::DEFAULT,
     );
     let styles = styles_xml(&docx);
     let doc = document_xml(&docx);
-    // Heading style (in styles.xml) carries the default accent color and Calibri font.
+    // Heading style (in styles.xml) carries the default accent color and Aptos font.
     assert!(
         styles.contains(r#"w:val="2F5496""#),
         "default heading accent 2F5496\n{styles}"
     );
     assert!(
-        styles.contains("Calibri"),
-        "default body/heading font is Calibri"
+        styles.contains("Aptos"),
+        "default body font is Aptos\n{styles}"
+    );
+    assert!(
+        styles.contains("Aptos Display"),
+        "default heading font is Aptos Display\n{styles}"
     );
     // Hyperlink runs (in document.xml) use the default link blue.
     assert!(
@@ -852,16 +856,86 @@ fn theme_from_name_resolves_known_presets() {
 }
 
 #[test]
-fn themes_sample_document_is_wired() {
-    let (docx, stats) = convert_feature("themes");
+fn document_defaults_match_word_normal_spacing() {
+    // Word's stock Normal: 1.08 line (259) with 8pt (160) after, emitted as pPrDefault.
+    let styles = styles_xml(&convert_themed("Body text.\n", Theme::DEFAULT));
+    assert!(
+        styles.contains(r#"w:line="259""#),
+        "doc default uses 1.08 line spacing\n{styles}"
+    );
+    assert!(
+        styles.contains(r#"w:after="160""#),
+        "doc default uses 8pt space-after\n{styles}"
+    );
+}
+
+#[test]
+fn body_font_is_twelve_point() {
+    // Aptos 12pt body -> 24 half-points as the default run size.
+    let styles = styles_xml(&convert_themed("Body text.\n", Theme::DEFAULT));
+    assert!(
+        styles.contains(r#"w:sz w:val="24""#),
+        "default body size is 12pt (24 half-points)\n{styles}"
+    );
+}
+
+#[test]
+fn headings_have_before_spacing_and_stay_with_next() {
+    let docx = convert_themed("# H1\n\n## H2\n\n### H3\n\nBody\n", Theme::DEFAULT);
     let styles = styles_xml(&docx);
     let doc = document_xml(&docx);
-    assert!(stats.code_blocks >= 1, "sample has a fenced block");
-    // Default preset markers are present when the sample converts with default options.
+    // Heading styles carry Word's before-spacing (H1 360 twips = 18pt).
     assert!(
-        styles.contains(r#"w:val="2F5496""#),
-        "default heading accent"
+        styles.contains(r#"w:before="360""#),
+        "H1 keeps 18pt before-spacing\n{styles}"
     );
-    assert!(doc.contains(r#"w:val="0563C1""#), "default link color");
-    assert!(doc.contains("themed code block"), "code text survives");
+    // Heading paragraphs keep with the following body so a heading never orphans at a page end.
+    assert!(
+        doc.contains("<w:keepNext") && doc.contains("<w:keepLines"),
+        "headings set keepNext/keepLines\n{doc}"
+    );
+}
+
+#[test]
+fn code_runs_are_smaller_than_body() {
+    // Inline and fenced code render at 10pt (20 half-points), below the 12pt body.
+    let doc = document_xml(&convert_themed(
+        "`inline`\n\n```\nblock\n```\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains(r#"w:sz w:val="20""#),
+        "code runs use the 10pt code size\n{doc}"
+    );
+}
+
+#[test]
+fn block_elements_get_breathing_room() {
+    // Tables, code blocks, and block quotes are aired out with an exact-height spacer paragraph
+    // so they sit apart from body text the way headings do.
+    let doc = document_xml(&convert_themed(
+        "Intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nMiddle\n\n```\ncode\n```\n\n> quote\n\nEnd\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains(r#"w:lineRule="exact""#) && doc.contains(r#"w:line="120""#),
+        "block spacers use an exact 6pt gap\n{doc}"
+    );
+}
+
+#[test]
+fn data_tables_pad_their_cells() {
+    // Cell margins keep 12pt text off the gridlines (Word's ~0.075in = 108 twip side inset).
+    let doc = document_xml(&convert_themed(
+        "| a | b |\n| - | - |\n| 1 | 2 |\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains("<w:tblCellMar>"),
+        "data table declares cell margins\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:w="108""#),
+        "table cells carry a horizontal inset\n{doc}"
+    );
 }

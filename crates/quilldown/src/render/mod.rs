@@ -182,6 +182,18 @@ fn quote_tint(child: InlineChild) -> InlineChild {
 enum Block {
     Para(Paragraph),
     Table(Table),
+    /// A thin empty paragraph that airs out an adjacent block element (table, code block, or
+    /// block quote). Emitted via [`push_gap`], which collapses consecutive gaps.
+    Gap,
+}
+
+/// Push a spacer [`Block::Gap`] unless one is already the last block (so gaps around adjacent
+/// block elements never stack) or the document hasn't started yet (no leading gap).
+fn push_gap(out: &mut Vec<Block>) {
+    if matches!(out.last(), None | Some(Block::Gap)) {
+        return;
+    }
+    out.push(Block::Gap);
 }
 
 /// A paragraph-level inline child. Most inline content is a styled [`Run`], but links must
@@ -259,11 +271,20 @@ pub(crate) fn build_docx(
     render_blocks(root, &mut ctx, &mut blocks);
     endnotes::render_section(&mut ctx, &mut blocks);
 
+    // Trim a leading/trailing spacer so the document never opens or closes with blank space.
+    if matches!(blocks.first(), Some(Block::Gap)) {
+        blocks.remove(0);
+    }
+    if matches!(blocks.last(), Some(Block::Gap)) {
+        blocks.pop();
+    }
+
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
     for b in blocks {
         docx = match b {
             Block::Para(p) => docx.add_paragraph(p),
             Block::Table(t) => docx.add_table(t),
+            Block::Gap => docx.add_paragraph(styles::block_gap_paragraph()),
         };
     }
 
@@ -296,6 +317,8 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 let bid = ctx.bookmark_id();
                 let mut p = Paragraph::new()
                     .style(heading_style_id(h.level))
+                    .keep_next(true)
+                    .keep_lines(true)
                     .add_bookmark_start(bid, slug);
                 for r in runs {
                     p = add_inline(p, r);
@@ -326,6 +349,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_list(child, list.list_type, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
+                push_gap(out);
                 out.push(Block::Table(code_block(
                     &cb.literal,
                     &cb.info,
@@ -333,10 +357,13 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                     ctx.opts.highlight_code,
                     &ctx.opts.theme,
                 )));
+                push_gap(out);
                 ctx.stats.code_blocks += 1;
             }
             NodeValue::Table(_) => {
+                push_gap(out);
                 out.push(Block::Table(tables::build(child, ctx)));
+                push_gap(out);
                 ctx.stats.tables += 1;
             }
             NodeValue::ThematicBreak => {
@@ -345,10 +372,18 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             NodeValue::BlockQuote => {
                 // Style the quote's paragraphs with an indent + left accent border. Nesting
                 // increments the depth so inner quotes step further in. Content is rendered
-                // by recursing, so nothing is lost.
+                // by recursing, so nothing is lost. Air out only the outermost quote so it
+                // sits apart from body text without doubling gaps on nested quotes.
+                let top_level = ctx.quote_depth == 0;
+                if top_level {
+                    push_gap(out);
+                }
                 ctx.quote_depth += 1;
                 render_blocks(child, ctx, out);
                 ctx.quote_depth -= 1;
+                if top_level {
+                    push_gap(out);
+                }
             }
             // Footnote definitions are rendered as a numbered Notes section at the end.
             NodeValue::FootnoteDefinition(_) => {}
@@ -396,7 +431,7 @@ fn render_list<'a>(
                             styles::TASK_UNCHECKED
                         };
                         let left = styles::LIST_INDENT_STEP_DXA * (level as i32 + 1);
-                        let mut tp = Paragraph::new().indent(
+                        let mut tp = Paragraph::new().line_spacing(styles::tight_after()).indent(
                             Some(left),
                             Some(SpecialIndentType::Hanging(styles::LIST_HANGING_DXA)),
                             None,
@@ -406,6 +441,7 @@ fn render_list<'a>(
                         tp
                     } else {
                         Paragraph::new()
+                            .line_spacing(styles::tight_after())
                             .numbering(NumberingId::new(num_id), IndentLevel::new(level))
                     };
                     for r in runs {
@@ -525,6 +561,7 @@ fn styled(s: Inline) -> Run {
 fn mono_run(text: &str, mono_font: &str) -> Run {
     Run::new()
         .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
+        .size(styles::CODE_SIZE)
         .add_text(text)
 }
 
@@ -563,7 +600,7 @@ fn code_block(
     match highlighted {
         Some(lines) => {
             for spans in lines {
-                let mut p = Paragraph::new();
+                let mut p = Paragraph::new().line_spacing(styles::code_spacing());
                 if spans.is_empty() {
                     // Preserve blank lines as empty monospace paragraphs.
                     p = p.add_run(mono_run("", theme.mono_font));
@@ -577,25 +614,32 @@ fn code_block(
         }
         None => {
             for line in trimmed.split('\n') {
-                cell =
-                    cell.add_paragraph(Paragraph::new().add_run(mono_run(line, theme.mono_font)));
+                cell = cell.add_paragraph(
+                    Paragraph::new()
+                        .line_spacing(styles::code_spacing())
+                        .add_run(mono_run(line, theme.mono_font)),
+                );
             }
         }
     }
 
-    Table::new(vec![TableRow::new(vec![cell])]).width(content_width_dxa, WidthType::Dxa)
+    Table::new(vec![TableRow::new(vec![cell])])
+        .width(content_width_dxa, WidthType::Dxa)
+        .margins(styles::code_cell_margins())
 }
 
 /// A small, muted, bold uppercase language tag placed above a highlighted code block.
 fn code_label(label: &str, mono_font: &str) -> Paragraph {
-    Paragraph::new().add_run(
-        Run::new()
-            .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
-            .size(styles::CODE_LABEL_SIZE)
-            .bold()
-            .color(styles::QUOTE_TEXT_COLOR)
-            .add_text(label),
-    )
+    Paragraph::new()
+        .line_spacing(styles::code_spacing())
+        .add_run(
+            Run::new()
+                .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
+                .size(styles::CODE_LABEL_SIZE)
+                .bold()
+                .color(styles::QUOTE_TEXT_COLOR)
+                .add_text(label),
+        )
 }
 
 /// Render a Markdown thematic break (`---`) as a full-width horizontal rule.

@@ -62,6 +62,11 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   presets — `default` (Word blue + InspiredGitHub), `github` (GitHub blue + cooler fill), and
   `solarized` (cyan accent + Solarized-light highlighting); `Theme` is a plain struct so callers
   can also supply a fully custom look. Neutral elements (tables, block quotes) are theme-agnostic
+- **Native Word look-and-feel** → defaults mirror Microsoft 365's stock blank document so output
+  reads as if typed in Word: an Aptos 12pt body on 1.08-line / 8pt-after `Normal`, Aptos Display
+  `Heading1..3` at Word's built-in sizes (20/16/14pt) and before/after spacing (with
+  keep-with-next so headings never orphan), a smaller 10pt code face, tight list/quote spacing,
+  and padded table + code-block cells so text never jams against borders
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 
