@@ -83,11 +83,11 @@ fn footnote_becomes_numbered_endnote() {
     assert_eq!(stats.endnotes, 1, "one unique note despite two references");
 
     let document = read_zip_entry(&docx, "word/document.xml").unwrap();
-    // The body carries superscript reference marks, and the note body survives once in the
+    // The body carries true superscript reference marks, and the note body survives once in the
     // "Notes" section at the end (not a native footnotes.xml part).
     assert!(
-        document.contains('\u{00b9}'),
-        "body should contain a superscript reference mark"
+        document.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "body should contain a true superscript reference mark"
     );
     assert!(
         document.contains("Notes"),

@@ -5,10 +5,9 @@
 //! referenced N times is marked N times in the body but listed **once** in the Notes section —
 //! fixing the duplication of the earlier per-reference native-footnote approach.
 //!
-//! docx-rs exposes neither native Word endnotes nor a run-level vertical-alignment builder, so
-//! reference marks use Unicode superscript digits, and numbers are assigned in order of first
-//! reference (the standard endnote numbering). Numbers are therefore static: editing the
-//! document in Word will not renumber them automatically.
+//! Reference marks use a true OOXML superscript run (`w:vertAlign w:val="superscript"`), and
+//! numbers are assigned in order of first reference (the standard endnote numbering). Numbers
+//! are static: editing the document in Word will not renumber them automatically.
 //!
 //! Reference marks and Notes entries are cross-linked with bookmarks + anchor hyperlinks:
 //! each body mark jumps forward to its note (`qd-note-N`), and each note's number jumps back
@@ -60,7 +59,10 @@ pub(crate) fn reference(name: &str, ctx: &mut Ctx) -> InlineChild {
         }
     };
 
-    let mark = Run::new().add_text(superscript(number));
+    // A true OOXML superscript run (real vertical alignment, selectable digits), not a
+    // Unicode superscript glyph.
+    let mut mark = Run::new().add_text(number.to_string());
+    mark.run_property = mark.run_property.vert_align(VertAlignType::SuperScript);
     let mut link = Hyperlink::new(note_bookmark(number), HyperlinkType::Anchor);
     if first {
         // Bookmark the first reference so the Notes entry's number can jump back here.
@@ -122,13 +124,4 @@ pub(crate) fn render_section<'a>(ctx: &mut Ctx<'a>, out: &mut Vec<Block>) {
         out.push(Block::Para(p));
         ctx.stats.endnotes += 1;
     }
-}
-
-/// Render `n` as a string of Unicode superscript digits (e.g. `12` -> "¹²").
-fn superscript(n: usize) -> String {
-    const SUP: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-    n.to_string()
-        .chars()
-        .map(|c| SUP[c.to_digit(10).unwrap() as usize])
-        .collect()
 }

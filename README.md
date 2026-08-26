@@ -113,6 +113,8 @@ Tradeoffs:
   note is listed once regardless of how many times it is referenced, and each note's number
   links back to the first place it was cited
 - **Block quotes** → left accent border + per-level indent (nested quotes step in) + muted text
+- **Inline superscript** (`^text^`) → true OOXML superscript (`w:vertAlign`), composing with
+  bold/italic; endnote marks use the same real superscript
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
@@ -121,7 +123,6 @@ Tradeoffs:
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
 - Task list items render a checkbox glyph, not a native content control
-- Superscript renders inline without true superscript alignment
 - Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
 
 ## Roadmap

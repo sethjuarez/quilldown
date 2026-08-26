@@ -57,6 +57,7 @@ pub(crate) struct Inline {
     bold: bool,
     italic: bool,
     strike: bool,
+    superscript: bool,
 }
 
 impl Inline {
@@ -72,6 +73,12 @@ impl Inline {
     fn struck(self) -> Self {
         Inline {
             strike: true,
+            ..self
+        }
+    }
+    fn superscripted(self) -> Self {
+        Inline {
+            superscript: true,
             ..self
         }
     }
@@ -390,10 +397,7 @@ pub(crate) fn render_inlines<'a>(
             NodeValue::Emph => render_inlines(child, style.italicized(), out, ctx),
             NodeValue::Strong => render_inlines(child, style.bolded(), out, ctx),
             NodeValue::Strikethrough => render_inlines(child, style.struck(), out, ctx),
-            NodeValue::Superscript => {
-                // TODO(quilldown): apply true superscript vertical alignment.
-                render_inlines(child, style, out, ctx)
-            }
+            NodeValue::Superscript => render_inlines(child, style.superscripted(), out, ctx),
             NodeValue::Code(code) => out.push(InlineChild::run(mono_run(&code.literal))),
             NodeValue::SoftBreak => out.push(InlineChild::run(styled(style).add_text(" "))),
             NodeValue::LineBreak => {
@@ -460,6 +464,11 @@ fn styled(s: Inline) -> Run {
     }
     if s.strike {
         r = r.strike();
+    }
+    if s.superscript {
+        // docx-rs exposes no `Run::vert_align` builder, but `run_property` is public and
+        // `RunProperty::vert_align` is — so set true OOXML superscript alignment directly.
+        r.run_property = r.run_property.vert_align(VertAlignType::SuperScript);
     }
     r
 }

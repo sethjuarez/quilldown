@@ -219,3 +219,54 @@ fn blockquotes_sample_document_is_wired() {
     // Inline formatting inside a quote should still round-trip (e.g. the hyperlink).
     assert!(doc.contains("<w:hyperlink"), "quote link should survive styling");
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #4 — true OOXML superscript (w:vertAlign), incl. endnote marks
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn superscript_uses_true_vertical_alignment() {
+    let (docx, _stats) = convert("The area is A = pi r^2^ here.\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "^..^ should emit a true superscript run, not a Unicode glyph\n{doc}"
+    );
+    // The superscripted content is a normal digit, not a Unicode superscript character.
+    assert!(doc.contains("<w:t"), "superscript run should carry real text");
+    assert!(!doc.contains('\u{00b2}'), "must not fall back to Unicode superscript ²");
+}
+
+#[test]
+fn superscript_combines_with_emphasis() {
+    let (docx, _stats) = convert("A **bold x^2^** term.\n");
+    let doc = document_xml(&docx);
+    // The x^2^ run should carry both bold and superscript.
+    assert!(
+        doc.contains("<w:vertAlign w:val=\"superscript\" />"),
+        "superscript inside bold should still align"
+    );
+    assert!(doc.contains("<w:b "), "bold should survive alongside superscript");
+}
+
+#[test]
+fn endnote_mark_is_true_superscript() {
+    let (docx, _stats) = convert("Cite it.[^a]\n\n[^a]: Note.\n");
+    let doc = document_xml(&docx);
+    // The reference mark is now a true superscript digit inside the anchor hyperlink.
+    assert!(
+        doc.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "endnote reference marks should use true OOXML superscript\n{doc}"
+    );
+}
+
+#[test]
+fn superscript_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("superscript");
+    let doc = document_xml(&docx);
+    let count = doc.matches(r#"<w:vertAlign w:val="superscript" />"#).count();
+    assert!(
+        count >= 8,
+        "sample exercises many superscripts; found {count}"
+    );
+}
