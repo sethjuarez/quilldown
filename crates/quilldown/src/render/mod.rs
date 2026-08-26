@@ -16,6 +16,7 @@ use crate::styles::{self, BULLET_NUM_ID, MONO_FONT, ORDERED_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
 mod asvg;
+mod colormap;
 mod endnotes;
 mod images;
 mod tables;

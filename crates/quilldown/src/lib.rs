@@ -75,6 +75,16 @@ pub struct ConvertOptions {
     /// raster PNG stays the safe default because older Word versions ignore `<asvg>`.
     pub embed_svg: bool,
 
+    /// When `true`, remap dark-themed SVG diagrams to a print-friendly light mode before
+    /// rasterizing, by flipping each color's lightness (hue and saturation preserved).
+    ///
+    /// Dark backgrounds become light and light text becomes dark, while saturated accent
+    /// colors keep their hue. This is off by default because diagrams already authored for a
+    /// white page would be inverted the wrong way — enable it only for dark-themed sources.
+    /// When combined with [`ConvertOptions::embed_svg`], the embedded vector layer is the
+    /// remapped (light) SVG too, so both raster and vector read well on paper.
+    pub svg_light_mode: bool,
+
     /// Maximum rendered image width in pixels; larger images are scaled down (aspect
     /// preserved) so they fit a typical page.
     pub max_image_width_px: u32,
@@ -91,6 +101,7 @@ impl Default for ConvertOptions {
         ConvertOptions {
             image_dpi: 192.0,
             embed_svg: false,
+            svg_light_mode: false,
             max_image_width_px: 600,
             base_dir: None,
         }

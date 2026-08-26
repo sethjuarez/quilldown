@@ -6,7 +6,7 @@ mod common;
 
 use common::{
     convert, convert_bytes_with, convert_feature, document_rels, document_xml, entry, entry_names,
-    features_dir, read_feature,
+    features_dir, first_media_png, read_feature,
 };
 use quilldown::ConvertOptions;
 
@@ -463,5 +463,87 @@ fn without_embed_svg_no_vector_layer_is_added() {
     assert!(
         !ct.contains("image/svg+xml"),
         "the default path must not register an svg content type"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap (planned #2) — light-mode remap for dark-themed SVG diagrams (opt-in)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the dark-diagram sample, optionally with the light-mode remap, through the bytes
+/// path. Returns the packed `.docx` bytes.
+fn convert_dark_sample(light_mode: bool, embed_svg: bool) -> Vec<u8> {
+    let md = read_feature("svg-light-mode");
+    let (docx, _stats) = convert_bytes_with(
+        &md,
+        &features_dir(),
+        ConvertOptions {
+            svg_light_mode: light_mode,
+            embed_svg,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+/// Mean luminance (Rec. 601) of a decoded RGBA image's pixels.
+fn mean_luminance(png: &[u8]) -> f64 {
+    let img = image::load_from_memory(png).expect("media png should decode");
+    let rgb = img.to_rgb8();
+    let (mut sum, mut n) = (0.0f64, 0u64);
+    for p in rgb.pixels() {
+        sum += 0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64;
+        n += 1;
+    }
+    sum / n as f64
+}
+
+#[test]
+fn light_mode_lightens_a_dark_diagram() {
+    // The dark sample is mostly a near-black canvas; remapped, it should become mostly light.
+    let dark = mean_luminance(&first_media_png(&convert_dark_sample(false, false)).unwrap());
+    let light = mean_luminance(&first_media_png(&convert_dark_sample(true, false)).unwrap());
+    assert!(
+        dark < 90.0,
+        "as-authored dark diagram should rasterize dark (got mean luminance {dark:.0})"
+    );
+    assert!(
+        light > 160.0,
+        "light-mode diagram should rasterize light (got mean luminance {light:.0})"
+    );
+    assert!(
+        light > dark + 80.0,
+        "light mode should clearly lighten the diagram ({dark:.0} -> {light:.0})"
+    );
+}
+
+#[test]
+fn light_mode_remaps_the_embedded_vector_source() {
+    // With embed_svg on, the vector layer we keep is the *remapped* SVG, so the original dark
+    // color tokens must be gone from it.
+    let docx = convert_dark_sample(true, true);
+    let svg_name = entry_names(&docx)
+        .into_iter()
+        .find(|n| n.ends_with(".svg"))
+        .expect("an embedded svg part");
+    let svg = entry(&docx, &svg_name).expect("svg part readable");
+    assert!(
+        !svg.contains("#0d1117") && !svg.contains("#e6edf3"),
+        "remapped vector must not keep the dark background/text colors\n{svg}"
+    );
+}
+
+#[test]
+fn default_leaves_the_dark_source_untouched() {
+    // Without light mode, the embedded vector is the original dark SVG, verbatim.
+    let docx = convert_dark_sample(false, true);
+    let svg_name = entry_names(&docx)
+        .into_iter()
+        .find(|n| n.ends_with(".svg"))
+        .expect("an embedded svg part");
+    let svg = entry(&docx, &svg_name).expect("svg part readable");
+    assert!(
+        svg.contains("#0d1117"),
+        "the as-authored dark background must be preserved when light mode is off\n{svg}"
     );
 }

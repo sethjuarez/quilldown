@@ -92,6 +92,19 @@ pub fn entry_names(docx: &[u8]) -> Vec<String> {
         .collect()
 }
 
+/// Read the first `word/media/*.png` part out of a `.docx` as raw bytes.
+pub fn first_media_png(docx: &[u8]) -> Option<Vec<u8>> {
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+    let name = (0..archive.len())
+        .map(|i| archive.by_index(i).expect("entry").name().to_string())
+        .find(|n| n.starts_with("word/media/") && n.ends_with(".png"))?;
+    let mut file = archive.by_name(&name).ok()?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).expect("png bytes");
+    Some(buf)
+}
+
 /// The main document part, `word/document.xml`.
 pub fn document_xml(docx: &[u8]) -> String {
     entry(docx, "word/document.xml").expect("word/document.xml must exist")

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="120" viewBox="0 0 360 120">
+  <rect x="0" y="0" width="360" height="120" fill="#0d1117"/>
+  <rect x="16" y="36" width="90" height="48" rx="6" fill="#1f2937" stroke="#818cf8"/>
+  <rect x="135" y="36" width="90" height="48" rx="6" fill="#1f2937" stroke="#818cf8"/>
+  <rect x="254" y="36" width="90" height="48" rx="6" fill="#1f2937" stroke="#818cf8"/>
+  <text x="61" y="64" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e6edf3">Markdown</text>
+  <text x="180" y="64" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e6edf3">AST</text>
+  <text x="299" y="64" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e6edf3">DOCX</text>
+  <line x1="106" y1="60" x2="135" y2="60" stroke="#818cf8" stroke-width="2"/>
+  <line x1="225" y1="60" x2="254" y2="60" stroke="#818cf8" stroke-width="2"/>
+</svg>

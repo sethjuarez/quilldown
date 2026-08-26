@@ -21,3 +21,4 @@ zip = "2"
 [dev-dependencies]
 zip = "2"
 tempfile = "3"
+image.workspace = true

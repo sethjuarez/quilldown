@@ -34,6 +34,11 @@ struct Cli {
     #[arg(long)]
     embed_svg: bool,
 
+    /// Remap dark-themed SVG diagrams to a print-friendly light mode (flip color lightness)
+    /// before rasterizing. Enable only for dark-authored diagrams.
+    #[arg(long)]
+    svg_light_mode: bool,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -51,6 +56,7 @@ fn main() -> Result<()> {
     let opts = ConvertOptions {
         image_dpi: cli.dpi,
         embed_svg: cli.embed_svg,
+        svg_light_mode: cli.svg_light_mode,
         base_dir: cli.base_dir.clone(),
         ..ConvertOptions::default()
     };

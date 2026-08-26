@@ -44,6 +44,10 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   as the modern Word vector extension (`asvg:svgBlip`) with the rasterized PNG kept as fallback,
   for crisp scaling in recent Word versions. Off by default, so the safe PNG-only path is
   unchanged
+- **Light-mode SVG remap** (opt-in via `svg_light_mode`) → dark-themed diagrams are recolored
+  for a white page by flipping each color's lightness in HSL (hue and saturation preserved), so
+  near-black backgrounds become light and light text becomes dark while accent hues stay
+  recognizable. Applied before rasterizing (and to the embedded `<asvg>` layer). Off by default
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
   to the text column (content width 9360 twips) so nothing overflows the right margin
 
@@ -67,14 +71,9 @@ re-discovers it the hard way.
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Optional light-mode SVG color remap** — real technical-report diagrams are often
-   authored in dark/themed colors. Remap theme color tokens to print-friendly light-mode
-   values *before* rasterizing (as cutready does for its Word export) so diagrams read well
-   on a white page. Not always needed — diagrams already authored for light backgrounds pass
-   through fine — so this is a flag, not default behavior.
-2. **Configurable themes / style templates and page setup** — expose page size, orientation,
+1. **Configurable themes / style templates and page setup** — expose page size, orientation,
    and custom margins (today: US Letter + 1 in), plus swappable style templates.
-3. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
+2. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
    blocks, beyond the current uniform monospace shading.
 
 ## Known constraints to respect

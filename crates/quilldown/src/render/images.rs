@@ -8,8 +8,10 @@
 //! mirrors the approach validated in `sethjuarez/cutready`, whose Word export rasterizes
 //! its SVG-based visuals to PNG at `scale: 2`.
 //!
-//! Roadmap: optionally also embed the original SVG via the modern Word `<asvg>` extension
-//! (with the PNG as fallback), and a light-mode color remap for dark/themed diagrams.
+//! Optionally embeds the original SVG via the modern Word `<asvg>` extension (with the PNG
+//! as fallback) when `embed_svg` is set, and can remap dark-themed diagrams to a
+//! print-friendly light mode before rasterizing when `svg_light_mode` is set (see
+//! [`super::colormap`]).
 
 use std::path::Path;
 
@@ -113,6 +115,18 @@ fn is_svg(path: &Path, bytes: &[u8]) -> bool {
 /// Rasterize SVG bytes to a PNG at `opts.image_dpi`, returning the PNG plus the SVG's
 /// logical (CSS-pixel) size for on-page display.
 fn rasterize_svg(bytes: &[u8], opts: &ConvertOptions) -> Result<Embedded, String> {
+    // Optionally remap a dark-themed diagram to light mode first. The transformed source is
+    // what we rasterize *and* what we keep for the <asvg> vector layer, so both read well on
+    // a white page.
+    let owned;
+    let bytes: &[u8] = if opts.svg_light_mode {
+        let src = std::str::from_utf8(bytes).map_err(|e| format!("svg is not utf-8: {e}"))?;
+        owned = super::colormap::to_light_mode(src).into_bytes();
+        &owned
+    } else {
+        bytes
+    };
+
     let mut options = usvg::Options::default();
     options.fontdb_mut().load_system_fonts();
 
