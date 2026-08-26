@@ -99,6 +99,8 @@ Document styling mirrors Microsoft 365's stock blank document so converted Markd
 native in Word: an **Aptos 12pt** body on 1.08-line / 8pt-after `Normal`, **Aptos Display**
 `Heading1..3` at Word's built-in sizes and spacing, `D9D9D9` header shading, `BFBFBF` table
 borders with padded cells, a smaller 10pt Consolas code face, and decimal/bullet numbering.
+Tables, code blocks, thematic breaks, and block quotes get a uniform 8pt gap above and below
+(matching the body's paragraph spacing) so blocks sit apart symmetrically.
 The base OOXML choices build on [`sethjuarez/cutready`](https://github.com/sethjuarez/cutready)'s
 validated Word export.
 

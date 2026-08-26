@@ -30,11 +30,12 @@ const H3_BEFORE: u32 = 160;
 /// Space *after* any heading, in twips (`80` = 4pt) — mirrors Word's built-in heading styles.
 const HEADING_AFTER: u32 = 80;
 
-/// Vertical gap (twips, `120` = 6pt) placed above and below block elements — tables, fenced
-/// code blocks, and block quotes — so they sit apart from surrounding prose the way headings
-/// do. Combined with the neighboring paragraph's 8pt space-after it reads as roughly a
-/// heading's worth of breathing room.
-pub const BLOCK_GAP: u32 = 120;
+/// Vertical gap (twips, `160` = 8pt) placed above and below block elements — tables, fenced
+/// code blocks, thematic breaks, and block quotes — so they sit apart from surrounding prose.
+/// Equal to [`BODY_AFTER`] so a block boundary matches the space between two body paragraphs;
+/// the preceding body paragraph's own space-after is zeroed (see `push_gap`) so this spacer is
+/// the whole gap, giving the same 8pt above and below every block.
+pub const BLOCK_GAP: u32 = 160;
 
 /// An empty spacer paragraph exactly [`BLOCK_GAP`] tall, used to air out block elements. Word
 /// tables carry no paragraph spacing, so a thin exact-height spacer is the reliable way to add

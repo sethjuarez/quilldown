@@ -180,18 +180,32 @@ fn quote_tint(child: InlineChild) -> InlineChild {
 
 /// A top-level block element to be added to the document.
 enum Block {
+    /// A plain body paragraph (not a heading, list item, or quote). Tracked separately so its
+    /// trailing 8pt space-after can be zeroed when a block element follows, keeping the gap
+    /// around blocks symmetric instead of doubling up (paragraph after + spacer).
+    Body(Paragraph),
     Para(Paragraph),
     Table(Table),
-    /// A thin empty paragraph that airs out an adjacent block element (table, code block, or
-    /// block quote). Emitted via [`push_gap`], which collapses consecutive gaps.
+    /// A spacer paragraph exactly [`styles::BLOCK_GAP`] tall that airs out an adjacent block
+    /// element (table, code block, thematic break, or block quote). Emitted via [`push_gap`],
+    /// which collapses consecutive gaps and trims the preceding body paragraph.
     Gap,
 }
 
-/// Push a spacer [`Block::Gap`] unless one is already the last block (so gaps around adjacent
-/// block elements never stack) or the document hasn't started yet (no leading gap).
+/// Bracket a block element with a symmetric spacer. Pushes a [`Block::Gap`] unless one is
+/// already last (so gaps around adjacent blocks never stack) or the document hasn't started
+/// (no leading gap). When the preceding block is a plain body paragraph, its 8pt space-after is
+/// zeroed first so the visible gap above the block equals the spacer alone — matching the gap
+/// below it — rather than stacking the paragraph's own space-after on top.
 fn push_gap(out: &mut Vec<Block>) {
-    if matches!(out.last(), None | Some(Block::Gap)) {
-        return;
+    match out.last() {
+        None | Some(Block::Gap) => return,
+        Some(Block::Body(_)) => {
+            if let Some(Block::Body(p)) = out.pop() {
+                out.push(Block::Body(p.line_spacing(styles::tight_after())));
+            }
+        }
+        _ => {}
     }
     out.push(Block::Gap);
 }
@@ -282,6 +296,7 @@ pub(crate) fn build_docx(
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
     for b in blocks {
         docx = match b {
+            Block::Body(p) => docx.add_paragraph(p),
             Block::Para(p) => docx.add_paragraph(p),
             Block::Table(t) => docx.add_table(t),
             Block::Gap => docx.add_paragraph(styles::block_gap_paragraph()),
@@ -341,8 +356,12 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 }
                 if ctx.quote_depth > 0 {
                     p = quote_style(p, ctx.quote_depth);
+                    out.push(Block::Para(p));
+                } else {
+                    // Plain body paragraph: track it as Body so a following block can zero its
+                    // space-after and keep the surrounding gap symmetric.
+                    out.push(Block::Body(p));
                 }
-                out.push(Block::Para(p));
                 ctx.stats.paragraphs += 1;
             }
             NodeValue::List(list) => {
@@ -367,7 +386,9 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 ctx.stats.tables += 1;
             }
             NodeValue::ThematicBreak => {
+                push_gap(out);
                 out.push(Block::Table(horizontal_rule(ctx.content_width_dxa)));
+                push_gap(out);
             }
             NodeValue::BlockQuote => {
                 // Style the quote's paragraphs with an indent + left accent border. Nesting

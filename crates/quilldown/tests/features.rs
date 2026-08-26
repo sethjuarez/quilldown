@@ -918,8 +918,8 @@ fn block_elements_get_breathing_room() {
         Theme::DEFAULT,
     ));
     assert!(
-        doc.contains(r#"w:lineRule="exact""#) && doc.contains(r#"w:line="120""#),
-        "block spacers use an exact 6pt gap\n{doc}"
+        doc.contains(r#"w:lineRule="exact""#) && doc.contains(r#"w:line="160""#),
+        "block spacers use an exact 8pt gap\n{doc}"
     );
 }
 

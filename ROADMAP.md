@@ -66,7 +66,8 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   reads as if typed in Word: an Aptos 12pt body on 1.08-line / 8pt-after `Normal`, Aptos Display
   `Heading1..3` at Word's built-in sizes (20/16/14pt) and before/after spacing (with
   keep-with-next so headings never orphan), a smaller 10pt code face, tight list/quote spacing,
-  and padded table + code-block cells so text never jams against borders
+  padded table + code-block cells so text never jams against borders, and a uniform 8pt gap
+  above and below every block element (tables, code blocks, thematic breaks, block quotes)
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 
