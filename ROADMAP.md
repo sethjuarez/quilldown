@@ -37,6 +37,9 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   further in), and muted body text, so quotes are visually distinct
 - **Inline superscript** (`^text^`) → true OOXML superscript (`w:vertAlign w:val="superscript"`),
   composing with bold/italic; endnote reference marks use the same real superscript
+- **Task lists** (`- [x]` / `- [ ]`) → a checkbox marker (☑ / ☐) with a hanging indent that
+  lines up like a list item, and **no redundant bullet** (matching GitHub, which shows only the
+  checkbox). Plain bullets in the same list keep their native numbering
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
   to the text column (content width 9360 twips) so nothing overflows the right margin
 
@@ -50,7 +53,11 @@ re-discovers it the hard way.
   digits. They will not auto-renumber if you insert/delete notes by hand in Word — re-run
   quilldown to renumber. A fresh run always numbers correctly. (The marks *are* now clickable
   and use real superscript alignment — see Done.)
-- **Task list items render a checkbox glyph**, not a native Word content control.
+- **Task list checkboxes are glyphs, not interactive content controls.** docx-rs (0.4.x)
+  exposes no checkbox structured-document-tag (`<w:sdt>` has only alias/data-binding, no
+  `w14:checkbox`), so the ☑ / ☐ markers are static symbols — they render correctly and read
+  as done/pending, but are not toggleable in Word. (The redundant bullet is now suppressed —
+  see Done.)
 - **Dual SVG embedding is a no-op.** The `embed_svg` option is reserved but does not yet emit
   the modern Word `<asvg>` vector extension (see roadmap item below).
 

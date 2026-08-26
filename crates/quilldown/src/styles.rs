@@ -43,6 +43,16 @@ pub const ORDERED_NUM_ID: usize = 100;
 /// Numbering id used for unordered (bullet) lists.
 pub const BULLET_NUM_ID: usize = 101;
 
+/// Left indent applied per list nesting level, in twips. Mirrors the list numbering
+/// definitions so task-list items (which carry no bullet) align with sibling list items.
+pub const LIST_INDENT_STEP_DXA: i32 = 720;
+/// Hanging indent for a list marker, in twips — pulls the marker left of the text.
+pub const LIST_HANGING_DXA: i32 = 360;
+/// Checkbox glyph for a checked task-list item (U+2611 BALLOT BOX WITH CHECK).
+pub const TASK_CHECKED: &str = "\u{2611}";
+/// Checkbox glyph for an unchecked task-list item (U+2610 BALLOT BOX).
+pub const TASK_UNCHECKED: &str = "\u{2610}";
+
 /// US Letter page width in DXA (twips): 8.5in * 1440.
 pub const PAGE_WIDTH_DXA: u32 = 12240;
 /// US Letter page height in DXA (twips): 11in * 1440.

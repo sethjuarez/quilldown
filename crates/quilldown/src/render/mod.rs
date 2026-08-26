@@ -359,14 +359,34 @@ fn render_list<'a>(
             match value {
                 NodeValue::Paragraph => {
                     let mut runs = Vec::new();
-                    // Task list items get a checkbox prefix ([x]/[ ]) — TODO: real checkbox.
-                    if let Some(sym) = task_symbol {
-                        let mark = if sym.is_some() { "\u{2611} " } else { "\u{2610} " };
-                        runs.push(InlineChild::run(Run::new().add_text(mark)));
-                    }
                     render_inlines(block, Inline::default(), &mut runs, ctx);
-                    let mut p = Paragraph::new()
-                        .numbering(NumberingId::new(num_id), IndentLevel::new(level));
+                    let mut p = if let Some(sym) = task_symbol {
+                        // Task-list items render a checkbox marker instead of the list
+                        // bullet (matching GitHub, which shows no bullet). This is a glyph +
+                        // tab marker manually indented to line up with sibling list items.
+                        // TODO(quilldown): emit a native checkbox content control once docx-rs
+                        // exposes a `w14:checkbox` structured-document-tag (0.4.x has none).
+                        let glyph = if sym.is_some() {
+                            styles::TASK_CHECKED
+                        } else {
+                            styles::TASK_UNCHECKED
+                        };
+                        let left = styles::LIST_INDENT_STEP_DXA * (level as i32 + 1);
+                        let mut tp = Paragraph::new().indent(
+                            Some(left),
+                            Some(SpecialIndentType::Hanging(styles::LIST_HANGING_DXA)),
+                            None,
+                            None,
+                        );
+                        tp = add_inline(
+                            tp,
+                            InlineChild::run(Run::new().add_text(glyph).add_tab()),
+                        );
+                        tp
+                    } else {
+                        Paragraph::new()
+                            .numbering(NumberingId::new(num_id), IndentLevel::new(level))
+                    };
                     for r in runs {
                         p = add_inline(p, r);
                     }

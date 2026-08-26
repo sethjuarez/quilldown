@@ -270,3 +270,57 @@ fn superscript_sample_document_is_wired() {
         "sample exercises many superscripts; found {count}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #5 — task-list checkbox marker (no redundant bullet)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn task_items_render_checkbox_glyphs() {
+    let (docx, _stats) = convert("- [x] Done\n- [ ] Todo\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains('\u{2611}'),
+        "a checked task item should render the ballot-box-with-check glyph\n{doc}"
+    );
+    assert!(
+        doc.contains('\u{2610}'),
+        "an unchecked task item should render the empty ballot-box glyph\n{doc}"
+    );
+}
+
+#[test]
+fn task_items_suppress_the_list_bullet() {
+    // A list of only task items should carry no bullet numbering — the checkbox is the marker.
+    let (docx, _stats) = convert("- [x] Done\n- [ ] Todo\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("<w:numId"),
+        "task items must not also emit a list bullet (numId)\n{doc}"
+    );
+    // They align like list items via a hanging indent, and separate marker from text with a tab.
+    assert!(doc.contains(r#"w:hanging="360""#), "task item should use a hanging indent");
+    assert!(doc.contains("<w:tab"), "checkbox marker should be followed by a tab");
+}
+
+#[test]
+fn plain_bullets_keep_their_numbering_alongside_tasks() {
+    // A mixed list: plain bullets still get numbering; the task item does not.
+    let (docx, _stats) = convert("- Plain\n- [ ] Task\n");
+    let doc = document_xml(&docx);
+    assert!(doc.contains("<w:numId"), "the plain bullet should still be a native list item");
+    assert!(doc.contains('\u{2610}'), "the task item should still render a checkbox");
+}
+
+#[test]
+fn task_list_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("tasklists");
+    let doc = document_xml(&docx);
+    let checked = doc.matches('\u{2611}').count();
+    let unchecked = doc.matches('\u{2610}').count();
+    assert!(checked >= 5, "sample has many checked items; found {checked}");
+    assert!(unchecked >= 5, "sample has many unchecked items; found {unchecked}");
+    // Inline formatting must still work inside a task item.
+    assert!(doc.contains("<w:b "), "bold inside a task item should survive");
+    assert!(doc.contains("<w:hyperlink"), "a link inside a task item should survive");
+}

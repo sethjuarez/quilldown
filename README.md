@@ -115,6 +115,8 @@ Tradeoffs:
 - **Block quotes** → left accent border + per-level indent (nested quotes step in) + muted text
 - **Inline superscript** (`^text^`) → true OOXML superscript (`w:vertAlign`), composing with
   bold/italic; endnote marks use the same real superscript
+- **Task lists** (`- [x]` / `- [ ]`) → a ☑ / ☐ checkbox marker with a hanging indent that lines
+  up like a list item, and no redundant bullet; plain bullets in the same list keep numbering
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
@@ -122,7 +124,8 @@ Tradeoffs:
 
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
-- Task list items render a checkbox glyph, not a native content control
+- Task list checkboxes are static ☑ / ☐ glyphs, not interactive content controls (docx-rs
+  0.4.x has no checkbox structured-document-tag)
 - Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
 
 ## Roadmap
