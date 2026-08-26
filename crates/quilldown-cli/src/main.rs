@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-use quilldown::{ConvertOptions, Converter, Margins, Orientation, PageSetup, PageSize};
+use quilldown::{ConvertOptions, Converter, Margins, Orientation, PageSetup, PageSize, Theme};
 
 /// Named page sizes selectable on the command line.
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -39,6 +39,26 @@ impl From<OrientationArg> for Orientation {
         match a {
             OrientationArg::Portrait => Orientation::Portrait,
             OrientationArg::Landscape => Orientation::Landscape,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ThemeArg {
+    /// Calibri body, Word-blue heading accent, InspiredGitHub code highlighting.
+    Default,
+    /// GitHub-blue accent and a cooler code fill.
+    Github,
+    /// Solarized cyan-blue accent with Solarized-light code highlighting.
+    Solarized,
+}
+
+impl From<ThemeArg> for Theme {
+    fn from(a: ThemeArg) -> Self {
+        match a {
+            ThemeArg::Default => Theme::DEFAULT,
+            ThemeArg::Github => Theme::GITHUB,
+            ThemeArg::Solarized => Theme::SOLARIZED,
         }
     }
 }
@@ -91,6 +111,10 @@ struct Cli {
     #[arg(long, default_value_t = 1.0)]
     margin: f32,
 
+    /// Style preset controlling fonts, heading accent, link color, and code appearance.
+    #[arg(long, value_enum, default_value_t = ThemeArg::Default)]
+    theme: ThemeArg,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -120,6 +144,7 @@ fn main() -> Result<()> {
         highlight_code: !cli.no_highlight,
         base_dir: cli.base_dir.clone(),
         page,
+        theme: cli.theme.into(),
         ..ConvertOptions::default()
     };
 

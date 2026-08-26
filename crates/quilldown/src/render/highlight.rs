@@ -24,17 +24,21 @@ fn syntaxes() -> &'static SyntaxSet {
     SYNTAXES.get_or_init(SyntaxSet::load_defaults_newlines)
 }
 
-/// A light theme that reads well on the pale code-block fill. Loaded once.
-fn theme() -> &'static Theme {
-    static THEME: OnceLock<Theme> = OnceLock::new();
-    THEME.get_or_init(|| {
-        let mut set = ThemeSet::load_defaults();
-        // InspiredGitHub is a light theme; fall back to any available theme if it is missing.
-        set.themes
-            .remove("InspiredGitHub")
-            .or_else(|| set.themes.values().next().cloned())
-            .expect("syntect ships at least one default theme")
-    })
+/// The bundled syntect theme set, loaded once.
+fn theme_set() -> &'static ThemeSet {
+    static THEMES: OnceLock<ThemeSet> = OnceLock::new();
+    THEMES.get_or_init(ThemeSet::load_defaults)
+}
+
+/// Resolve a bundled theme by name, falling back to `InspiredGitHub` (a light theme that reads
+/// well on the pale code fill) and finally to any available theme.
+fn theme(name: &str) -> &'static Theme {
+    let set = theme_set();
+    set.themes
+        .get(name)
+        .or_else(|| set.themes.get("InspiredGitHub"))
+        .or_else(|| set.themes.values().next())
+        .expect("syntect ships at least one default theme")
 }
 
 /// The language token from a fence info string: its first whitespace-delimited word, if any.
@@ -55,14 +59,15 @@ fn hex(c: syntect::highlighting::Color) -> String {
     format!("{:02X}{:02X}{:02X}", c.r, c.g, c.b)
 }
 
-/// Highlight `code` as `lang`, returning one `Vec<Span>` per line (newlines stripped), or
-/// `None` if the language token resolves to no known syntax.
-pub(crate) fn highlight(code: &str, lang: &str) -> Option<Vec<Vec<Span>>> {
+/// Highlight `code` as `lang` using the bundled syntect theme named `theme_name`, returning one
+/// `Vec<Span>` per line (newlines stripped), or `None` if the language token resolves to no
+/// known syntax. An unknown `theme_name` falls back to a bundled light theme.
+pub(crate) fn highlight(code: &str, lang: &str, theme_name: &str) -> Option<Vec<Vec<Span>>> {
     let ss = syntaxes();
     let syntax = ss
         .find_syntax_by_token(lang)
         .or_else(|| ss.find_syntax_by_extension(lang))?;
-    let mut hl = HighlightLines::new(syntax, theme());
+    let mut hl = HighlightLines::new(syntax, theme(theme_name));
 
     let mut lines = Vec::new();
     // LinesWithEndings keeps the trailing `\n` so syntect's stateful parser sees line breaks;
@@ -100,7 +105,8 @@ mod tests {
 
     #[test]
     fn highlight_known_language_yields_colored_spans() {
-        let lines = highlight("fn main() {}\n", "rust").expect("rust is a known syntax");
+        let lines =
+            highlight("fn main() {}\n", "rust", "InspiredGitHub").expect("rust is a known syntax");
         assert_eq!(lines.len(), 1);
         let spans = &lines[0];
         assert!(!spans.is_empty(), "a line of code should produce spans");
@@ -116,13 +122,32 @@ mod tests {
 
     #[test]
     fn highlight_unknown_language_is_none() {
-        assert!(highlight("whatever\n", "definitely-not-a-language").is_none());
+        assert!(highlight("whatever\n", "definitely-not-a-language", "InspiredGitHub").is_none());
     }
 
     #[test]
     fn highlight_preserves_line_count() {
         let code = "let a = 1;\nlet b = 2;\nlet c = 3;";
-        let lines = highlight(code, "rust").expect("rust syntax");
+        let lines = highlight(code, "rust", "InspiredGitHub").expect("rust syntax");
         assert_eq!(lines.len(), 3);
+    }
+
+    #[test]
+    fn unknown_theme_falls_back_but_still_highlights() {
+        // An unknown theme name must not panic; it falls back to a bundled theme.
+        let lines = highlight("fn main() {}\n", "rust", "no-such-theme").expect("rust syntax");
+        assert_eq!(lines.len(), 1);
+        assert!(!lines[0].is_empty());
+    }
+
+    #[test]
+    fn distinct_themes_can_color_differently() {
+        // The same token under two different themes should be resolvable; at least one span
+        // color differs between InspiredGitHub and Solarized (light).
+        let a = highlight("fn main() {}\n", "rust", "InspiredGitHub").unwrap();
+        let b = highlight("fn main() {}\n", "rust", "Solarized (light)").unwrap();
+        let colors_a: Vec<&str> = a[0].iter().map(|(c, _)| c.as_str()).collect();
+        let colors_b: Vec<&str> = b[0].iter().map(|(c, _)| c.as_str()).collect();
+        assert_ne!(colors_a, colors_b, "themes should produce different colors");
     }
 }

@@ -8,7 +8,7 @@ use common::{
     convert, convert_bytes_with, convert_feature, convert_with, document_rels, document_xml, entry,
     entry_names, features_dir, first_media_png, read_feature,
 };
-use quilldown::{ConvertOptions, Margins, Orientation, PageSetup, PageSize};
+use quilldown::{ConvertOptions, Margins, Orientation, PageSetup, PageSize, Theme};
 
 // ---------------------------------------------------------------------------------------------
 // Roadmap #1 — native hyperlink relationships
@@ -734,4 +734,134 @@ fn code_highlight_sample_document_is_wired() {
     assert!(doc.contains(">RUST<") && doc.contains(">PYTHON<"));
     // The trailing unlabeled fence still renders its text.
     assert!(doc.contains("plain text, no language"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #10 — swappable style themes (fonts, heading accent, link color, code theme)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert `md` with a specific [`Theme`] preset (defaults otherwise), returning the raw docx
+/// bytes so callers can inspect both `document.xml` and `styles.xml`.
+fn convert_themed(md: &str, theme: Theme) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            theme,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+fn styles_xml(docx: &[u8]) -> String {
+    entry(docx, "word/styles.xml").expect("word/styles.xml present")
+}
+
+#[test]
+fn default_theme_uses_word_blue_accent_and_calibri() {
+    let docx = convert_themed(
+        "# Heading\n\n[link](https://example.com)\n\n`code`\n",
+        Theme::DEFAULT,
+    );
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    // Heading style (in styles.xml) carries the default accent color and Calibri font.
+    assert!(
+        styles.contains(r#"w:val="2F5496""#),
+        "default heading accent 2F5496\n{styles}"
+    );
+    assert!(
+        styles.contains("Calibri"),
+        "default body/heading font is Calibri"
+    );
+    // Hyperlink runs (in document.xml) use the default link blue.
+    assert!(
+        doc.contains(r#"w:val="0563C1""#),
+        "default link color 0563C1"
+    );
+    // Inline code uses the default monospace font.
+    assert!(doc.contains("Consolas"), "default mono font is Consolas");
+}
+
+#[test]
+fn github_theme_recolors_heading_link_and_code_fill() {
+    let docx = convert_themed(
+        "# Heading\n\n[link](https://example.com)\n\n```rust\nfn main() {}\n```\n",
+        Theme::GITHUB,
+    );
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    // GitHub-blue accent replaces the default heading accent (styles.xml) and link (document.xml).
+    assert!(
+        styles.contains(r#"w:val="0969DA""#),
+        "github heading accent 0969DA\n{styles}"
+    );
+    assert!(
+        !styles.contains(r#"w:val="2F5496""#),
+        "default heading accent must be gone"
+    );
+    assert!(
+        doc.contains(r#"w:val="0969DA""#),
+        "github link color 0969DA"
+    );
+    // Cooler code fill.
+    assert!(
+        doc.contains(r#"w:fill="F6F8FA""#),
+        "github code fill F6F8FA"
+    );
+    assert!(
+        !doc.contains(r#"w:fill="F2F2F2""#),
+        "default code fill must be gone"
+    );
+}
+
+#[test]
+fn solarized_theme_swaps_highlight_palette_and_fill() {
+    let default_doc = document_xml(&convert_themed(
+        "```rust\nfn main() {}\n```\n",
+        Theme::DEFAULT,
+    ));
+    let solar_doc = document_xml(&convert_themed(
+        "```rust\nfn main() {}\n```\n",
+        Theme::SOLARIZED,
+    ));
+
+    // Warm Solarized code fill.
+    assert!(
+        solar_doc.contains(r#"w:fill="FDF6E3""#),
+        "solarized code fill FDF6E3\n{solar_doc}"
+    );
+    // The Solarized highlight theme colors keywords differently than InspiredGitHub's A71D5D.
+    assert!(
+        default_doc.contains(r#"w:color w:val="A71D5D""#),
+        "default highlight uses InspiredGitHub keyword color"
+    );
+    assert!(
+        !solar_doc.contains(r#"w:color w:val="A71D5D""#),
+        "solarized theme must not reuse the InspiredGitHub keyword color"
+    );
+}
+
+#[test]
+fn theme_from_name_resolves_known_presets() {
+    assert_eq!(Theme::from_name("default"), Some(Theme::DEFAULT));
+    assert_eq!(Theme::from_name("GitHub"), Some(Theme::GITHUB));
+    assert_eq!(Theme::from_name(" solarized "), Some(Theme::SOLARIZED));
+    assert_eq!(Theme::from_name("nope"), None);
+}
+
+#[test]
+fn themes_sample_document_is_wired() {
+    let (docx, stats) = convert_feature("themes");
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    assert!(stats.code_blocks >= 1, "sample has a fenced block");
+    // Default preset markers are present when the sample converts with default options.
+    assert!(
+        styles.contains(r#"w:val="2F5496""#),
+        "default heading accent"
+    );
+    assert!(doc.contains(r#"w:val="0563C1""#), "default link color");
+    assert!(doc.contains("themed code block"), "code text survives");
 }

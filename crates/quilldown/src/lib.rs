@@ -152,6 +152,84 @@ impl Default for PageSetup {
     }
 }
 
+/// A swappable style preset: the fonts, accent colors, and code appearance applied on top of
+/// the page geometry. Every field is a static string so a `Theme` is cheap to copy.
+///
+/// Built-in presets are available as [`Theme::DEFAULT`], [`Theme::GITHUB`], and
+/// [`Theme::SOLARIZED`], or looked up by name with [`Theme::from_name`]. All presets pair a
+/// light code-highlight theme with a pale code fill so highlighted code stays readable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Theme {
+    /// Font family for body text and list/table content.
+    pub body_font: &'static str,
+    /// Font family for heading paragraphs.
+    pub heading_font: &'static str,
+    /// Accent color (hex, no `#`) for heading text.
+    pub heading_color: &'static str,
+    /// Monospace font family for inline code and fenced code blocks.
+    pub mono_font: &'static str,
+    /// Hyperlink text color (hex, no `#`).
+    pub link_color: &'static str,
+    /// Background fill (hex, no `#`) behind fenced code blocks.
+    pub code_fill: &'static str,
+    /// Name of the bundled syntect theme used to syntax-highlight code. Must resolve to a
+    /// light theme for readable output on [`Theme::code_fill`]; unknown names fall back to a
+    /// bundled default.
+    pub highlight_theme: &'static str,
+}
+
+impl Theme {
+    /// The original quilldown look: Calibri body, Consolas code, Word-blue heading accent.
+    pub const DEFAULT: Theme = Theme {
+        body_font: "Calibri",
+        heading_font: "Calibri",
+        heading_color: "2F5496",
+        mono_font: "Consolas",
+        link_color: "0563C1",
+        code_fill: "F2F2F2",
+        highlight_theme: "InspiredGitHub",
+    };
+
+    /// A GitHub-flavored look: GitHub's blue accent and a cooler code fill.
+    pub const GITHUB: Theme = Theme {
+        body_font: "Calibri",
+        heading_font: "Calibri",
+        heading_color: "0969DA",
+        mono_font: "Consolas",
+        link_color: "0969DA",
+        code_fill: "F6F8FA",
+        highlight_theme: "InspiredGitHub",
+    };
+
+    /// A Solarized-flavored look: cyan-blue accent, warm code fill, Solarized light highlighting.
+    pub const SOLARIZED: Theme = Theme {
+        body_font: "Calibri",
+        heading_font: "Calibri",
+        heading_color: "268BD2",
+        mono_font: "Consolas",
+        link_color: "268BD2",
+        code_fill: "FDF6E3",
+        highlight_theme: "Solarized (light)",
+    };
+
+    /// Resolve a preset by (case-insensitive) name: `default`, `github`, or `solarized`.
+    /// Returns `None` for any other name.
+    pub fn from_name(name: &str) -> Option<Theme> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "default" => Some(Theme::DEFAULT),
+            "github" => Some(Theme::GITHUB),
+            "solarized" => Some(Theme::SOLARIZED),
+            _ => None,
+        }
+    }
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Theme::DEFAULT
+    }
+}
+
 /// Options controlling how Markdown is converted to DOCX.
 #[derive(Debug, Clone)]
 pub struct ConvertOptions {
@@ -202,6 +280,11 @@ pub struct ConvertOptions {
     /// 1 in margins. Tables, code blocks, and horizontal rules size to the resulting
     /// text-column width so they never overflow the margins.
     pub page: PageSetup,
+
+    /// Style preset: fonts, heading accent, hyperlink color, and code appearance. Defaults to
+    /// [`Theme::DEFAULT`]. Swap in [`Theme::GITHUB`] or [`Theme::SOLARIZED`], or a custom
+    /// [`Theme`], to restyle the document without touching the Markdown.
+    pub theme: Theme,
 }
 
 impl Default for ConvertOptions {
@@ -214,6 +297,7 @@ impl Default for ConvertOptions {
             base_dir: None,
             highlight_code: true,
             page: PageSetup::default(),
+            theme: Theme::DEFAULT,
         }
     }
 }

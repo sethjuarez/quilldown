@@ -12,7 +12,7 @@ use comrak::nodes::{AstNode, ListType, NodeValue};
 use comrak::{parse_document, Arena, Options};
 use docx_rs::*;
 
-use crate::styles::{self, BULLET_NUM_ID, MONO_FONT, ORDERED_NUM_ID};
+use crate::styles::{self, BULLET_NUM_ID, ORDERED_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
 mod asvg;
@@ -259,7 +259,7 @@ pub(crate) fn build_docx(
     render_blocks(root, &mut ctx, &mut blocks);
     endnotes::render_section(&mut ctx, &mut blocks);
 
-    let mut docx = styles::apply(Docx::new(), &opts.page);
+    let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
     for b in blocks {
         docx = match b {
             Block::Para(p) => docx.add_paragraph(p),
@@ -331,6 +331,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                     &cb.info,
                     ctx.content_width_dxa,
                     ctx.opts.highlight_code,
+                    &ctx.opts.theme,
                 )));
                 ctx.stats.code_blocks += 1;
             }
@@ -438,7 +439,10 @@ pub(crate) fn render_inlines<'a>(
             NodeValue::Strong => render_inlines(child, style.bolded(), out, ctx),
             NodeValue::Strikethrough => render_inlines(child, style.struck(), out, ctx),
             NodeValue::Superscript => render_inlines(child, style.superscripted(), out, ctx),
-            NodeValue::Code(code) => out.push(InlineChild::run(mono_run(&code.literal))),
+            NodeValue::Code(code) => out.push(InlineChild::run(mono_run(
+                &code.literal,
+                ctx.opts.theme.mono_font,
+            ))),
             NodeValue::SoftBreak => out.push(InlineChild::run(styled(style).add_text(" "))),
             NodeValue::LineBreak => out.push(InlineChild::run(
                 Run::new().add_break(BreakType::TextWrapping),
@@ -450,7 +454,11 @@ pub(crate) fn render_inlines<'a>(
                 // resolves. Anchor (in-document `#name`) links use an Anchor hyperlink.
                 let mut inner = Vec::new();
                 render_inlines(child, style, &mut inner, ctx);
-                out.push(InlineChild::Hyperlink(build_hyperlink(&link.url, inner)));
+                out.push(InlineChild::Hyperlink(build_hyperlink(
+                    &link.url,
+                    inner,
+                    ctx.opts.theme.link_color,
+                )));
             }
             NodeValue::Image(link) => {
                 let alt = text_of(child);
@@ -470,7 +478,7 @@ pub(crate) fn render_inlines<'a>(
 /// A URL beginning with `#` becomes an in-document anchor link (to a bookmark); anything else
 /// is an external link. Inner content is flattened to runs (styled blue + underlined); a
 /// nested link's runs are spliced in, since Word hyperlinks cannot nest.
-fn build_hyperlink(url: &str, inner: Vec<InlineChild>) -> Hyperlink {
+fn build_hyperlink(url: &str, inner: Vec<InlineChild>, link_color: &str) -> Hyperlink {
     let mut link = if let Some(anchor) = url.strip_prefix('#') {
         Hyperlink::new(anchor, HyperlinkType::Anchor)
     } else {
@@ -479,7 +487,7 @@ fn build_hyperlink(url: &str, inner: Vec<InlineChild>) -> Hyperlink {
     for c in inner {
         match c {
             InlineChild::Run(r) => {
-                link = link.add_run(r.color(styles::LINK_COLOR).underline("single"));
+                link = link.add_run(r.color(link_color).underline("single"));
             }
             InlineChild::Hyperlink(nested) => {
                 for nc in nested.children {
@@ -514,26 +522,32 @@ fn styled(s: Inline) -> Run {
 }
 
 /// A monospace run for inline code and code block lines.
-fn mono_run(text: &str) -> Run {
+fn mono_run(text: &str, mono_font: &str) -> Run {
     Run::new()
-        .fonts(RunFonts::new().ascii(MONO_FONT).hi_ansi(MONO_FONT))
+        .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
         .add_text(text)
 }
 
 /// Render a fenced/indented code block as a single shaded, full-width table cell whose
 /// lines are monospace paragraphs. Using a 1x1 table gives us native cell shading.
-/// Render a fenced/indented code block as a single shaded, full-width table cell whose
-/// lines are monospace paragraphs. Using a 1x1 table gives us native cell shading.
 ///
 /// When `highlight` is set and the fence names a known language, lines are syntax-highlighted
 /// into colored runs and a small uppercase language label is placed above the code. An
-/// unknown or empty language falls back to plain uncolored monospace (and no label).
-fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bool) -> Table {
-    let mut cell = TableCell::new().shading(Shading::new().fill(styles::CODE_FILL));
+/// unknown or empty language falls back to plain uncolored monospace (and no label). Fonts,
+/// fill color, and the highlight theme come from `theme`.
+fn code_block(
+    literal: &str,
+    info: &str,
+    content_width_dxa: usize,
+    highlight: bool,
+    theme: &crate::Theme,
+) -> Table {
+    let mut cell = TableCell::new().shading(Shading::new().fill(theme.code_fill));
     let trimmed = literal.strip_suffix('\n').unwrap_or(literal);
 
     let highlighted = if highlight {
-        highlight::language_token(info).and_then(|lang| highlight::highlight(trimmed, lang))
+        highlight::language_token(info)
+            .and_then(|lang| highlight::highlight(trimmed, lang, theme.highlight_theme))
     } else {
         None
     };
@@ -542,7 +556,7 @@ fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bo
     // highlighting is enabled (so plain-fallback output stays visually quiet).
     if highlight {
         if let Some(label) = highlight::display_label(info) {
-            cell = cell.add_paragraph(code_label(&label));
+            cell = cell.add_paragraph(code_label(&label, theme.mono_font));
         }
     }
 
@@ -552,10 +566,10 @@ fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bo
                 let mut p = Paragraph::new();
                 if spans.is_empty() {
                     // Preserve blank lines as empty monospace paragraphs.
-                    p = p.add_run(mono_run(""));
+                    p = p.add_run(mono_run("", theme.mono_font));
                 } else {
                     for (color, text) in spans {
-                        p = p.add_run(mono_run(&text).color(color));
+                        p = p.add_run(mono_run(&text, theme.mono_font).color(color));
                     }
                 }
                 cell = cell.add_paragraph(p);
@@ -563,7 +577,8 @@ fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bo
         }
         None => {
             for line in trimmed.split('\n') {
-                cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
+                cell =
+                    cell.add_paragraph(Paragraph::new().add_run(mono_run(line, theme.mono_font)));
             }
         }
     }
@@ -572,10 +587,10 @@ fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bo
 }
 
 /// A small, muted, bold uppercase language tag placed above a highlighted code block.
-fn code_label(label: &str) -> Paragraph {
+fn code_label(label: &str, mono_font: &str) -> Paragraph {
     Paragraph::new().add_run(
         Run::new()
-            .fonts(RunFonts::new().ascii(MONO_FONT).hi_ansi(MONO_FONT))
+            .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
             .size(styles::CODE_LABEL_SIZE)
             .bold()
             .color(styles::QUOTE_TEXT_COLOR)

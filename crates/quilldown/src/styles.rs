@@ -9,25 +9,14 @@ use docx_rs::*;
 /// Half-point size of the default body font (11pt Calibri -> 22 half-points).
 pub const BODY_SIZE: usize = 22;
 
-/// Monospace font used for inline code and fenced code blocks.
-pub const MONO_FONT: &str = "Consolas";
-
 /// Fill color (hex, no `#`) for the shaded header row of tables.
 pub const TABLE_HEADER_FILL: &str = "D9D9D9";
 
-/// Fill color (hex, no `#`) for fenced code block backgrounds.
-pub const CODE_FILL: &str = "F2F2F2";
 /// Half-point size of the language label above a highlighted code block (8pt -> 16).
 pub const CODE_LABEL_SIZE: usize = 16;
 
 /// Border color (hex, no `#`) for table grid lines — matches cutready's `BFBFBF`.
 pub const TABLE_BORDER_COLOR: &str = "BFBFBF";
-
-/// Word's default heading accent color (hex, no `#`).
-const HEADING_COLOR: &str = "2F5496";
-
-/// Hyperlink text color (hex, no `#`) — Word's default hyperlink blue.
-pub const LINK_COLOR: &str = "0563C1";
 
 /// Left-border accent color for block quotes (hex, no `#`) — a mid gray, GitHub-like.
 pub const QUOTE_BORDER_COLOR: &str = "8B949E";
@@ -56,12 +45,16 @@ pub const TASK_CHECKED: &str = "\u{2611}";
 pub const TASK_UNCHECKED: &str = "\u{2610}";
 
 /// Apply document-wide defaults (font + size), the configured page geometry, and register
-/// heading styles.
-pub fn apply(docx: Docx, page: &crate::PageSetup) -> Docx {
+/// heading styles using the given theme's fonts and accent color.
+pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx {
     let (page_w, page_h) = page.dimensions_dxa();
     let m = page.margins;
     let mut docx = docx
-        .default_fonts(RunFonts::new().ascii("Calibri").hi_ansi("Calibri"))
+        .default_fonts(
+            RunFonts::new()
+                .ascii(theme.body_font)
+                .hi_ansi(theme.body_font),
+        )
         .default_size(BODY_SIZE)
         .page_size(page_w, page_h)
         .page_margin(
@@ -78,9 +71,9 @@ pub fn apply(docx: Docx, page: &crate::PageSetup) -> Docx {
         docx = docx.page_orient(PageOrientationType::Landscape);
     }
 
-    let h1 = heading_style("Heading1", "heading 1", 32);
-    let h2 = heading_style("Heading2", "heading 2", 26);
-    let h3 = heading_style("Heading3", "heading 3", 24);
+    let h1 = heading_style("Heading1", "heading 1", 32, theme);
+    let h2 = heading_style("Heading2", "heading 2", 26, theme);
+    let h3 = heading_style("Heading3", "heading 3", 24, theme);
 
     docx.add_style(h1)
         .add_style(h2)
@@ -91,12 +84,17 @@ pub fn apply(docx: Docx, page: &crate::PageSetup) -> Docx {
         .add_numbering(Numbering::new(BULLET_NUM_ID, BULLET_NUM_ID))
 }
 
-fn heading_style(id: &str, name: &str, half_points: usize) -> Style {
+fn heading_style(id: &str, name: &str, half_points: usize, theme: &crate::Theme) -> Style {
     Style::new(id, StyleType::Paragraph)
         .name(name)
         .bold()
         .size(half_points)
-        .color(HEADING_COLOR)
+        .fonts(
+            RunFonts::new()
+                .ascii(theme.heading_font)
+                .hi_ansi(theme.heading_font),
+        )
+        .color(theme.heading_color)
 }
 
 /// Abstract numbering definition for ordered lists (`1.`, `2.`, ...), 5 nesting levels.

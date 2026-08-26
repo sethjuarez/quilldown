@@ -56,6 +56,12 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   landscape orientation, and uniform margins. Landscape swaps the dimensions and sets
   `w:orient="landscape"`; tables, code blocks, and rules resize to the resulting text column so
   nothing overflows. Defaults to US Letter, portrait, 1 in margins (content width 9360 twips)
+- **Swappable style themes** (via `ConvertOptions::theme` / CLI `--theme`) → restyle a document
+  without touching the Markdown. Each preset sets the body/heading fonts, the heading accent
+  color, the hyperlink color, the code-block fill, and the syntect highlight palette. Ships three
+  presets — `default` (Word blue + InspiredGitHub), `github` (GitHub blue + cooler fill), and
+  `solarized` (cyan accent + Solarized-light highlighting); `Theme` is a plain struct so callers
+  can also supply a fully custom look. Neutral elements (tables, block quotes) are theme-agnostic
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 
@@ -75,10 +81,14 @@ re-discovers it the hard way.
 
 ## Roadmap — planned work
 
-Ordered roughly by value-to-effort. Nothing here is committed to a release.
+The initial fidelity backlog is cleared: every item that was listed here has shipped (see Done).
+Remaining ideas are larger, lower-priority explorations — nothing is committed to a release.
 
-1. **Swappable style templates / themes** — expose theme presets (fonts, heading sizes, accent
-   colors) on top of the now-configurable page setup, and a selectable code-highlight theme.
+- **Custom / user-supplied themes surfaced on the CLI** — the `Theme` struct already accepts an
+  arbitrary look; a future step could load a theme from a config file so users aren't limited to
+  the three built-in presets.
+- **Native footnotes/endnotes and content-control checkboxes** — both are blocked on docx-rs
+  limitations (see Known constraints); they would need upstream work or a docx-rs fork.
 
 ## Known constraints to respect
 

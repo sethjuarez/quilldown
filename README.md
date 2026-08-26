@@ -55,6 +55,9 @@ quilldown report.md --page-size a4 --orientation landscape --margin 0.5
 
 # Turn off syntax highlighting / language labels on code blocks
 quilldown report.md --no-highlight
+
+# Restyle with a built-in theme preset (default / github / solarized)
+quilldown report.md --theme github
 ```
 
 Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
@@ -76,7 +79,9 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 ```
 
 `ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `highlight_code`,
-`max_image_width_px`, `base_dir`, and `page` (a `PageSetup` of size / orientation / margins). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
+`max_image_width_px`, `base_dir`, `page` (a `PageSetup` of size / orientation / margins), and
+`theme` (a `Theme` of fonts / heading accent / link color / code appearance; presets
+`Theme::DEFAULT`, `Theme::GITHUB`, `Theme::SOLARIZED`). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
 the byte/file outputs (`convert_file`, `convert_to_bytes`); `convert_str` returns a `Docx` with
 the PNG fallback only.
 
@@ -141,6 +146,9 @@ Tradeoffs:
   `ConvertOptions::page`) → US Letter, A4, Legal, or custom dimensions; portrait or landscape;
   uniform margins. Tables, code blocks, and rules resize to the resulting text column so nothing
   overflows. Defaults to US Letter, portrait, 1 in margins
+- **Swappable style themes** (via `--theme` or `ConvertOptions::theme`) → `default`, `github`, or
+  `solarized` presets restyle the body/heading fonts, heading accent, link color, code fill, and
+  syntax-highlight palette without touching the Markdown (`Theme` also accepts a custom look)
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
@@ -152,10 +160,9 @@ Tradeoffs:
 ## Roadmap
 
 See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work with rationale
-and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
-brief:
-
-- Swappable style templates / themes (fonts, heading sizes, accent colors, code theme)
+and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. The
+initial fidelity backlog is now cleared; remaining ideas are larger explorations (custom
+theme files, native footnotes/checkboxes gated on docx-rs).
 
 ## License
 
