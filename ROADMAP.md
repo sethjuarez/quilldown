@@ -48,8 +48,11 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   for a white page by flipping each color's lightness in HSL (hue and saturation preserved), so
   near-black backgrounds become light and light text becomes dark while accent hues stay
   recognizable. Applied before rasterizing (and to the embedded `<asvg>` layer). Off by default
-- US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
-  to the text column (content width 9360 twips) so nothing overflows the right margin
+- **Configurable page setup** (via `ConvertOptions::page` / CLI `--page-size`, `--orientation`,
+  `--margin`) → choose the page size (US Letter, A4, Legal, or custom twips), portrait or
+  landscape orientation, and uniform margins. Landscape swaps the dimensions and sets
+  `w:orient="landscape"`; tables, code blocks, and rules resize to the resulting text column so
+  nothing overflows. Defaults to US Letter, portrait, 1 in margins (content width 9360 twips)
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 
@@ -71,10 +74,10 @@ re-discovers it the hard way.
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Configurable themes / style templates and page setup** — expose page size, orientation,
-   and custom margins (today: US Letter + 1 in), plus swappable style templates.
-2. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
+1. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
    blocks, beyond the current uniform monospace shading.
+2. **Swappable style templates / themes** — expose theme presets (fonts, heading sizes, accent
+   colors) on top of the now-configurable page setup.
 
 ## Known constraints to respect
 

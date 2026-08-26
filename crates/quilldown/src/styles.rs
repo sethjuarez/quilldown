@@ -53,31 +53,28 @@ pub const TASK_CHECKED: &str = "\u{2611}";
 /// Checkbox glyph for an unchecked task-list item (U+2610 BALLOT BOX).
 pub const TASK_UNCHECKED: &str = "\u{2610}";
 
-/// US Letter page width in DXA (twips): 8.5in * 1440.
-pub const PAGE_WIDTH_DXA: u32 = 12240;
-/// US Letter page height in DXA (twips): 11in * 1440.
-pub const PAGE_HEIGHT_DXA: u32 = 15840;
-/// Uniform page margin in DXA (twips): 1in * 1440 — Word's "Normal" default.
-pub const MARGIN_DXA: i32 = 1440;
-/// Usable text-column width in DXA: page width minus left+right margins.
-/// Tables, code blocks, and horizontal rules size to this so they never overflow.
-pub const CONTENT_WIDTH_DXA: usize = PAGE_WIDTH_DXA as usize - 2 * MARGIN_DXA as usize;
-
-/// Apply document-wide defaults (font + size) and register heading styles.
-pub fn apply(docx: Docx) -> Docx {
-    let docx = docx
+/// Apply document-wide defaults (font + size), the configured page geometry, and register
+/// heading styles.
+pub fn apply(docx: Docx, page: &crate::PageSetup) -> Docx {
+    let (page_w, page_h) = page.dimensions_dxa();
+    let m = page.margins;
+    let mut docx = docx
         .default_fonts(RunFonts::new().ascii("Calibri").hi_ansi("Calibri"))
         .default_size(BODY_SIZE)
-        .page_size(PAGE_WIDTH_DXA, PAGE_HEIGHT_DXA)
+        .page_size(page_w, page_h)
         .page_margin(
             PageMargin::new()
-                .top(MARGIN_DXA)
-                .bottom(MARGIN_DXA)
-                .left(MARGIN_DXA)
-                .right(MARGIN_DXA)
+                .top(m.top as i32)
+                .bottom(m.bottom as i32)
+                .left(m.left as i32)
+                .right(m.right as i32)
                 .header(720)
                 .footer(720),
         );
+    if let crate::Orientation::Landscape = page.orientation {
+        // Preserves the (already swapped) w/h and adds `w:orient="landscape"`.
+        docx = docx.page_orient(PageOrientationType::Landscape);
+    }
 
     let h1 = heading_style("Heading1", "heading 1", 32);
     let h2 = heading_style("Heading2", "heading 2", 26);

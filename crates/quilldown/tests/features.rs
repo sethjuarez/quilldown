@@ -5,10 +5,10 @@
 mod common;
 
 use common::{
-    convert, convert_bytes_with, convert_feature, document_rels, document_xml, entry, entry_names,
-    features_dir, first_media_png, read_feature,
+    convert, convert_bytes_with, convert_feature, convert_with, document_rels, document_xml, entry,
+    entry_names, features_dir, first_media_png, read_feature,
 };
-use quilldown::ConvertOptions;
+use quilldown::{ConvertOptions, Margins, Orientation, PageSetup, PageSize};
 
 // ---------------------------------------------------------------------------------------------
 // Roadmap #1 — native hyperlink relationships
@@ -545,5 +545,123 @@ fn default_leaves_the_dark_source_untouched() {
     assert!(
         svg.contains("#0d1117"),
         "the as-authored dark background must be preserved when light mode is off\n{svg}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #8 — configurable page setup (size / orientation / margins)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the page-setup sample with a given page setup, from `examples/features` as base dir.
+fn convert_page(page: PageSetup) -> Vec<u8> {
+    let md = read_feature("page-setup");
+    let dir = features_dir();
+    let (docx, _stats) = convert_with(
+        &md,
+        &dir,
+        ConvertOptions {
+            page,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn default_page_setup_is_us_letter_portrait_one_inch() {
+    let doc = document_xml(&convert_page(PageSetup::default()));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="12240" w:h="15840" />"#),
+        "default page should be US Letter portrait (12240x15840)\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"w:orient="landscape""#),
+        "the default portrait page must not carry a landscape orientation flag"
+    );
+    assert!(
+        doc.contains(r#"w:top="1440""#) && doc.contains(r#"w:left="1440""#),
+        "default margins should be 1 in (1440 twips) on every side\n{doc}"
+    );
+}
+
+#[test]
+fn a4_page_size_sets_iso_dimensions_and_resizes_content() {
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::A4,
+        ..PageSetup::default()
+    }));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="11906" w:h="16838" />"#),
+        "A4 should be 11906x16838 twips\n{doc}"
+    );
+    // Content width = 11906 - 2*1440 = 9026; tables/code/rules must follow.
+    assert!(
+        doc.contains(r#"<w:tblW w:w="9026" w:type="dxa" />"#),
+        "tables must resize to the A4 content width (9026)\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"w:w="9360""#),
+        "no element should keep the Letter content width on an A4 page"
+    );
+}
+
+#[test]
+fn landscape_swaps_dimensions_and_sets_orientation() {
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::Letter,
+        orientation: Orientation::Landscape,
+        margins: Margins::uniform(1440),
+    }));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="15840" w:h="12240" w:orient="landscape" />"#),
+        "landscape Letter should swap to 15840x12240 and flag the orientation\n{doc}"
+    );
+    // Content width = 15840 - 2*1440 = 12960.
+    assert!(
+        doc.contains(r#"<w:tblW w:w="12960" w:type="dxa" />"#),
+        "content should widen to the landscape text column (12960)\n{doc}"
+    );
+}
+
+#[test]
+fn custom_margins_land_in_page_setup_and_content_width() {
+    // 0.5 in uniform margins on Letter -> content width 12240 - 2*720 = 10800.
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::Letter,
+        orientation: Orientation::Portrait,
+        margins: Margins::uniform(720),
+    }));
+    assert!(
+        doc.contains(r#"w:top="720""#)
+            && doc.contains(r#"w:right="720""#)
+            && doc.contains(r#"w:bottom="720""#)
+            && doc.contains(r#"w:left="720""#),
+        "every margin side should be the custom 720 twips\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:tblW w:w="10800" w:type="dxa" />"#),
+        "content should widen to match the narrower margins (10800)\n{doc}"
+    );
+}
+
+#[test]
+fn page_setup_content_width_helper_matches_geometry() {
+    assert_eq!(PageSetup::default().content_width_dxa(), 9360);
+    assert_eq!(
+        PageSetup {
+            size: PageSize::A4,
+            ..PageSetup::default()
+        }
+        .content_width_dxa(),
+        9026
+    );
+    assert_eq!(
+        PageSetup {
+            size: PageSize::Legal,
+            orientation: Orientation::Landscape,
+            margins: Margins::uniform(720),
+        }
+        .content_width_dxa(),
+        20160 - 1440
     );
 }

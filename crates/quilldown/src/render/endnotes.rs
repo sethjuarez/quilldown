@@ -86,7 +86,7 @@ pub(crate) fn render_section<'a>(ctx: &mut Ctx<'a>, out: &mut Vec<Block>) {
         return;
     }
 
-    out.push(Block::Table(horizontal_rule()));
+    out.push(Block::Table(horizontal_rule(ctx.content_width_dxa)));
     out.push(Block::Para(
         Paragraph::new()
             .style(heading_style_id(2))

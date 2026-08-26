@@ -4,7 +4,7 @@ use comrak::nodes::{AstNode, NodeValue};
 use docx_rs::*;
 
 use super::{add_inline, bold_inline, render_inlines, Ctx, Inline};
-use crate::styles::{CONTENT_WIDTH_DXA as TABLE_WIDTH_DXA, TABLE_BORDER_COLOR, TABLE_HEADER_FILL};
+use crate::styles::{TABLE_BORDER_COLOR, TABLE_HEADER_FILL};
 
 /// Single-line table borders in cutready's `BFBFBF` on every edge and gridline.
 fn light_borders() -> TableBorders {
@@ -30,6 +30,7 @@ fn light_borders() -> TableBorders {
 /// `D9D9D9`); body cells inherit the default body style. Cell contents are inline-only per
 /// the GFM spec, so each cell becomes a single paragraph of styled runs.
 pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
+    let width_dxa = ctx.content_width_dxa;
     let mut rows = Vec::new();
 
     for row in table_node.children() {
@@ -57,6 +58,6 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
     }
 
     Table::new(rows)
-        .width(TABLE_WIDTH_DXA, WidthType::Dxa)
+        .width(width_dxa, WidthType::Dxa)
         .set_borders(light_borders())
 }

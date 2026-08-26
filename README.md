@@ -49,6 +49,9 @@ quilldown report.md --embed-svg
 
 # Remap dark-themed SVG diagrams to a print-friendly light mode before rasterizing
 quilldown report.md --svg-light-mode
+
+# Choose page size (letter/a4/legal), orientation, and uniform margin (inches)
+quilldown report.md --page-size a4 --orientation landscape --margin 0.5
 ```
 
 Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
@@ -69,8 +72,8 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 # Ok::<(), quilldown::ConvertError>(())
 ```
 
-`ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `max_image_width_px`, and
-`base_dir`. The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
+`ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `max_image_width_px`,
+`base_dir`, and `page` (a `PageSetup` of size / orientation / margins). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
 the byte/file outputs (`convert_file`, `convert_to_bytes`); `convert_str` returns a `Docx` with
 the PNG fallback only.
 
@@ -129,8 +132,10 @@ Tradeoffs:
   `asvg:svgBlip` extension with the rasterized PNG as fallback, for crisp scaling in modern Word
 - **Light-mode SVG remap** (opt-in via `--svg-light-mode`) → recolors dark-themed diagrams for a
   white page by flipping color lightness in HSL (hue/saturation preserved) before rasterizing
-- US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
-  size to the text column so nothing overflows the right margin
+- **Configurable page setup** (via `--page-size`/`--orientation`/`--margin` or
+  `ConvertOptions::page`) → US Letter, A4, Legal, or custom dimensions; portrait or landscape;
+  uniform margins. Tables, code blocks, and rules resize to the resulting text column so nothing
+  overflows. Defaults to US Letter, portrait, 1 in margins
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
@@ -145,8 +150,8 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Configurable themes/style templates and page setup (page size, orientation, custom margins)
 - Richer code-block fidelity (syntax highlighting, language label)
+- Swappable style templates / themes (fonts, heading sizes, accent colors)
 
 ## License
 

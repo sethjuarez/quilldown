@@ -104,6 +104,9 @@ pub(crate) struct Ctx<'a> {
     pub heading_slugs: HashMap<String, usize>,
     /// Current block-quote nesting depth (0 = not inside a quote). Drives quote styling.
     pub quote_depth: usize,
+    /// Usable text-column width in twips (from the configured page setup). Tables, code
+    /// blocks, and horizontal rules size to this so they never overflow the margins.
+    pub content_width_dxa: usize,
     /// SVGs to embed as `<asvg>` vector layers during post-processing (only when
     /// `opts.embed_svg` is set). Each records the PNG fallback's rid and the SVG source.
     pub svg_embeds: Vec<SvgEmbed>,
@@ -242,6 +245,7 @@ pub(crate) fn build_docx(
         next_bookmark_id: 1,
         heading_slugs: HashMap::new(),
         quote_depth: 0,
+        content_width_dxa: opts.page.content_width_dxa(),
         svg_embeds: Vec::new(),
         stats: RenderStats::default(),
     };
@@ -254,7 +258,7 @@ pub(crate) fn build_docx(
     render_blocks(root, &mut ctx, &mut blocks);
     endnotes::render_section(&mut ctx, &mut blocks);
 
-    let mut docx = styles::apply(Docx::new());
+    let mut docx = styles::apply(Docx::new(), &opts.page);
     for b in blocks {
         docx = match b {
             Block::Para(p) => docx.add_paragraph(p),
@@ -321,7 +325,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_list(child, list.list_type, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
-                out.push(Block::Table(code_block(&cb.literal)));
+                out.push(Block::Table(code_block(&cb.literal, ctx.content_width_dxa)));
                 ctx.stats.code_blocks += 1;
             }
             NodeValue::Table(_) => {
@@ -329,7 +333,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 ctx.stats.tables += 1;
             }
             NodeValue::ThematicBreak => {
-                out.push(Block::Table(horizontal_rule()));
+                out.push(Block::Table(horizontal_rule(ctx.content_width_dxa)));
             }
             NodeValue::BlockQuote => {
                 // Style the quote's paragraphs with an indent + left accent border. Nesting
@@ -512,20 +516,20 @@ fn mono_run(text: &str) -> Run {
 
 /// Render a fenced/indented code block as a single shaded, full-width table cell whose
 /// lines are monospace paragraphs. Using a 1x1 table gives us native cell shading.
-fn code_block(literal: &str) -> Table {
+fn code_block(literal: &str, content_width_dxa: usize) -> Table {
     let mut cell = TableCell::new().shading(Shading::new().fill(styles::CODE_FILL));
     let trimmed = literal.strip_suffix('\n').unwrap_or(literal);
     for line in trimmed.split('\n') {
         cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
     }
-    Table::new(vec![TableRow::new(vec![cell])]).width(styles::CONTENT_WIDTH_DXA, WidthType::Dxa)
+    Table::new(vec![TableRow::new(vec![cell])]).width(content_width_dxa, WidthType::Dxa)
 }
 
 /// Render a Markdown thematic break (`---`) as a full-width horizontal rule.
 ///
 /// docx-rs exposes no paragraph-border API, so we emit a borderless 1x1 table whose only
 /// visible edge is a thin gray bottom border — the same trick Word itself uses for rules.
-fn horizontal_rule() -> Table {
+fn horizontal_rule(content_width_dxa: usize) -> Table {
     use TableBorderPosition::*;
     let bottom = TableBorder::new(Bottom)
         .border_type(BorderType::Single)
@@ -534,7 +538,7 @@ fn horizontal_rule() -> Table {
     let borders = TableBorders::with_empty().set(bottom);
     let cell = TableCell::new().add_paragraph(Paragraph::new());
     Table::new(vec![TableRow::new(vec![cell])])
-        .width(styles::CONTENT_WIDTH_DXA, WidthType::Dxa)
+        .width(content_width_dxa, WidthType::Dxa)
         .set_borders(borders)
 }
 

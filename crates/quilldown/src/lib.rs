@@ -55,6 +55,103 @@ impl From<docx_rs::DocxError> for ConvertError {
     }
 }
 
+/// A named or custom page size, expressed in portrait orientation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageSize {
+    /// US Letter — 8.5 × 11 in.
+    Letter,
+    /// ISO A4 — 210 × 297 mm.
+    A4,
+    /// US Legal — 8.5 × 14 in.
+    Legal,
+    /// Explicit portrait dimensions in twips (1/1440 in). Orientation is applied separately.
+    Custom { width_dxa: u32, height_dxa: u32 },
+}
+
+impl PageSize {
+    /// The portrait `(width, height)` in twips.
+    fn portrait_dxa(self) -> (u32, u32) {
+        match self {
+            // 1 in = 1440 twips.
+            PageSize::Letter => (12_240, 15_840), // 8.5 × 11 in
+            PageSize::Legal => (12_240, 20_160),  // 8.5 × 14 in
+            // 1 mm = 1440/25.4 ≈ 56.6929 twips; A4 is 210 × 297 mm.
+            PageSize::A4 => (11_906, 16_838),
+            PageSize::Custom {
+                width_dxa,
+                height_dxa,
+            } => (width_dxa, height_dxa),
+        }
+    }
+}
+
+/// Page orientation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Orientation {
+    Portrait,
+    Landscape,
+}
+
+/// Page margins in twips (1/1440 in), one value per side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Margins {
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+    pub left: u32,
+}
+
+impl Margins {
+    /// The same margin on every side.
+    pub fn uniform(dxa: u32) -> Self {
+        Margins {
+            top: dxa,
+            right: dxa,
+            bottom: dxa,
+            left: dxa,
+        }
+    }
+}
+
+/// Page geometry: size, orientation, and margins. Drives the section properties and the
+/// usable text-column width that tables, code blocks, and rules size to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageSetup {
+    pub size: PageSize,
+    pub orientation: Orientation,
+    pub margins: Margins,
+}
+
+impl PageSetup {
+    /// Effective `(width, height)` in twips after applying orientation (landscape swaps the
+    /// portrait dimensions).
+    pub fn dimensions_dxa(&self) -> (u32, u32) {
+        let (w, h) = self.size.portrait_dxa();
+        match self.orientation {
+            Orientation::Portrait => (w, h),
+            Orientation::Landscape => (h, w),
+        }
+    }
+
+    /// Usable text-column width in twips: effective page width minus the left+right margins.
+    /// Saturates at 0 if the margins exceed the page width.
+    pub fn content_width_dxa(&self) -> usize {
+        let (w, _) = self.dimensions_dxa();
+        w.saturating_sub(self.margins.left + self.margins.right) as usize
+    }
+}
+
+impl Default for PageSetup {
+    fn default() -> Self {
+        // US Letter, portrait, Word's "Normal" 1 in margins.
+        PageSetup {
+            size: PageSize::Letter,
+            orientation: Orientation::Portrait,
+            margins: Margins::uniform(1_440),
+        }
+    }
+}
+
 /// Options controlling how Markdown is converted to DOCX.
 #[derive(Debug, Clone)]
 pub struct ConvertOptions {
@@ -94,6 +191,11 @@ pub struct ConvertOptions {
     /// When `None`, [`Converter::convert_file`] uses the input file's parent directory,
     /// and [`Converter::convert_str`] resolves against the current working directory.
     pub base_dir: Option<PathBuf>,
+
+    /// Page geometry: size, orientation, and margins. Defaults to US Letter, portrait, with
+    /// 1 in margins. Tables, code blocks, and horizontal rules size to the resulting
+    /// text-column width so they never overflow the margins.
+    pub page: PageSetup,
 }
 
 impl Default for ConvertOptions {
@@ -104,6 +206,7 @@ impl Default for ConvertOptions {
             svg_light_mode: false,
             max_image_width_px: 600,
             base_dir: None,
+            page: PageSetup::default(),
         }
     }
 }
