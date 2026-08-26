@@ -3,7 +3,7 @@
 Convert GitHub-Flavored Markdown into high-fidelity Word `.docx` documents.
 
 `quilldown` is a reusable Rust **library** plus a thin **CLI**. It maps Markdown into *native*
-Word constructs — heading styles, real numbering, Word tables, native footnotes, embedded
+Word constructs — heading styles, real numbering, Word tables, numbered endnotes, embedded
 images — rather than flattening them into plain text.
 
 ## Why
@@ -105,7 +105,9 @@ Tradeoffs:
 - Fenced code blocks → shaded monospace (via a 1-cell shaded table)
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
-- Markdown footnotes → **native Word footnotes**
+- Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end:
+  each `[^id]` becomes a superscript mark in the body, and every unique note is listed once
+  regardless of how many times it is referenced
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
@@ -113,8 +115,9 @@ Tradeoffs:
 
 - Hyperlinks render as styled text, not yet native `w:hyperlink` relationships
 - Block quotes preserve content but have no quote styling (indent/left border)
-- A footnote referenced *N* times emits *N* native footnotes (each numbered separately)
-  rather than one shared, multiply-referenced note
+- Endnote numbers are static text (docx-rs has no native endnote support), so they do not
+  auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
+- Endnote reference marks are not yet clickable links back to the Notes section
 - Task list items render a checkbox glyph, not a native content control
 - Superscript renders inline without true superscript alignment
 - Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
@@ -122,7 +125,7 @@ Tradeoffs:
 ## Roadmap
 
 - Native hyperlink relationships (`w:hyperlink` + `document.xml.rels`)
-- Shared footnotes: reuse one numbered note when a `[^id]` is referenced multiple times
+- Clickable endnote marks: bookmark each Notes entry and link the body superscript to it
 - Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
 - **Optional light-mode SVG color remap:** real technical-report diagrams are often authored in

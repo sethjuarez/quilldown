@@ -14,7 +14,7 @@
 //! | GFM tables                   | Word tables with a shaded, bold header row      |
 //! | fenced code blocks           | shaded monospace paragraphs                     |
 //! | block images (incl. SVG)     | embedded raster images (SVG rasterized to PNG)  |
-//! | `[^id]` footnotes            | native Word footnotes                           |
+//! | `[^id]` footnotes            | a deduplicated, numbered "Notes" (endnotes) section  |
 //!
 //! ## Quick start
 //! ```no_run

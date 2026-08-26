@@ -15,7 +15,7 @@ use docx_rs::*;
 use crate::styles::{self, BULLET_NUM_ID, MONO_FONT, ORDERED_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
-mod footnotes;
+mod endnotes;
 mod images;
 mod tables;
 
@@ -29,7 +29,7 @@ pub struct RenderStats {
     pub code_blocks: usize,
     pub images_embedded: usize,
     pub images_failed: usize,
-    pub footnotes: usize,
+    pub endnotes: usize,
     /// Non-fatal problems (e.g. an image that could not be embedded).
     pub warnings: Vec<String>,
 }
@@ -38,7 +38,7 @@ impl RenderStats {
     /// A one-line human-readable summary.
     pub fn summary(&self) -> String {
         format!(
-            "{} headings, {} paragraphs, {} list items, {} tables, {} code blocks, {} images ({} failed), {} footnotes",
+            "{} headings, {} paragraphs, {} list items, {} tables, {} code blocks, {} images ({} failed), {} endnotes",
             self.headings,
             self.paragraphs,
             self.list_items,
@@ -46,7 +46,7 @@ impl RenderStats {
             self.code_blocks,
             self.images_embedded,
             self.images_failed,
-            self.footnotes,
+            self.endnotes,
         )
     }
 }
@@ -81,8 +81,12 @@ impl Inline {
 pub(crate) struct Ctx<'a> {
     pub opts: &'a ConvertOptions,
     pub base: &'a Path,
-    /// Pre-rendered footnote definition bodies, keyed by footnote name.
-    pub footnotes: HashMap<String, Vec<Paragraph>>,
+    /// Footnote definition nodes keyed by name, rendered lazily for the Notes section.
+    pub endnote_defs: HashMap<String, &'a AstNode<'a>>,
+    /// Endnote names in order of first reference; the index + 1 is the displayed number.
+    pub endnote_order: Vec<String>,
+    /// Footnote name -> assigned endnote number.
+    pub endnote_numbers: HashMap<String, usize>,
     pub stats: RenderStats,
 }
 
@@ -105,15 +109,19 @@ pub(crate) fn build_docx(
     let mut ctx = Ctx {
         opts,
         base,
-        footnotes: HashMap::new(),
+        endnote_defs: HashMap::new(),
+        endnote_order: Vec::new(),
+        endnote_numbers: HashMap::new(),
         stats: RenderStats::default(),
     };
 
-    // Footnote definitions can appear anywhere; pre-render them so references resolve.
-    footnotes::collect(root, &mut ctx);
+    // Footnote definitions can appear anywhere; record them so references resolve, then
+    // render their bodies once at the end as a numbered "Notes" section.
+    endnotes::collect(root, &mut ctx);
 
     let mut blocks = Vec::new();
     render_blocks(root, &mut ctx, &mut blocks);
+    endnotes::render_section(&mut ctx, &mut blocks);
 
     let mut docx = styles::apply(Docx::new());
     for b in blocks {
@@ -182,7 +190,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 // content is preserved by recursing so no text is lost.
                 render_blocks(child, ctx, out);
             }
-            // Footnote definitions are emitted as native footnotes at their reference site.
+            // Footnote definitions are rendered as a numbered Notes section at the end.
             NodeValue::FootnoteDefinition(_) => {}
             // Catch-all: recurse so unknown/unhandled block content is not dropped.
             _ => render_blocks(child, ctx, out),
@@ -274,7 +282,7 @@ pub(crate) fn render_inlines<'a>(
                 out.push(images::run(&link.url, &alt, ctx));
             }
             NodeValue::FootnoteReference(fref) => {
-                out.push(footnotes::run(&fref.name, ctx));
+                out.push(endnotes::reference(&fref.name, ctx));
             }
             // Catch-all: recurse so nested inline content is preserved.
             _ => render_inlines(child, style, out, ctx),

@@ -7,17 +7,25 @@ use quilldown::{ConvertOptions, Converter};
 
 /// Convert Markdown and return the raw `.docx` (zip) bytes.
 fn to_docx_bytes(markdown: &str, base_dir: &std::path::Path) -> Vec<u8> {
+    to_docx_with_stats(markdown, base_dir).0
+}
+
+/// Convert Markdown and return both the raw `.docx` (zip) bytes and the render stats.
+fn to_docx_with_stats(
+    markdown: &str,
+    base_dir: &std::path::Path,
+) -> (Vec<u8>, quilldown::RenderStats) {
     let converter = Converter::new(ConvertOptions {
         base_dir: Some(base_dir.to_path_buf()),
         ..ConvertOptions::default()
     });
-    let (docx, _stats) = converter
+    let (docx, stats) = converter
         .convert_str_with_stats(markdown, base_dir)
         .expect("conversion should succeed");
 
     let mut buf = Cursor::new(Vec::new());
     docx.build().pack(&mut buf).expect("packing should succeed");
-    buf.into_inner()
+    (buf.into_inner(), stats)
 }
 
 /// Read a single entry out of the `.docx` zip as a UTF-8 string.
@@ -67,22 +75,38 @@ fn stats_reflect_structure() {
 }
 
 #[test]
-fn footnote_becomes_native_word_footnote() {
-    let md = "Text with a note.[^n]\n\n[^n]: The footnote body.\n";
-    let docx = to_docx_bytes(md, std::path::Path::new("."));
+fn footnote_becomes_numbered_endnote() {
+    let md = "Text with a note.[^n] And again.[^n]\n\n[^n]: The footnote body.\n";
+    let (docx, stats) = to_docx_with_stats(md, std::path::Path::new("."));
 
-    // A native footnote reference lives in document.xml, its body in footnotes.xml.
+    // The note is referenced twice but must be deduplicated to a single endnote.
+    assert_eq!(stats.endnotes, 1, "one unique note despite two references");
+
     let document = read_zip_entry(&docx, "word/document.xml").unwrap();
+    // The body carries superscript reference marks, and the note body survives once in the
+    // "Notes" section at the end (not a native footnotes.xml part).
     assert!(
-        document.contains("footnoteReference") || document.contains("footnoteRef"),
-        "document.xml should contain a native footnote reference"
+        document.contains('\u{00b9}'),
+        "body should contain a superscript reference mark"
     );
-
-    let footnotes = read_zip_entry(&docx, "word/footnotes.xml")
-        .expect("word/footnotes.xml should exist when footnotes are used");
     assert!(
-        footnotes.contains("The footnote body"),
-        "footnote body text should survive into footnotes.xml"
+        document.contains("Notes"),
+        "document should contain a Notes section heading"
+    );
+    assert!(
+        document.contains("The footnote body"),
+        "note body text should survive into document.xml"
+    );
+    assert_eq!(
+        document.matches("The footnote body").count(),
+        1,
+        "the note body should appear exactly once (deduplicated)"
+    );
+    assert!(
+        read_zip_entry(&docx, "word/footnotes.xml")
+            .map(|f| !f.contains("The footnote body"))
+            .unwrap_or(true),
+        "endnote model should not place the note body in a native footnotes.xml part"
     );
 }
 
@@ -109,7 +133,7 @@ fn sample_document_converts_and_embeds_svg() {
         stats.warnings
     );
     assert_eq!(stats.tables, 1, "sample has exactly one GFM table");
-    assert!(stats.footnotes >= 1, "sample uses a footnote");
+    assert!(stats.endnotes >= 1, "sample uses a footnote");
 
     let mut buf = Cursor::new(Vec::new());
     docx.build().pack(&mut buf).expect("packing should succeed");
