@@ -24,7 +24,10 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 - Paragraphs and inline **bold** / *italic* / `inline code` / ~~strikethrough~~
 - Ordered and unordered lists (real Word numbering/bullets, including nesting)
 - GFM tables with a bold, shaded header row
-- Fenced code blocks → shaded monospace (rendered via a 1-cell shaded table)
+- Fenced code blocks → shaded monospace (rendered via a 1-cell shaded table), with **syntax
+  highlighting and an uppercase language label** when the fence names a known language
+  (colored via a light theme; unlabeled fences fall back to plain monospace). Toggle with
+  `ConvertOptions::highlight_code` / CLI `--no-highlight`
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, including **SVG rasterized to PNG** and embedded
 - **Native hyperlinks** → real `w:hyperlink` relationships. External links are registered in
@@ -74,10 +77,8 @@ re-discovers it the hard way.
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
-   blocks, beyond the current uniform monospace shading.
-2. **Swappable style templates / themes** — expose theme presets (fonts, heading sizes, accent
-   colors) on top of the now-configurable page setup.
+1. **Swappable style templates / themes** — expose theme presets (fonts, heading sizes, accent
+   colors) on top of the now-configurable page setup, and a selectable code-highlight theme.
 
 ## Known constraints to respect
 

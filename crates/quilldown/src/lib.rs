@@ -12,7 +12,7 @@
 //! | **bold** / *italic* / `code` | bold / italic runs / monospace runs             |
 //! | ordered / unordered lists    | real Word numbering / bullets                   |
 //! | GFM tables                   | Word tables with a shaded, bold header row      |
-//! | fenced code blocks           | shaded monospace paragraphs                     |
+//! | fenced code blocks           | shaded, syntax-highlighted monospace with a language label |
 //! | block images (incl. SVG)     | embedded raster images (SVG rasterized to PNG)  |
 //! | `[^id]` footnotes            | a deduplicated, numbered "Notes" (endnotes) section  |
 //!
@@ -192,6 +192,12 @@ pub struct ConvertOptions {
     /// and [`Converter::convert_str`] resolves against the current working directory.
     pub base_dir: Option<PathBuf>,
 
+    /// When `true` (the default), syntax-highlight fenced code blocks whose fence names a
+    /// known language, emitting colored monospace runs and a small uppercase language label.
+    /// Unknown or unlabeled fences fall back to plain monospace. Set `false` for uniform,
+    /// uncolored code blocks.
+    pub highlight_code: bool,
+
     /// Page geometry: size, orientation, and margins. Defaults to US Letter, portrait, with
     /// 1 in margins. Tables, code blocks, and horizontal rules size to the resulting
     /// text-column width so they never overflow the margins.
@@ -206,6 +212,7 @@ impl Default for ConvertOptions {
             svg_light_mode: false,
             max_image_width_px: 600,
             base_dir: None,
+            highlight_code: true,
             page: PageSetup::default(),
         }
     }

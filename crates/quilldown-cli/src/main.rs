@@ -73,6 +73,11 @@ struct Cli {
     #[arg(long)]
     svg_light_mode: bool,
 
+    /// Disable syntax highlighting and language labels on fenced code blocks (render them as
+    /// uniform, uncolored monospace instead).
+    #[arg(long)]
+    no_highlight: bool,
+
     /// Page size for the document.
     #[arg(long, value_enum, default_value_t = PageSizeArg::Letter)]
     page_size: PageSizeArg,
@@ -112,6 +117,7 @@ fn main() -> Result<()> {
         image_dpi: cli.dpi,
         embed_svg: cli.embed_svg,
         svg_light_mode: cli.svg_light_mode,
+        highlight_code: !cli.no_highlight,
         base_dir: cli.base_dir.clone(),
         page,
         ..ConvertOptions::default()

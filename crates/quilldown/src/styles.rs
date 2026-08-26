@@ -17,6 +17,8 @@ pub const TABLE_HEADER_FILL: &str = "D9D9D9";
 
 /// Fill color (hex, no `#`) for fenced code block backgrounds.
 pub const CODE_FILL: &str = "F2F2F2";
+/// Half-point size of the language label above a highlighted code block (8pt -> 16).
+pub const CODE_LABEL_SIZE: usize = 16;
 
 /// Border color (hex, no `#`) for table grid lines — matches cutready's `BFBFBF`.
 pub const TABLE_BORDER_COLOR: &str = "BFBFBF";

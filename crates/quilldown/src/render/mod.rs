@@ -18,6 +18,7 @@ use crate::{ConvertError, ConvertOptions};
 mod asvg;
 mod colormap;
 mod endnotes;
+mod highlight;
 mod images;
 mod tables;
 
@@ -325,7 +326,12 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_list(child, list.list_type, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
-                out.push(Block::Table(code_block(&cb.literal, ctx.content_width_dxa)));
+                out.push(Block::Table(code_block(
+                    &cb.literal,
+                    &cb.info,
+                    ctx.content_width_dxa,
+                    ctx.opts.highlight_code,
+                )));
                 ctx.stats.code_blocks += 1;
             }
             NodeValue::Table(_) => {
@@ -516,13 +522,65 @@ fn mono_run(text: &str) -> Run {
 
 /// Render a fenced/indented code block as a single shaded, full-width table cell whose
 /// lines are monospace paragraphs. Using a 1x1 table gives us native cell shading.
-fn code_block(literal: &str, content_width_dxa: usize) -> Table {
+/// Render a fenced/indented code block as a single shaded, full-width table cell whose
+/// lines are monospace paragraphs. Using a 1x1 table gives us native cell shading.
+///
+/// When `highlight` is set and the fence names a known language, lines are syntax-highlighted
+/// into colored runs and a small uppercase language label is placed above the code. An
+/// unknown or empty language falls back to plain uncolored monospace (and no label).
+fn code_block(literal: &str, info: &str, content_width_dxa: usize, highlight: bool) -> Table {
     let mut cell = TableCell::new().shading(Shading::new().fill(styles::CODE_FILL));
     let trimmed = literal.strip_suffix('\n').unwrap_or(literal);
-    for line in trimmed.split('\n') {
-        cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
+
+    let highlighted = if highlight {
+        highlight::language_token(info).and_then(|lang| highlight::highlight(trimmed, lang))
+    } else {
+        None
+    };
+
+    // A language label reads as a tag above the code; only shown when the fence names one and
+    // highlighting is enabled (so plain-fallback output stays visually quiet).
+    if highlight {
+        if let Some(label) = highlight::display_label(info) {
+            cell = cell.add_paragraph(code_label(&label));
+        }
     }
+
+    match highlighted {
+        Some(lines) => {
+            for spans in lines {
+                let mut p = Paragraph::new();
+                if spans.is_empty() {
+                    // Preserve blank lines as empty monospace paragraphs.
+                    p = p.add_run(mono_run(""));
+                } else {
+                    for (color, text) in spans {
+                        p = p.add_run(mono_run(&text).color(color));
+                    }
+                }
+                cell = cell.add_paragraph(p);
+            }
+        }
+        None => {
+            for line in trimmed.split('\n') {
+                cell = cell.add_paragraph(Paragraph::new().add_run(mono_run(line)));
+            }
+        }
+    }
+
     Table::new(vec![TableRow::new(vec![cell])]).width(content_width_dxa, WidthType::Dxa)
+}
+
+/// A small, muted, bold uppercase language tag placed above a highlighted code block.
+fn code_label(label: &str) -> Paragraph {
+    Paragraph::new().add_run(
+        Run::new()
+            .fonts(RunFonts::new().ascii(MONO_FONT).hi_ansi(MONO_FONT))
+            .size(styles::CODE_LABEL_SIZE)
+            .bold()
+            .color(styles::QUOTE_TEXT_COLOR)
+            .add_text(label),
+    )
 }
 
 /// Render a Markdown thematic break (`---`) as a full-width horizontal rule.

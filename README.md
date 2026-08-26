@@ -52,6 +52,9 @@ quilldown report.md --svg-light-mode
 
 # Choose page size (letter/a4/legal), orientation, and uniform margin (inches)
 quilldown report.md --page-size a4 --orientation landscape --margin 0.5
+
+# Turn off syntax highlighting / language labels on code blocks
+quilldown report.md --no-highlight
 ```
 
 Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
@@ -72,8 +75,8 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 # Ok::<(), quilldown::ConvertError>(())
 ```
 
-`ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `max_image_width_px`,
-`base_dir`, and `page` (a `PageSetup` of size / orientation / margins). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
+`ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `highlight_code`,
+`max_image_width_px`, `base_dir`, and `page` (a `PageSetup` of size / orientation / margins). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
 the byte/file outputs (`convert_file`, `convert_to_bytes`); `convert_str` returns a `Docx` with
 the PNG fallback only.
 
@@ -113,7 +116,9 @@ Tradeoffs:
 - Paragraphs and inline **bold** / *italic* / `inline code` / ~~strikethrough~~
 - Ordered and unordered lists (real Word numbering/bullets, incl. nesting)
 - GFM tables with a bold, shaded header row
-- Fenced code blocks → shaded monospace (via a 1-cell shaded table)
+- Fenced code blocks → shaded monospace (via a 1-cell shaded table), **syntax-highlighted**
+  with an uppercase language label when the fence names a known language (unlabeled fences fall
+  back to plain monospace; disable with `--no-highlight`)
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
 - **Native hyperlinks** → real `w:hyperlink` relationships (external links land in
@@ -150,8 +155,7 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Richer code-block fidelity (syntax highlighting, language label)
-- Swappable style templates / themes (fonts, heading sizes, accent colors)
+- Swappable style templates / themes (fonts, heading sizes, accent colors, code theme)
 
 ## License
 

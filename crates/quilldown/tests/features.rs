@@ -665,3 +665,73 @@ fn page_setup_content_width_helper_matches_geometry() {
         20160 - 1440
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #9 — richer code-block fidelity (syntax highlighting + language label)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn labeled_code_fence_is_highlighted_with_a_language_label() {
+    let (docx, _stats) = convert("```rust\nfn main() {}\n```\n");
+    let doc = document_xml(&docx);
+
+    // Uppercase language label above the block.
+    assert!(
+        doc.contains(">RUST<"),
+        "a fenced block should carry an uppercase language label\n{doc}"
+    );
+    // Highlighted tokens carry explicit run colors. A71D5D is InspiredGitHub's keyword color
+    // (the pinned default theme), so `fn` colors that span — proving real highlighting, not
+    // just plain monospace.
+    assert!(
+        doc.contains(r#"<w:color w:val="A71D5D""#),
+        "keywords should be colored by the syntax highlighter\n{doc}"
+    );
+    assert!(doc.contains("main"), "code text must survive highlighting");
+}
+
+#[test]
+fn unlabeled_code_fence_falls_back_to_plain_monospace() {
+    let (docx, _stats) = convert("```\njust text\n```\n");
+    let doc = document_xml(&docx);
+
+    assert!(doc.contains("just text"), "code text must survive");
+    // No language means no label and no keyword coloring.
+    assert!(
+        !doc.contains(r#"<w:color w:val="A71D5D""#),
+        "an unlabeled fence must not be syntax-highlighted"
+    );
+}
+
+#[test]
+fn highlighting_can_be_disabled() {
+    let (docx, _stats) = convert_with(
+        "```rust\nfn main() {}\n```\n",
+        std::path::Path::new("."),
+        ConvertOptions {
+            highlight_code: false,
+            ..ConvertOptions::default()
+        },
+    );
+    let doc = document_xml(&docx);
+
+    assert!(doc.contains("main"), "code text must survive");
+    assert!(
+        !doc.contains(">RUST<"),
+        "no language label when highlighting is disabled"
+    );
+    assert!(
+        !doc.contains(r#"<w:color w:val="A71D5D""#),
+        "no token colors when highlighting is disabled"
+    );
+}
+
+#[test]
+fn code_highlight_sample_document_is_wired() {
+    let (docx, stats) = convert_feature("code-highlight");
+    let doc = document_xml(&docx);
+    assert!(stats.code_blocks >= 3, "sample has three fenced blocks");
+    assert!(doc.contains(">RUST<") && doc.contains(">PYTHON<"));
+    // The trailing unlabeled fence still renders its text.
+    assert!(doc.contains("plain text, no language"));
+}

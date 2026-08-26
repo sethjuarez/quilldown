@@ -1152,6 +1152,7 @@ dependencies = [
  "docx-rs",
  "image",
  "resvg",
+ "syntect",
  "tempfile",
  "thiserror",
  "tiny-skia",
