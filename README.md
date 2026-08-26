@@ -124,13 +124,15 @@ Tradeoffs:
 
 ## Roadmap
 
+See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work with rationale
+and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
+brief:
+
 - Native hyperlink relationships (`w:hyperlink` + `document.xml.rels`)
-- Clickable endnote marks: bookmark each Notes entry and link the body superscript to it
+- Clickable endnote marks (bookmark each Notes entry, link the body superscript to it)
 - Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
-- **Optional light-mode SVG color remap:** real technical-report diagrams are often authored in
-  dark/themed colors; remap theme color tokens to print-friendly light-mode values *before*
-  rasterizing (as cutready does for its Word export) so diagrams read well on a white page
+- **Optional light-mode SVG color remap** for dark/themed diagrams (as cutready does)
 - Configurable themes/style templates and page setup (page size, orientation, custom margins)
 - Richer code-block fidelity (syntax highlighting, language label)
 
