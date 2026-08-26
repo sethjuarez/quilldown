@@ -87,13 +87,97 @@ pub(crate) struct Ctx<'a> {
     pub endnote_order: Vec<String>,
     /// Footnote name -> assigned endnote number.
     pub endnote_numbers: HashMap<String, usize>,
+    /// Monotonic id source for `w:bookmarkStart`/`w:bookmarkEnd` pairs.
+    pub next_bookmark_id: usize,
+    /// GitHub-style heading slug -> times seen, for de-duplicating anchor targets.
+    pub heading_slugs: HashMap<String, usize>,
     pub stats: RenderStats,
+}
+
+impl<'a> Ctx<'a> {
+    /// Allocate a fresh, unique bookmark id.
+    pub(crate) fn bookmark_id(&mut self) -> usize {
+        let id = self.next_bookmark_id;
+        self.next_bookmark_id += 1;
+        id
+    }
+
+    /// Compute a unique GitHub-style anchor slug for a heading's text, tracking collisions
+    /// so repeated headings get `-1`, `-2`, ... suffixes (matching GitHub's rendering).
+    pub(crate) fn heading_slug(&mut self, text: &str) -> String {
+        let base = slugify(text);
+        let count = self.heading_slugs.entry(base.clone()).or_insert(0);
+        let slug = if *count == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{count}")
+        };
+        *count += 1;
+        slug
+    }
+}
+
+/// Slugify heading text the way GitHub does: lowercase, drop characters that are not
+/// alphanumeric / space / hyphen, then replace runs of spaces with single hyphens.
+fn slugify(text: &str) -> String {
+    let mut s = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_alphanumeric() {
+            s.extend(c.to_lowercase());
+        } else if c == ' ' || c == '-' {
+            s.push(' ');
+        }
+        // everything else (punctuation) is dropped
+    }
+    s.split_whitespace().collect::<Vec<_>>().join("-")
 }
 
 /// A top-level block element to be added to the document.
 enum Block {
     Para(Paragraph),
     Table(Table),
+}
+
+/// A paragraph-level inline child. Most inline content is a styled [`Run`], but links must
+/// become native `w:hyperlink` elements, which are paragraph children (not runs), so inline
+/// rendering yields this enum rather than a flat `Vec<Run>`.
+pub(crate) enum InlineChild {
+    Run(Run),
+    Hyperlink(Hyperlink),
+}
+
+impl InlineChild {
+    /// Wrap a run.
+    pub(crate) fn run(r: Run) -> Self {
+        InlineChild::Run(r)
+    }
+}
+
+/// Append an [`InlineChild`] to a paragraph via the right builder method.
+pub(crate) fn add_inline(p: Paragraph, child: InlineChild) -> Paragraph {
+    match child {
+        InlineChild::Run(r) => p.add_run(r),
+        InlineChild::Hyperlink(h) => p.add_hyperlink(h),
+    }
+}
+
+/// Apply bold to an inline child (used for GFM table header cells). Bolds the run, or every
+/// run inside a hyperlink (preserving the link's relationship id).
+pub(crate) fn bold_inline(child: InlineChild) -> InlineChild {
+    match child {
+        InlineChild::Run(r) => InlineChild::Run(r.bold()),
+        InlineChild::Hyperlink(mut h) => {
+            h.children = h
+                .children
+                .into_iter()
+                .map(|c| match c {
+                    ParagraphChild::Run(r) => ParagraphChild::Run(Box::new((*r).bold())),
+                    other => other,
+                })
+                .collect();
+            InlineChild::Hyperlink(h)
+        }
+    }
 }
 
 /// Parse `markdown` and render it to a [`Docx`] builder plus [`RenderStats`].
@@ -112,6 +196,8 @@ pub(crate) fn build_docx(
         endnote_defs: HashMap::new(),
         endnote_order: Vec::new(),
         endnote_numbers: HashMap::new(),
+        next_bookmark_id: 1,
+        heading_slugs: HashMap::new(),
         stats: RenderStats::default(),
     };
 
@@ -154,10 +240,17 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             NodeValue::Heading(h) => {
                 let mut runs = Vec::new();
                 render_inlines(child, Inline::default(), &mut runs, ctx);
-                let mut p = Paragraph::new().style(heading_style_id(h.level));
+                // Bookmark the heading with its GitHub-style slug so `#slug` anchor links
+                // (and future cross-references) can jump to it.
+                let slug = ctx.heading_slug(&text_of(child));
+                let bid = ctx.bookmark_id();
+                let mut p = Paragraph::new()
+                    .style(heading_style_id(h.level))
+                    .add_bookmark_start(bid, slug);
                 for r in runs {
-                    p = p.add_run(r);
+                    p = add_inline(p, r);
                 }
+                p = p.add_bookmark_end(bid);
                 out.push(Block::Para(p));
                 ctx.stats.headings += 1;
             }
@@ -166,7 +259,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
                 for r in runs {
-                    p = p.add_run(r);
+                    p = add_inline(p, r);
                 }
                 out.push(Block::Para(p));
                 ctx.stats.paragraphs += 1;
@@ -226,13 +319,13 @@ fn render_list<'a>(
                     // Task list items get a checkbox prefix ([x]/[ ]) — TODO: real checkbox.
                     if let Some(sym) = task_symbol {
                         let mark = if sym.is_some() { "\u{2611} " } else { "\u{2610} " };
-                        runs.push(Run::new().add_text(mark));
+                        runs.push(InlineChild::run(Run::new().add_text(mark)));
                     }
                     render_inlines(block, Inline::default(), &mut runs, ctx);
                     let mut p = Paragraph::new()
                         .numbering(NumberingId::new(num_id), IndentLevel::new(level));
                     for r in runs {
-                        p = p.add_run(r);
+                        p = add_inline(p, r);
                     }
                     out.push(Block::Para(p));
                 }
@@ -246,17 +339,18 @@ fn render_list<'a>(
     }
 }
 
-/// Recursively render the inline children of `container` into styled runs.
+/// Recursively render the inline children of `container` into paragraph-level children
+/// (styled runs, plus native hyperlinks for links).
 pub(crate) fn render_inlines<'a>(
     container: &'a AstNode<'a>,
     style: Inline,
-    out: &mut Vec<Run>,
+    out: &mut Vec<InlineChild>,
     ctx: &mut Ctx,
 ) {
     for child in container.children() {
         let value = child.data.borrow().value.clone();
         match value {
-            NodeValue::Text(t) => out.push(styled(style).add_text(t)),
+            NodeValue::Text(t) => out.push(InlineChild::run(styled(style).add_text(t))),
             NodeValue::Emph => render_inlines(child, style.italicized(), out, ctx),
             NodeValue::Strong => render_inlines(child, style.bolded(), out, ctx),
             NodeValue::Strikethrough => render_inlines(child, style.struck(), out, ctx),
@@ -264,22 +358,23 @@ pub(crate) fn render_inlines<'a>(
                 // TODO(quilldown): apply true superscript vertical alignment.
                 render_inlines(child, style, out, ctx)
             }
-            NodeValue::Code(code) => out.push(mono_run(&code.literal)),
-            NodeValue::SoftBreak => out.push(styled(style).add_text(" ")),
-            NodeValue::LineBreak => out.push(Run::new().add_break(BreakType::TextWrapping)),
+            NodeValue::Code(code) => out.push(InlineChild::run(mono_run(&code.literal))),
+            NodeValue::SoftBreak => out.push(InlineChild::run(styled(style).add_text(" "))),
+            NodeValue::LineBreak => {
+                out.push(InlineChild::run(Run::new().add_break(BreakType::TextWrapping)))
+            }
             NodeValue::Link(link) => {
-                // TODO(quilldown): emit a real hyperlink relationship. For now render the
-                // link text (blue + underlined) so it reads as a link.
-                let mut link_runs = Vec::new();
-                render_inlines(child, style, &mut link_runs, ctx);
-                for r in link_runs {
-                    out.push(r.color("0563C1").underline("single"));
-                }
-                let _ = &link.url;
+                // Emit a native external `w:hyperlink`; docx-rs registers the relationship in
+                // document.xml.rels automatically at build time. The link text is styled
+                // blue + underlined so it reads as a link even before the relationship
+                // resolves. Anchor (in-document `#name`) links use an Anchor hyperlink.
+                let mut inner = Vec::new();
+                render_inlines(child, style, &mut inner, ctx);
+                out.push(InlineChild::Hyperlink(build_hyperlink(&link.url, inner)));
             }
             NodeValue::Image(link) => {
                 let alt = text_of(child);
-                out.push(images::run(&link.url, &alt, ctx));
+                out.push(InlineChild::run(images::run(&link.url, &alt, ctx)));
             }
             NodeValue::FootnoteReference(fref) => {
                 out.push(endnotes::reference(&fref.name, ctx));
@@ -288,6 +383,34 @@ pub(crate) fn render_inlines<'a>(
             _ => render_inlines(child, style, out, ctx),
         }
     }
+}
+
+/// Build a native hyperlink from a URL and already-rendered inline children.
+///
+/// A URL beginning with `#` becomes an in-document anchor link (to a bookmark); anything else
+/// is an external link. Inner content is flattened to runs (styled blue + underlined); a
+/// nested link's runs are spliced in, since Word hyperlinks cannot nest.
+fn build_hyperlink(url: &str, inner: Vec<InlineChild>) -> Hyperlink {
+    let mut link = if let Some(anchor) = url.strip_prefix('#') {
+        Hyperlink::new(anchor, HyperlinkType::Anchor)
+    } else {
+        Hyperlink::new(url, HyperlinkType::External)
+    };
+    for c in inner {
+        match c {
+            InlineChild::Run(r) => {
+                link = link.add_run(r.color(styles::LINK_COLOR).underline("single"));
+            }
+            InlineChild::Hyperlink(nested) => {
+                for nc in nested.children {
+                    if let ParagraphChild::Run(r) = nc {
+                        link = link.add_run(*r);
+                    }
+                }
+            }
+        }
+    }
+    link
 }
 
 /// Build a `Run` carrying the accumulated inline style flags (text added by the caller).

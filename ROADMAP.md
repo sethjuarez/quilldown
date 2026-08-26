@@ -27,6 +27,9 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 - Fenced code blocks → shaded monospace (rendered via a 1-cell shaded table)
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, including **SVG rasterized to PNG** and embedded
+- **Native hyperlinks** → real `w:hyperlink` relationships. External links are registered in
+  `document.xml.rels` (`TargetMode="External"`); `#fragment` links become in-document anchors,
+  and every heading is bookmarked with its GitHub-style slug so those anchors resolve
 - Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
   to the text column (content width 9360 twips) so nothing overflows the right margin
@@ -36,8 +39,6 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 Each item below is intentionally limited today; the "why" explains the constraint so nobody
 re-discovers it the hard way.
 
-- **Hyperlinks render as styled text**, not native `w:hyperlink` relationships. Links look
-  right (blue/underlined) but are not clickable.
 - **Block quotes preserve content but have no quote styling** (no indent / left border).
 - **Endnote numbers are static text.** docx-rs (0.4.x) has no native endnote support, so
   quilldown assigns numbers at render time and writes them as literal superscript glyphs.
@@ -56,25 +57,23 @@ re-discovers it the hard way.
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Native hyperlink relationships** — emit `w:hyperlink` + `document.xml.rels` entries so
-   links are clickable, replacing the current styled-text approximation.
-2. **Clickable endnote marks** — bookmark each Notes entry and link the body superscript to
-   it, so readers can jump between a citation and its note. Pairs naturally with (1) since
-   both need the relationship/bookmark plumbing.
-3. **Block-quote styling** — indent + left border (and possibly a subtle background), so
+1. **Clickable endnote marks** — bookmark each Notes entry and link the body superscript to
+   it, so readers can jump between a citation and its note. Reuses the hyperlink/bookmark
+   plumbing already in place for native links.
+2. **Block-quote styling** — indent + left border (and possibly a subtle background), so
    quotes are visually distinct instead of reading as ordinary paragraphs.
-4. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
+3. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
    original SVG as the modern Word vector extension with the rasterized PNG as fallback, for
    crisp scaling in recent Word versions. Tradeoff: more complex OOXML and larger files, so
    it stays opt-in; raster PNG remains the safe default.
-5. **Optional light-mode SVG color remap** — real technical-report diagrams are often
+4. **Optional light-mode SVG color remap** — real technical-report diagrams are often
    authored in dark/themed colors. Remap theme color tokens to print-friendly light-mode
    values *before* rasterizing (as cutready does for its Word export) so diagrams read well
    on a white page. Not always needed — diagrams already authored for light backgrounds pass
    through fine — so this is a flag, not default behavior.
-6. **Configurable themes / style templates and page setup** — expose page size, orientation,
+5. **Configurable themes / style templates and page setup** — expose page size, orientation,
    and custom margins (today: US Letter + 1 in), plus swappable style templates.
-7. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
+6. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
    blocks, beyond the current uniform monospace shading.
 
 ## Known constraints to respect

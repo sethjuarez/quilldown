@@ -13,7 +13,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use docx_rs::*;
 
-use super::{heading_style_id, horizontal_rule, render_inlines, Block, Ctx, Inline};
+use super::{heading_style_id, horizontal_rule, render_inlines, add_inline, Block, Ctx, Inline, InlineChild};
 
 /// Record every footnote definition node, keyed by name, so the Notes section can render the
 /// bodies lazily (in reference order) once the body walk has assigned numbers.
@@ -30,9 +30,9 @@ pub(crate) fn collect<'a>(root: &'a AstNode<'a>, ctx: &mut Ctx<'a>) {
 /// Emit a superscript reference mark for `name`, assigning its endnote number on first use.
 ///
 /// Falls back to literal `[^name]` text when no matching definition exists.
-pub(crate) fn reference(name: &str, ctx: &mut Ctx) -> Run {
+pub(crate) fn reference(name: &str, ctx: &mut Ctx) -> InlineChild {
     if !ctx.endnote_defs.contains_key(name) {
-        return Run::new().add_text(format!("[^{name}]"));
+        return InlineChild::run(Run::new().add_text(format!("[^{name}]")));
     }
     let number = match ctx.endnote_numbers.get(name) {
         Some(n) => *n,
@@ -43,7 +43,7 @@ pub(crate) fn reference(name: &str, ctx: &mut Ctx) -> Run {
             n
         }
     };
-    Run::new().add_text(superscript(number))
+    InlineChild::run(Run::new().add_text(superscript(number)))
 }
 
 /// Append the "Notes" section: a rule, a heading, then one numbered paragraph per unique
@@ -66,13 +66,14 @@ pub(crate) fn render_section<'a>(ctx: &mut Ctx<'a>, out: &mut Vec<Block>) {
         let number = i + 1;
         let node = ctx.endnote_defs.get(name).copied();
 
-        let mut runs = vec![Run::new().bold().add_text(format!("{number}. "))];
+        let mut runs: Vec<InlineChild> =
+            vec![InlineChild::run(Run::new().bold().add_text(format!("{number}. ")))];
         if let Some(node) = node {
             let mut first = true;
             for block in node.children() {
                 if matches!(block.data.borrow().value, NodeValue::Paragraph) {
                     if !first {
-                        runs.push(Run::new().add_text(" "));
+                        runs.push(InlineChild::run(Run::new().add_text(" ")));
                     }
                     render_inlines(block, Inline::default(), &mut runs, ctx);
                     first = false;
@@ -82,7 +83,7 @@ pub(crate) fn render_section<'a>(ctx: &mut Ctx<'a>, out: &mut Vec<Block>) {
 
         let mut p = Paragraph::new();
         for r in runs {
-            p = p.add_run(r);
+            p = add_inline(p, r);
         }
         out.push(Block::Para(p));
         ctx.stats.endnotes += 1;

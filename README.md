@@ -105,6 +105,9 @@ Tradeoffs:
 - Fenced code blocks → shaded monospace (via a 1-cell shaded table)
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
+- **Native hyperlinks** → real `w:hyperlink` relationships (external links land in
+  `document.xml.rels`; `#fragment` links become in-document anchors, and headings are
+  bookmarked with their GitHub-style slug so those anchors resolve)
 - Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end:
   each `[^id]` becomes a superscript mark in the body, and every unique note is listed once
   regardless of how many times it is referenced
@@ -113,7 +116,6 @@ Tradeoffs:
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
-- Hyperlinks render as styled text, not yet native `w:hyperlink` relationships
 - Block quotes preserve content but have no quote styling (indent/left border)
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
@@ -128,7 +130,6 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Native hyperlink relationships (`w:hyperlink` + `document.xml.rels`)
 - Clickable endnote marks (bookmark each Notes entry, link the body superscript to it)
 - Block-quote styling
 - Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity

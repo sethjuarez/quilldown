@@ -3,7 +3,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use docx_rs::*;
 
-use super::{render_inlines, Ctx, Inline};
+use super::{add_inline, bold_inline, render_inlines, Ctx, Inline};
 use crate::styles::{CONTENT_WIDTH_DXA as TABLE_WIDTH_DXA, TABLE_BORDER_COLOR, TABLE_HEADER_FILL};
 
 /// Single-line table borders in cutready's `BFBFBF` on every edge and gridline.
@@ -42,7 +42,8 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
 
             let mut para = Paragraph::new();
             for r in runs {
-                para = para.add_run(if is_header { r.bold() } else { r });
+                let r = if is_header { bold_inline(r) } else { r };
+                para = add_inline(para, r);
             }
 
             let mut tc = TableCell::new().add_paragraph(para);

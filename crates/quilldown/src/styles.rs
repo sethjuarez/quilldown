@@ -24,6 +24,9 @@ pub const TABLE_BORDER_COLOR: &str = "BFBFBF";
 /// Word's default heading accent color (hex, no `#`).
 const HEADING_COLOR: &str = "2F5496";
 
+/// Hyperlink text color (hex, no `#`) — Word's default hyperlink blue.
+pub const LINK_COLOR: &str = "0563C1";
+
 /// Numbering id used for ordered (decimal) lists.
 pub const ORDERED_NUM_ID: usize = 100;
 /// Numbering id used for unordered (bullet) lists.
