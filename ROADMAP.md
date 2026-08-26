@@ -40,6 +40,10 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 - **Task lists** (`- [x]` / `- [ ]`) → a checkbox marker (☑ / ☐) with a hanging indent that
   lines up like a list item, and **no redundant bullet** (matching GitHub, which shows only the
   checkbox). Plain bullets in the same list keep their native numbering
+- **Dual SVG `<asvg>` + PNG embedding** (opt-in via `embed_svg`) → the original SVG is embedded
+  as the modern Word vector extension (`asvg:svgBlip`) with the rasterized PNG kept as fallback,
+  for crisp scaling in recent Word versions. Off by default, so the safe PNG-only path is
+  unchanged
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
   to the text column (content width 9360 twips) so nothing overflows the right margin
 
@@ -58,25 +62,19 @@ re-discovers it the hard way.
   `w14:checkbox`), so the ☑ / ☐ markers are static symbols — they render correctly and read
   as done/pending, but are not toggleable in Word. (The redundant bullet is now suppressed —
   see Done.)
-- **Dual SVG embedding is a no-op.** The `embed_svg` option is reserved but does not yet emit
-  the modern Word `<asvg>` vector extension (see roadmap item below).
 
 ## Roadmap — planned work
 
 Ordered roughly by value-to-effort. Nothing here is committed to a release.
 
-1. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
-   original SVG as the modern Word vector extension with the rasterized PNG as fallback, for
-   crisp scaling in recent Word versions. Tradeoff: more complex OOXML and larger files, so
-   it stays opt-in; raster PNG remains the safe default.
-2. **Optional light-mode SVG color remap** — real technical-report diagrams are often
+1. **Optional light-mode SVG color remap** — real technical-report diagrams are often
    authored in dark/themed colors. Remap theme color tokens to print-friendly light-mode
    values *before* rasterizing (as cutready does for its Word export) so diagrams read well
    on a white page. Not always needed — diagrams already authored for light backgrounds pass
    through fine — so this is a flag, not default behavior.
-3. **Configurable themes / style templates and page setup** — expose page size, orientation,
+2. **Configurable themes / style templates and page setup** — expose page size, orientation,
    and custom margins (today: US Letter + 1 in), plus swappable style templates.
-4. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
+3. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
    blocks, beyond the current uniform monospace shading.
 
 ## Known constraints to respect
@@ -86,5 +84,5 @@ Ordered roughly by value-to-effort. Nothing here is committed to a release.
   numbers. Superscript alignment is set via the public `run_property` field, since `Run` has
   no `vert_align` method. Native endnotes would mean patching docx-rs or contributing upstream.
 - **Word does not reliably render SVG.** docx-rs embeds raster images; hence the
-  rasterize-to-PNG default. The `<asvg>` path (roadmap 1) is the fidelity upgrade, not a
-  replacement for the PNG fallback.
+  rasterize-to-PNG default. The opt-in `<asvg>` path (see Done) is the fidelity upgrade layered
+  on top, not a replacement for the PNG fallback.

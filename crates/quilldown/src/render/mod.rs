@@ -15,9 +15,12 @@ use docx_rs::*;
 use crate::styles::{self, BULLET_NUM_ID, MONO_FONT, ORDERED_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
+mod asvg;
 mod endnotes;
 mod images;
 mod tables;
+
+pub(crate) use asvg::{inject as inject_svg_layers, SvgEmbed};
 
 /// Counts and warnings describing a single conversion. Useful for tests and CLI output.
 #[derive(Debug, Clone, Default)]
@@ -100,6 +103,9 @@ pub(crate) struct Ctx<'a> {
     pub heading_slugs: HashMap<String, usize>,
     /// Current block-quote nesting depth (0 = not inside a quote). Drives quote styling.
     pub quote_depth: usize,
+    /// SVGs to embed as `<asvg>` vector layers during post-processing (only when
+    /// `opts.embed_svg` is set). Each records the PNG fallback's rid and the SVG source.
+    pub svg_embeds: Vec<SvgEmbed>,
     pub stats: RenderStats,
 }
 
@@ -215,12 +221,13 @@ pub(crate) fn bold_inline(child: InlineChild) -> InlineChild {
     }
 }
 
-/// Parse `markdown` and render it to a [`Docx`] builder plus [`RenderStats`].
+/// Parse `markdown` and render it to a [`Docx`] builder plus [`RenderStats`], along with any
+/// SVGs to embed as `<asvg>` vector layers during post-packing (empty unless `embed_svg`).
 pub(crate) fn build_docx(
     markdown: &str,
     opts: &ConvertOptions,
     base: &Path,
-) -> Result<(Docx, RenderStats), ConvertError> {
+) -> Result<(Docx, RenderStats, Vec<SvgEmbed>), ConvertError> {
     let arena = Arena::new();
     let options = comrak_options();
     let root = parse_document(&arena, markdown, &options);
@@ -234,6 +241,7 @@ pub(crate) fn build_docx(
         next_bookmark_id: 1,
         heading_slugs: HashMap::new(),
         quote_depth: 0,
+        svg_embeds: Vec::new(),
         stats: RenderStats::default(),
     };
 
@@ -253,7 +261,7 @@ pub(crate) fn build_docx(
         };
     }
 
-    Ok((docx, ctx.stats))
+    Ok((docx, ctx.stats, ctx.svg_embeds))
 }
 
 /// Build comrak options with the GFM extensions the test documents rely on.
@@ -295,7 +303,11 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
                 for r in runs {
-                    let r = if ctx.quote_depth > 0 { quote_tint(r) } else { r };
+                    let r = if ctx.quote_depth > 0 {
+                        quote_tint(r)
+                    } else {
+                        r
+                    };
                     p = add_inline(p, r);
                 }
                 if ctx.quote_depth > 0 {
@@ -378,10 +390,7 @@ fn render_list<'a>(
                             None,
                             None,
                         );
-                        tp = add_inline(
-                            tp,
-                            InlineChild::run(Run::new().add_text(glyph).add_tab()),
-                        );
+                        tp = add_inline(tp, InlineChild::run(Run::new().add_text(glyph).add_tab()));
                         tp
                     } else {
                         Paragraph::new()
@@ -420,9 +429,9 @@ pub(crate) fn render_inlines<'a>(
             NodeValue::Superscript => render_inlines(child, style.superscripted(), out, ctx),
             NodeValue::Code(code) => out.push(InlineChild::run(mono_run(&code.literal))),
             NodeValue::SoftBreak => out.push(InlineChild::run(styled(style).add_text(" "))),
-            NodeValue::LineBreak => {
-                out.push(InlineChild::run(Run::new().add_break(BreakType::TextWrapping)))
-            }
+            NodeValue::LineBreak => out.push(InlineChild::run(
+                Run::new().add_break(BreakType::TextWrapping),
+            )),
             NodeValue::Link(link) => {
                 // Emit a native external `w:hyperlink`; docx-rs registers the relationship in
                 // document.xml.rels automatically at build time. The link text is styled

@@ -16,6 +16,7 @@ resvg.workspace = true
 usvg.workspace = true
 tiny-skia.workspace = true
 image.workspace = true
+zip = "2"
 
 [dev-dependencies]
 zip = "2"

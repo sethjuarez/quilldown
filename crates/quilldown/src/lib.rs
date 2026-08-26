@@ -69,8 +69,10 @@ pub struct ConvertOptions {
     /// When `true`, also embed the original SVG alongside the PNG fallback using the
     /// modern Word `<asvg>` extension, for best fidelity in recent Word versions.
     ///
-    /// Currently a no-op placeholder (PNG-only embedding is used regardless). See the
-    /// roadmap in `README.md`.
+    /// The vector layer is added as a post-packing pass, so it is present in the byte and
+    /// file outputs ([`Converter::convert_to_bytes`], [`Converter::convert_file`]); the
+    /// [`Docx`] returned by [`Converter::convert_str`] embeds the PNG fallback only. The
+    /// raster PNG stays the safe default because older Word versions ignore `<asvg>`.
     pub embed_svg: bool,
 
     /// Maximum rendered image width in pixels; larger images are scaled down (aspect
@@ -117,13 +119,18 @@ impl Converter {
     /// Relative image paths are resolved against [`ConvertOptions::base_dir`] (or the
     /// current working directory if unset). Call [`Docx::build`] then `pack` to serialize,
     /// or use [`Converter::convert_file`] for the common file-to-file case.
+    ///
+    /// Note: the `<asvg>` vector layer produced by [`ConvertOptions::embed_svg`] is applied
+    /// as a post-packing pass, so it is present only via the byte/file outputs
+    /// ([`Converter::convert_file`], [`Converter::convert_to_bytes`]). A [`Docx`] returned
+    /// here always embeds the PNG fallback only.
     pub fn convert_str(&self, markdown: &str) -> Result<Docx, ConvertError> {
         let base = self
             .opts
             .base_dir
             .clone()
             .unwrap_or_else(|| PathBuf::from("."));
-        let (docx, _stats) = render::build_docx(markdown, &self.opts, &base)?;
+        let (docx, _stats, _svg) = render::build_docx(markdown, &self.opts, &base)?;
         Ok(docx)
     }
 
@@ -134,7 +141,26 @@ impl Converter {
         markdown: &str,
         base_dir: &Path,
     ) -> Result<(Docx, RenderStats), ConvertError> {
-        render::build_docx(markdown, &self.opts, base_dir)
+        let (docx, stats, _svg) = render::build_docx(markdown, &self.opts, base_dir)?;
+        Ok((docx, stats))
+    }
+
+    /// Convert a Markdown string into packed `.docx` bytes, applying the `<asvg>` vector
+    /// layer post-processing when [`ConvertOptions::embed_svg`] is set.
+    ///
+    /// Relative image paths are resolved against `base_dir`.
+    pub fn convert_to_bytes(
+        &self,
+        markdown: &str,
+        base_dir: &Path,
+    ) -> Result<(Vec<u8>, RenderStats), ConvertError> {
+        let (docx, stats, svg_embeds) = render::build_docx(markdown, &self.opts, base_dir)?;
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        docx.build()
+            .pack(&mut cursor)
+            .map_err(|e| ConvertError::Docx(e.to_string()))?;
+        let bytes = render::inject_svg_layers(cursor.into_inner(), &svg_embeds)?;
+        Ok((bytes, stats))
     }
 
     /// Convert a Markdown file to a `.docx` file on disk.
@@ -149,11 +175,8 @@ impl Converter {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| PathBuf::from("."))
         });
-        let (docx, stats) = render::build_docx(&markdown, &self.opts, &base)?;
-        let file = std::fs::File::create(output)?;
-        docx.build()
-            .pack(file)
-            .map_err(|e| ConvertError::Docx(e.to_string()))?;
+        let (bytes, stats) = self.convert_to_bytes(&markdown, &base)?;
+        std::fs::write(output, bytes)?;
         Ok(stats)
     }
 }

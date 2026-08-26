@@ -30,7 +30,8 @@ fn to_docx_with_stats(
 
 /// Read a single entry out of the `.docx` zip as a UTF-8 string.
 fn read_zip_entry(docx: &[u8], name: &str) -> Option<String> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
     let mut file = archive.by_name(name).ok()?;
     let mut s = String::new();
     file.read_to_string(&mut s).expect("entry should be UTF-8");
@@ -145,7 +146,10 @@ fn sample_document_converts_and_embeds_svg() {
         let f = archive.by_index(i).unwrap();
         f.name().starts_with("word/media/")
     });
-    assert!(has_media, "embedded image media should be present in the .docx");
+    assert!(
+        has_media,
+        "embedded image media should be present in the .docx"
+    );
 }
 
 /// Keep `Write` in scope (used via Cursor) without an unused-import warning.

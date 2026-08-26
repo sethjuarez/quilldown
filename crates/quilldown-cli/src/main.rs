@@ -29,8 +29,8 @@ struct Cli {
     #[arg(long)]
     base_dir: Option<PathBuf>,
 
-    /// Also embed the original SVG (Word <asvg> extension) alongside the PNG fallback.
-    /// Reserved; currently a no-op.
+    /// Also embed the original SVG (Word <asvg> extension) alongside the PNG fallback,
+    /// for crisp vector rendering in recent Word versions.
     #[arg(long)]
     embed_svg: bool,
 

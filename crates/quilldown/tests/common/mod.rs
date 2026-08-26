@@ -57,6 +57,22 @@ pub fn convert_feature(stem: &str) -> (Vec<u8>, RenderStats) {
     convert_with(&md, &dir, ConvertOptions::default())
 }
 
+/// Convert Markdown through the byte/file path (which applies the `<asvg>` post-processing),
+/// returning `.docx` bytes + stats. Use this when a feature only lands via `convert_to_bytes`.
+pub fn convert_bytes_with(
+    markdown: &str,
+    base_dir: &Path,
+    opts: ConvertOptions,
+) -> (Vec<u8>, RenderStats) {
+    let converter = Converter::new(ConvertOptions {
+        base_dir: Some(base_dir.to_path_buf()),
+        ..opts
+    });
+    converter
+        .convert_to_bytes(markdown, base_dir)
+        .expect("conversion should succeed")
+}
+
 /// Read a single entry out of a `.docx` zip as a UTF-8 string.
 pub fn entry(docx: &[u8], name: &str) -> Option<String> {
     let mut archive =
@@ -65,6 +81,15 @@ pub fn entry(docx: &[u8], name: &str) -> Option<String> {
     let mut s = String::new();
     file.read_to_string(&mut s).expect("entry should be UTF-8");
     Some(s)
+}
+
+/// List every entry name in a `.docx` zip.
+pub fn entry_names(docx: &[u8]) -> Vec<String> {
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+    (0..archive.len())
+        .map(|i| archive.by_index(i).expect("entry").name().to_string())
+        .collect()
 }
 
 /// The main document part, `word/document.xml`.

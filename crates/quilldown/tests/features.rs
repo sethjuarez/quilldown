@@ -4,7 +4,11 @@
 
 mod common;
 
-use common::{convert, convert_feature, document_rels, document_xml};
+use common::{
+    convert, convert_bytes_with, convert_feature, document_rels, document_xml, entry, entry_names,
+    features_dir, read_feature,
+};
+use quilldown::ConvertOptions;
 
 // ---------------------------------------------------------------------------------------------
 // Roadmap #1 — native hyperlink relationships
@@ -12,9 +16,7 @@ use common::{convert, convert_feature, document_rels, document_xml};
 
 #[test]
 fn inline_link_becomes_native_hyperlink_with_relationship() {
-    let (docx, _stats) = convert(
-        "See the [project](https://example.com/project) page.\n",
-    );
+    let (docx, _stats) = convert("See the [project](https://example.com/project) page.\n");
     let doc = document_xml(&docx);
 
     // Native hyperlink element (references a relationship id), not just styled text.
@@ -56,7 +58,10 @@ fn autolink_becomes_native_hyperlink() {
     let (docx, _stats) = convert("Bare url https://www.rust-lang.org here.\n");
     let doc = document_xml(&docx);
     let rels = document_rels(&docx).expect("rels must exist");
-    assert!(doc.contains("<w:hyperlink"), "autolink should be a hyperlink");
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "autolink should be a hyperlink"
+    );
     assert!(
         rels.contains("https://www.rust-lang.org"),
         "autolink target should be an external relationship"
@@ -70,8 +75,14 @@ fn hyperlinks_sample_document_is_wired() {
     let rels = document_rels(&docx).expect("rels must exist");
 
     // External + anchor links, including one inside a table cell.
-    assert!(doc.contains("<w:hyperlink"), "sample should contain hyperlinks");
-    assert!(doc.contains(r#"w:anchor="anchor-target""#), "sample has an anchor link");
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "sample should contain hyperlinks"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="anchor-target""#),
+        "sample has an anchor link"
+    );
     for target in [
         "https://github.com/sethjuarez/quilldown",
         "https://docs.rs/docx-rs",
@@ -89,9 +100,7 @@ fn hyperlinks_sample_document_is_wired() {
 
 #[test]
 fn endnote_mark_links_forward_and_note_links_back() {
-    let (docx, _stats) = convert(
-        "Body text with a citation.[^a]\n\n[^a]: The note body.\n",
-    );
+    let (docx, _stats) = convert("Body text with a citation.[^a]\n\n[^a]: The note body.\n");
     let doc = document_xml(&docx);
 
     // Body mark: anchor hyperlink to the note, plus a bookmark for the back-link target.
@@ -123,7 +132,10 @@ fn repeated_reference_dedups_to_single_note() {
     let doc = document_xml(&docx);
 
     // Two body marks (both link to qd-note-1) but exactly one Notes entry.
-    assert_eq!(stats.endnotes, 1, "a twice-cited note should be listed once");
+    assert_eq!(
+        stats.endnotes, 1,
+        "a twice-cited note should be listed once"
+    );
     assert_eq!(
         doc.matches(r#"w:name="qd-note-1""#).count(),
         1,
@@ -211,13 +223,19 @@ fn nested_quote_indents_further() {
 fn blockquotes_sample_document_is_wired() {
     let (docx, _stats) = convert_feature("blockquotes");
     let doc = document_xml(&docx);
-    assert!(doc.contains("<w:pBdr>"), "sample should style quotes with borders");
+    assert!(
+        doc.contains("<w:pBdr>"),
+        "sample should style quotes with borders"
+    );
     assert!(
         doc.contains(r#"w:left="720""#),
         "sample includes a nested quote at depth 2"
     );
     // Inline formatting inside a quote should still round-trip (e.g. the hyperlink).
-    assert!(doc.contains("<w:hyperlink"), "quote link should survive styling");
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "quote link should survive styling"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -233,8 +251,14 @@ fn superscript_uses_true_vertical_alignment() {
         "^..^ should emit a true superscript run, not a Unicode glyph\n{doc}"
     );
     // The superscripted content is a normal digit, not a Unicode superscript character.
-    assert!(doc.contains("<w:t"), "superscript run should carry real text");
-    assert!(!doc.contains('\u{00b2}'), "must not fall back to Unicode superscript ²");
+    assert!(
+        doc.contains("<w:t"),
+        "superscript run should carry real text"
+    );
+    assert!(
+        !doc.contains('\u{00b2}'),
+        "must not fall back to Unicode superscript ²"
+    );
 }
 
 #[test]
@@ -246,7 +270,10 @@ fn superscript_combines_with_emphasis() {
         doc.contains("<w:vertAlign w:val=\"superscript\" />"),
         "superscript inside bold should still align"
     );
-    assert!(doc.contains("<w:b "), "bold should survive alongside superscript");
+    assert!(
+        doc.contains("<w:b "),
+        "bold should survive alongside superscript"
+    );
 }
 
 #[test]
@@ -264,7 +291,9 @@ fn endnote_mark_is_true_superscript() {
 fn superscript_sample_document_is_wired() {
     let (docx, _stats) = convert_feature("superscript");
     let doc = document_xml(&docx);
-    let count = doc.matches(r#"<w:vertAlign w:val="superscript" />"#).count();
+    let count = doc
+        .matches(r#"<w:vertAlign w:val="superscript" />"#)
+        .count();
     assert!(
         count >= 8,
         "sample exercises many superscripts; found {count}"
@@ -299,8 +328,14 @@ fn task_items_suppress_the_list_bullet() {
         "task items must not also emit a list bullet (numId)\n{doc}"
     );
     // They align like list items via a hanging indent, and separate marker from text with a tab.
-    assert!(doc.contains(r#"w:hanging="360""#), "task item should use a hanging indent");
-    assert!(doc.contains("<w:tab"), "checkbox marker should be followed by a tab");
+    assert!(
+        doc.contains(r#"w:hanging="360""#),
+        "task item should use a hanging indent"
+    );
+    assert!(
+        doc.contains("<w:tab"),
+        "checkbox marker should be followed by a tab"
+    );
 }
 
 #[test]
@@ -308,8 +343,14 @@ fn plain_bullets_keep_their_numbering_alongside_tasks() {
     // A mixed list: plain bullets still get numbering; the task item does not.
     let (docx, _stats) = convert("- Plain\n- [ ] Task\n");
     let doc = document_xml(&docx);
-    assert!(doc.contains("<w:numId"), "the plain bullet should still be a native list item");
-    assert!(doc.contains('\u{2610}'), "the task item should still render a checkbox");
+    assert!(
+        doc.contains("<w:numId"),
+        "the plain bullet should still be a native list item"
+    );
+    assert!(
+        doc.contains('\u{2610}'),
+        "the task item should still render a checkbox"
+    );
 }
 
 #[test]
@@ -318,9 +359,109 @@ fn task_list_sample_document_is_wired() {
     let doc = document_xml(&docx);
     let checked = doc.matches('\u{2611}').count();
     let unchecked = doc.matches('\u{2610}').count();
-    assert!(checked >= 5, "sample has many checked items; found {checked}");
-    assert!(unchecked >= 5, "sample has many unchecked items; found {unchecked}");
+    assert!(
+        checked >= 5,
+        "sample has many checked items; found {checked}"
+    );
+    assert!(
+        unchecked >= 5,
+        "sample has many unchecked items; found {unchecked}"
+    );
     // Inline formatting must still work inside a task item.
-    assert!(doc.contains("<w:b "), "bold inside a task item should survive");
-    assert!(doc.contains("<w:hyperlink"), "a link inside a task item should survive");
+    assert!(
+        doc.contains("<w:b "),
+        "bold inside a task item should survive"
+    );
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "a link inside a task item should survive"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap (planned #1) — dual SVG embedding via the Word `<asvg>` extension (opt-in)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the asvg sample with `embed_svg` set, through the bytes path that runs the
+/// post-packing `<asvg>` injection.
+fn convert_asvg_sample(embed_svg: bool) -> Vec<u8> {
+    let md = read_feature("asvg");
+    let (docx, _stats) = convert_bytes_with(
+        &md,
+        &features_dir(),
+        ConvertOptions {
+            embed_svg,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn embed_svg_adds_the_original_vector_as_a_media_part() {
+    let docx = convert_asvg_sample(true);
+    let names = entry_names(&docx);
+    // The PNG fallback is still present...
+    assert!(
+        names
+            .iter()
+            .any(|n| n.starts_with("word/media/") && n.ends_with(".png")),
+        "the rasterized PNG fallback must still be embedded\n{names:?}"
+    );
+    // ...and the original SVG is embedded alongside it as its own media part.
+    assert!(
+        names
+            .iter()
+            .any(|n| n.starts_with("word/media/") && n.ends_with(".svg")),
+        "the original SVG should be embedded as a media part\n{names:?}"
+    );
+}
+
+#[test]
+fn embed_svg_registers_content_type_and_relationship() {
+    let docx = convert_asvg_sample(true);
+    let ct = entry(&docx, "[Content_Types].xml").expect("content types part");
+    assert!(
+        ct.contains("image/svg+xml"),
+        "an image/svg+xml default must be registered\n{ct}"
+    );
+    let rels = document_rels(&docx).expect("document rels");
+    assert!(
+        rels.contains(r#"Target="media/"#) && rels.contains(".svg"),
+        "an image relationship targeting the .svg part must exist\n{rels}"
+    );
+}
+
+#[test]
+fn embed_svg_decorates_the_blip_with_the_asvg_extension() {
+    let docx = convert_asvg_sample(true);
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains("asvg:svgBlip"),
+        "the picture blip must carry the asvg:svgBlip extension\n{doc}"
+    );
+    assert!(
+        doc.contains("{96DAC541-7B7A-43D3-8B79-37D633B846F1}"),
+        "the SVG blip extension GUID must be present\n{doc}"
+    );
+}
+
+#[test]
+fn without_embed_svg_no_vector_layer_is_added() {
+    let docx = convert_asvg_sample(false);
+    let names = entry_names(&docx);
+    assert!(
+        !names.iter().any(|n| n.ends_with(".svg")),
+        "the default (PNG-only) path must not embed any SVG part\n{names:?}"
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("asvg:svgBlip"),
+        "the default path must not decorate the blip with an asvg extension"
+    );
+    let ct = entry(&docx, "[Content_Types].xml").expect("content types part");
+    assert!(
+        !ct.contains("image/svg+xml"),
+        "the default path must not register an svg content type"
+    );
 }

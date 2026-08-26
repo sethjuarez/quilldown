@@ -43,6 +43,9 @@ quilldown report.md -o out.docx --verbose
 
 # Control SVG rasterization DPI (default 192 = 2x) and image base directory
 quilldown report.md --dpi 288 --base-dir ./assets
+
+# Also embed the original SVG as a Word <asvg> vector layer (PNG kept as fallback)
+quilldown report.md --embed-svg
 ```
 
 Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
@@ -63,8 +66,10 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 # Ok::<(), quilldown::ConvertError>(())
 ```
 
-`ConvertOptions` controls `image_dpi`, `embed_svg` (reserved), `max_image_width_px`, and
-`base_dir`.
+`ConvertOptions` controls `image_dpi`, `embed_svg`, `max_image_width_px`, and `base_dir`. The
+`<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via the byte/file
+outputs (`convert_file`, `convert_to_bytes`); `convert_str` returns a `Docx` with the PNG
+fallback only.
 
 ## How it works
 
@@ -91,8 +96,8 @@ which rasterizes its SVG-based visuals to PNG at `scale: 2`.
 Tradeoffs:
 
 - **Raster PNG (default):** always renders in every Word version; loses vector scalability.
-- **Dual SVG + PNG (`<asvg>`, planned):** best fidelity in modern Word, with PNG fallback; more
-  complex OOXML. Reserved behind the `embed_svg` option.
+- **Dual SVG + PNG (`<asvg>`, opt-in):** best fidelity in modern Word, with PNG fallback; more
+  complex OOXML. Enabled with `--embed-svg` / `ConvertOptions::embed_svg`.
 
 ## Status: done vs. stubbed
 
@@ -117,6 +122,8 @@ Tradeoffs:
   bold/italic; endnote marks use the same real superscript
 - **Task lists** (`- [x]` / `- [ ]`) → a ☑ / ☐ checkbox marker with a hanging indent that lines
   up like a list item, and no redundant bullet; plain bullets in the same list keep numbering
+- **Dual SVG `<asvg>` + PNG** (opt-in via `--embed-svg`) → embeds the original vector as a Word
+  `asvg:svgBlip` extension with the rasterized PNG as fallback, for crisp scaling in modern Word
 - US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
   size to the text column so nothing overflows the right margin
 
@@ -126,7 +133,6 @@ Tradeoffs:
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
 - Task list checkboxes are static ☑ / ☐ glyphs, not interactive content controls (docx-rs
   0.4.x has no checkbox structured-document-tag)
-- Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
 
 ## Roadmap
 
@@ -134,7 +140,6 @@ See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work wi
 and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
 brief:
 
-- Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
 - **Optional light-mode SVG color remap** for dark/themed diagrams (as cutready does)
 - Configurable themes/style templates and page setup (page size, orientation, custom margins)
 - Richer code-block fidelity (syntax highlighting, language label)

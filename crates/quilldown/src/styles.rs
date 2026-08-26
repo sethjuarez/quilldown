@@ -61,8 +61,7 @@ pub const PAGE_HEIGHT_DXA: u32 = 15840;
 pub const MARGIN_DXA: i32 = 1440;
 /// Usable text-column width in DXA: page width minus left+right margins.
 /// Tables, code blocks, and horizontal rules size to this so they never overflow.
-pub const CONTENT_WIDTH_DXA: usize =
-    PAGE_WIDTH_DXA as usize - 2 * MARGIN_DXA as usize;
+pub const CONTENT_WIDTH_DXA: usize = PAGE_WIDTH_DXA as usize - 2 * MARGIN_DXA as usize;
 
 /// Apply document-wide defaults (font + size) and register heading styles.
 pub fn apply(docx: Docx) -> Docx {
@@ -114,7 +113,12 @@ fn ordered_abstract() -> AbstractNumbering {
                 LevelText::new(format!("%{}.", level + 1)),
                 LevelJc::new("left"),
             )
-            .indent(Some(indent), Some(SpecialIndentType::Hanging(360)), None, None),
+            .indent(
+                Some(indent),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
         );
     }
     a
@@ -135,7 +139,12 @@ fn bullet_abstract() -> AbstractNumbering {
                 LevelText::new(BULLETS[level % BULLETS.len()]),
                 LevelJc::new("left"),
             )
-            .indent(Some(indent), Some(SpecialIndentType::Hanging(360)), None, None),
+            .indent(
+                Some(indent),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
         );
     }
     a

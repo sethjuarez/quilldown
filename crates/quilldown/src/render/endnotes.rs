@@ -16,7 +16,9 @@
 use comrak::nodes::{AstNode, NodeValue};
 use docx_rs::*;
 
-use super::{heading_style_id, horizontal_rule, render_inlines, add_inline, Block, Ctx, Inline, InlineChild};
+use super::{
+    add_inline, heading_style_id, horizontal_rule, render_inlines, Block, Ctx, Inline, InlineChild,
+};
 
 /// Bookmark name for the Notes entry of endnote `n` (forward-link target).
 fn note_bookmark(n: usize) -> String {

@@ -27,6 +27,9 @@ struct Embedded {
     bytes: Vec<u8>,
     width_px: u32,
     height_px: u32,
+    /// Original SVG source, when the image came from an SVG and should also be embedded as a
+    /// vector `<asvg>` layer. `None` for raster inputs.
+    svg_source: Option<Vec<u8>>,
 }
 
 /// Build an inline run for an image reference, embedding it when possible.
@@ -39,6 +42,16 @@ pub(crate) fn run(url: &str, alt: &str, ctx: &mut Ctx) -> Run {
             ctx.stats.images_embedded += 1;
             let (w, h) = fit(img.width_px, img.height_px, ctx.opts.max_image_width_px);
             let pic = Pic::new(&img.bytes).size(w * EMU_PER_PX, h * EMU_PER_PX);
+            // Record the SVG source (paired with the PNG's rid) so the packer can add the
+            // <asvg> vector layer after docx-rs writes the PNG blip.
+            if ctx.opts.embed_svg {
+                if let Some(svg) = img.svg_source {
+                    ctx.svg_embeds.push(super::SvgEmbed {
+                        png_rid: pic.id.clone(),
+                        svg,
+                    });
+                }
+            }
             Run::new().add_image(pic)
         }
         Err(e) => {
@@ -76,6 +89,7 @@ fn load(url: &str, base: &Path, opts: &ConvertOptions) -> Result<Embedded, Strin
             bytes,
             width_px: w.max(1),
             height_px: h.max(1),
+            svg_source: None,
         })
     }
 }
@@ -109,8 +123,8 @@ fn rasterize_svg(bytes: &[u8], opts: &ConvertOptions) -> Result<Embedded, String
     let px_w = ((size.width() * scale).ceil() as u32).max(1);
     let px_h = ((size.height() * scale).ceil() as u32).max(1);
 
-    let mut pixmap =
-        tiny_skia::Pixmap::new(px_w, px_h).ok_or_else(|| "failed to allocate pixmap".to_string())?;
+    let mut pixmap = tiny_skia::Pixmap::new(px_w, px_h)
+        .ok_or_else(|| "failed to allocate pixmap".to_string())?;
     resvg::render(
         &tree,
         tiny_skia::Transform::from_scale(scale, scale),
@@ -118,13 +132,15 @@ fn rasterize_svg(bytes: &[u8], opts: &ConvertOptions) -> Result<Embedded, String
     );
     let png = pixmap.encode_png().map_err(|e| e.to_string())?;
 
-    // TODO(quilldown): when opts.embed_svg is set, also embed the original SVG via the
-    // Word <asvg> extension with this PNG as the fallback.
+    // Keep the original SVG so the packer can embed it as an <asvg> vector layer (with this
+    // PNG as the fallback) when `opts.embed_svg` is set. See `render::asvg`.
+    let svg_source = opts.embed_svg.then(|| bytes.to_vec());
 
     Ok(Embedded {
         bytes: png,
         width_px: (size.width().ceil() as u32).max(1),
         height_px: (size.height().ceil() as u32).max(1),
+        svg_source,
     })
 }
 
