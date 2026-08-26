@@ -12,3 +12,6 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Rendered sample previews (local only)
+/rendered/
