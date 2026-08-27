@@ -17,7 +17,14 @@ usvg.workspace = true
 tiny-skia.workspace = true
 image.workspace = true
 syntect.workspace = true
+base64.workspace = true
+ureq = { workspace = true, optional = true }
 zip = "2"
+
+[features]
+# Opt-in fetching of remote (http/https) images. Off by default so the standard build
+# pulls no TLS stack and conversions stay reproducible; `data:` URLs work without it.
+remote-images = ["dep:ureq"]
 
 [dev-dependencies]
 zip = "2"

@@ -302,6 +302,15 @@ pub struct ConvertOptions {
     /// document. Front-matter `language:`/`lang:` overrides this per document. Set to an empty
     /// string to leave the language unset.
     pub language: String,
+
+    /// When `true`, fetch and embed remote (`http://`/`https://`) images over the network.
+    ///
+    /// Off by default so conversions are reproducible and offline: remote images fall back to
+    /// an italic placeholder unless this is set. `data:` URLs are always decoded regardless of
+    /// this flag (they carry their bytes inline). Network fetching additionally requires the
+    /// crate to be built with the `remote-images` feature; without it, remote URLs always fall
+    /// back even when this flag is `true`.
+    pub allow_remote_images: bool,
 }
 
 impl Default for ConvertOptions {
@@ -318,6 +327,7 @@ impl Default for ConvertOptions {
             page_numbers: false,
             table_of_contents: false,
             language: "en-US".to_string(),
+            allow_remote_images: false,
         }
     }
 }

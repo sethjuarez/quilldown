@@ -130,6 +130,12 @@ struct Cli {
     #[arg(long, default_value = "en-US")]
     language: String,
 
+    /// Fetch and embed remote (http/https) images over the network. Off by default so
+    /// conversions stay offline and reproducible; `data:` URLs always work. Requires the CLI to
+    /// be built with `--features remote-images`.
+    #[arg(long)]
+    allow_remote_images: bool,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -163,6 +169,7 @@ fn main() -> Result<()> {
         page_numbers: cli.page_numbers,
         table_of_contents: cli.toc,
         language: cli.language.clone(),
+        allow_remote_images: cli.allow_remote_images,
         ..ConvertOptions::default()
     };
 

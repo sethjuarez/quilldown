@@ -1689,3 +1689,70 @@ fn code_block_wrapper_row_is_not_marked() {
         "a code block's 1x1 wrapper table must not be marked as a header\n{xml}"
     );
 }
+
+// --- Fidelity #14: data: URLs (always) and opt-in remote images -----------------------------
+
+/// A valid 1×1 PNG, base64-encoded, for building `data:` URLs without touching the filesystem.
+const PNG_1X1_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY+ASkfsPAAGkATy8Tqj3AAAAAElFTkSuQmCC";
+
+fn media_count(docx: &[u8]) -> usize {
+    entry_names(docx)
+        .iter()
+        .filter(|n| n.starts_with("word/media/"))
+        .count()
+}
+
+#[test]
+fn base64_data_url_image_is_embedded() {
+    let md = format!("![dot](data:image/png;base64,{PNG_1X1_B64})\n");
+    let (docx, stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    assert_eq!(stats.images_embedded, 1, "the data: URL image should embed");
+    assert_eq!(stats.images_failed, 0);
+    assert_eq!(media_count(&docx), 1, "one media part should be written");
+}
+
+#[test]
+fn inline_svg_data_url_is_rasterized() {
+    // Percent-encoded (non-base64) SVG payload exercises the percent-decode path.
+    let svg = "%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%2210%22%3E%3Crect%20width%3D%2210%22%20height%3D%2210%22%20fill%3D%22%23f00%22%2F%3E%3C%2Fsvg%3E";
+    let md = format!("![sq](data:image/svg+xml,{svg})\n");
+    let (docx, stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    assert_eq!(
+        stats.images_embedded, 1,
+        "the inline SVG should rasterize+embed"
+    );
+    assert_eq!(media_count(&docx), 1);
+}
+
+#[test]
+fn remote_image_falls_back_when_disabled() {
+    // Default options keep remote fetching off, so no network is touched.
+    let (docx, stats) = convert_bytes_with(
+        "![logo](https://example.com/logo.png)\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    assert_eq!(stats.images_embedded, 0);
+    assert_eq!(
+        stats.images_failed, 1,
+        "the remote image should fail to embed"
+    );
+    assert_eq!(
+        media_count(&docx),
+        0,
+        "no media part for a skipped remote image"
+    );
+    assert!(
+        stats
+            .warnings
+            .iter()
+            .any(|w| w.contains("remote images are disabled")),
+        "a warning should explain remote images are off\n{:?}",
+        stats.warnings
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("[logo]"),
+        "the alt text should render as an italic placeholder\n{xml}"
+    );
+}

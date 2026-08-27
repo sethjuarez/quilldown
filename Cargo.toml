@@ -31,3 +31,8 @@ syntect = { version = "5", default-features = false, features = [
     "default-themes",
     "regex-onig",
 ] }
+# Decoding `data:` image URLs (always available; deterministic, no network).
+base64 = "0.22"
+# Opt-in pure-Rust HTTP client for fetching remote images. Only compiled when the
+# `remote-images` feature is enabled, so the default build stays lean and reproducible.
+ureq = "2"

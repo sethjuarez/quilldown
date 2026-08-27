@@ -16,3 +16,7 @@ path = "src/main.rs"
 quilldown = { path = "../quilldown" }
 clap.workspace = true
 anyhow.workspace = true
+
+[features]
+# Forward to the library so `quilldown-cli --features remote-images` enables network image fetch.
+remote-images = ["quilldown/remote-images"]
