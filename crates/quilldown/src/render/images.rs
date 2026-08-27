@@ -84,34 +84,6 @@ pub(crate) fn run(url: &str, alt: &str, title: &str, ctx: &mut Ctx) -> Run {
     }
 }
 
-/// Embed an in-memory SVG (e.g. a rendered equation) as an inline image run, reusing the same
-/// rasterisation, sizing, alt-text, and `<asvg>` vector-layer handling as file/URL images.
-///
-/// `alt` becomes the drawing's accessibility description/name. Returns an error (rather than a
-/// placeholder run) so the caller can decide how to degrade.
-#[cfg(feature = "math-render")]
-pub(crate) fn embed_svg_run(svg: Vec<u8>, alt: &str, ctx: &mut Ctx) -> Result<Run, String> {
-    // Never light-mode remap: math glyphs are already black-on-transparent and read correctly on
-    // a white page (flipping them would turn the equation invisible).
-    let img = rasterize_svg_inner(&svg, ctx.opts, false)?;
-    ctx.stats.images_embedded += 1;
-    let (w, h) = fit(img.width_px, img.height_px, ctx.opts.max_image_width_px);
-    let pic = Pic::new(&img.bytes).size(w * EMU_PER_PX, h * EMU_PER_PX);
-    ctx.image_alts.push(super::ImageAlt {
-        descr: alt.to_string(),
-        name: (!alt.trim().is_empty()).then(|| alt.to_string()),
-    });
-    if ctx.opts.embed_svg {
-        if let Some(svg_source) = img.svg_source {
-            ctx.svg_embeds.push(super::SvgEmbed {
-                png_rid: pic.id.clone(),
-                svg: svg_source,
-            });
-        }
-    }
-    Ok(Run::new().add_image(pic))
-}
-
 /// Load and decode an image from a local path, a `data:` URL, or (opt-in) a remote URL.
 fn load(url: &str, base: &Path, opts: &ConvertOptions) -> Result<Embedded, String> {
     if let Some(rest) = url.strip_prefix("data:") {

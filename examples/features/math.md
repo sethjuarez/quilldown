@@ -1,8 +1,9 @@
 # Math
 
-With the `math-render` feature, `$...$` and `$$...$$` math is typeset to
-real equations (LaTeX -> Typst -> SVG) and embedded as images, just like an
-inline diagram. Without the feature it degrades to the literal LaTeX source.
+`$...$` and `$$...$$` math (and fenced ` ```math ` blocks) are converted to
+native Word equations (OMML). They reflow with the text, recolor in dark mode,
+and stay editable — no rasterized images. LaTeX that can't be represented
+degrades to its literal source.
 
 ## Inline math
 

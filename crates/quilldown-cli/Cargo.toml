@@ -20,5 +20,3 @@ anyhow.workspace = true
 [features]
 # Forward to the library so `quilldown-cli --features remote-images` enables network image fetch.
 remote-images = ["quilldown/remote-images"]
-# Forward to the library so `quilldown-cli --features math-render` typesets `$...$` math to images.
-math-render = ["quilldown/math-render"]

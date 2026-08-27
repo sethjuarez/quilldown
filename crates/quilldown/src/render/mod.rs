@@ -24,8 +24,8 @@ mod frontmatter;
 mod highlight;
 mod imagealt;
 mod images;
-#[cfg(feature = "math-render")]
-mod math;
+mod mathsplice;
+mod omml;
 mod proofing;
 mod tableheader;
 mod tables;
@@ -33,6 +33,7 @@ mod tables;
 pub(crate) use asvg::{inject as inject_svg_layers, SvgEmbed};
 pub(crate) use frontmatter::{inject as inject_core_props, DocMeta};
 pub(crate) use imagealt::{inject as inject_image_alts, ImageAlt};
+pub(crate) use mathsplice::{inject as inject_math, MathEmbed};
 pub(crate) use proofing::inject as inject_proofing_language;
 pub(crate) use tableheader::inject as inject_table_headers;
 
@@ -47,8 +48,9 @@ pub struct RenderStats {
     pub images_embedded: usize,
     pub images_failed: usize,
     pub endnotes: usize,
-    /// Number of math spans rendered. quilldown has no OMML backend, so these are emitted as
-    /// their literal LaTeX source rather than native Word equations (see the `math_spans` warning).
+    /// Number of math spans rendered. Each is emitted as a native Word equation (`<m:oMath>`,
+    /// via LaTeX -> MathML -> OMML); an equation quilldown can't represent degrades to its literal
+    /// LaTeX source instead (see the `math_spans` warning).
     pub math_spans: usize,
     /// Number of raw-HTML constructs that were skipped because they fall outside the supported
     /// safe subset (unknown inline tags and all raw HTML blocks).
@@ -142,6 +144,9 @@ pub(crate) struct Ctx<'a> {
     /// SVGs to embed as `<asvg>` vector layers during post-processing (only when
     /// `opts.embed_svg` is set). Each records the PNG fallback's rid and the SVG source.
     pub svg_embeds: Vec<SvgEmbed>,
+    /// Native OMML equations to splice into `word/document.xml` during post-processing. Each
+    /// records the placeholder run's sentinel text and the `<m:oMath>` fragment to swap in.
+    pub math_embeds: Vec<MathEmbed>,
     /// Alt text for embedded images, keyed by blip rid, injected into `wp:docPr` post-packing.
     pub image_alts: Vec<ImageAlt>,
     /// Ordered-list numbering instances allocated during the walk (one per ordered list, each
@@ -305,7 +310,14 @@ pub(crate) fn bold_inline(child: InlineChild) -> InlineChild {
 
 /// Everything produced by a single render pass: the `Docx` builder, stats, and the sidecar data
 /// (SVG layers, image alt text, core-property metadata) that later post-packing passes consume.
-pub(crate) type BuildOutput = (Docx, RenderStats, Vec<SvgEmbed>, Vec<ImageAlt>, DocMeta);
+pub(crate) type BuildOutput = (
+    Docx,
+    RenderStats,
+    Vec<SvgEmbed>,
+    Vec<ImageAlt>,
+    DocMeta,
+    Vec<MathEmbed>,
+);
 
 /// Parse `markdown` and render it to a [`Docx`] builder plus [`RenderStats`], along with any
 /// SVGs to embed as `<asvg>` vector layers during post-packing (empty unless `embed_svg`).
@@ -332,6 +344,7 @@ pub(crate) fn build_docx(
         quote_depth: 0,
         content_width_dxa: opts.page.content_width_dxa(),
         svg_embeds: Vec::new(),
+        math_embeds: Vec::new(),
         image_alts: Vec::new(),
         list_numberings: Vec::new(),
         next_num_id: styles::FIRST_LIST_NUM_ID,
@@ -382,7 +395,14 @@ pub(crate) fn build_docx(
         };
     }
 
-    Ok((docx, ctx.stats, ctx.svg_embeds, ctx.image_alts, doc_meta))
+    Ok((
+        docx,
+        ctx.stats,
+        ctx.svg_embeds,
+        ctx.image_alts,
+        doc_meta,
+        ctx.math_embeds,
+    ))
 }
 
 /// A centered "Page X of Y" footer built from native Word `PAGE` and `NUMPAGES` fields, so the
@@ -464,17 +484,9 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
                 // A standalone `$$...$$` display equation is centered, matching how Word and
-                // LaTeX present display math (only when it actually renders to an image).
-                #[cfg(feature = "math-render")]
+                // LaTeX present display math.
                 if ctx.quote_depth == 0 && is_display_math_paragraph(child) {
                     p = p.align(AlignmentType::Center);
-                }
-                // Any paragraph carrying a typeset equation grows its line to the image height
-                // (`atLeast`) so Word's 1.08 *multiple* leading doesn't shear tall fractions or
-                // superscripts off inline math.
-                #[cfg(feature = "math-render")]
-                if ctx.quote_depth == 0 && paragraph_has_math(child) {
-                    p = p.line_spacing(styles::inline_media_spacing());
                 }
                 for r in runs {
                     p = add_inline(p, r);
@@ -493,36 +505,31 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_list(child, &list, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
-                // A fenced ```math block is a standalone display equation. With the math-render
-                // feature, typeset it to a centered image; on failure (or without the feature)
-                // fall through to ordinary code-block rendering so the source is still shown. The
-                // block is counted and warned about consistently with inline `$...$` math either
-                // way, so the stats don't depend on the build.
+                // A fenced ```math block is a standalone display equation: render it as a
+                // centered native OMML equation. If the LaTeX can't be represented, fall through
+                // to ordinary code-block rendering so the source is still shown. Either way the
+                // block is counted (and warned about on fallback) so stats stay consistent.
                 let is_math_fence = cb.info.split_whitespace().next() == Some("math");
-                #[cfg(feature = "math-render")]
-                if is_math_fence {
-                    match math::to_svg(&cb.literal, true)
-                        .and_then(|svg| images::embed_svg_run(svg, &cb.literal, ctx))
-                    {
-                        Ok(run) => {
-                            push_gap(out);
-                            out.push(Block::Para(
-                                Paragraph::new().align(AlignmentType::Center).add_run(run),
-                            ));
-                            push_gap(out);
-                            ctx.stats.math_spans += 1;
-                            continue;
-                        }
-                        Err(e) => {
-                            ctx.stats.math_spans += 1;
-                            warn_math_fallback(ctx, &e);
-                        }
-                    }
-                }
-                #[cfg(not(feature = "math-render"))]
                 if is_math_fence {
                     ctx.stats.math_spans += 1;
-                    warn_math_fallback(ctx, "built without the `math-render` feature");
+                    match omml::latex_to_omml(&cb.literal, true) {
+                        Ok(xml) => {
+                            let sentinel = mathsplice::sentinel(ctx.math_embeds.len());
+                            ctx.math_embeds.push(MathEmbed {
+                                sentinel: sentinel.clone(),
+                                omml: xml,
+                            });
+                            push_gap(out);
+                            out.push(Block::Para(
+                                Paragraph::new()
+                                    .align(AlignmentType::Center)
+                                    .add_run(Run::new().add_text(sentinel)),
+                            ));
+                            push_gap(out);
+                            continue;
+                        }
+                        Err(e) => warn_math_fallback(ctx, &e),
+                    }
                 }
                 push_gap(out);
                 let mut t = code_block(
@@ -913,7 +920,6 @@ fn mono_run(text: &str, mono_font: &str) -> Run {
 /// True if a paragraph node's only meaningful content is a display-math node — i.e. the
 /// paragraph is a standalone `$$...$$` equation, which should be centered. Surrounding empty
 /// text and breaks are ignored; any other inline content disqualifies it.
-#[cfg(feature = "math-render")]
 fn is_display_math_paragraph<'a>(para: &'a AstNode<'a>) -> bool {
     let mut saw_display_math = false;
     for child in para.children() {
@@ -927,38 +933,27 @@ fn is_display_math_paragraph<'a>(para: &'a AstNode<'a>) -> bool {
     saw_display_math
 }
 
-/// True if a paragraph contains any math node. Such a paragraph embeds a typeset equation image,
-/// which is often taller than a line of text; the caller uses [`styles::inline_media_spacing`] so
-/// Word grows the line to fit the image instead of clipping it.
-#[cfg(feature = "math-render")]
-fn paragraph_has_math<'a>(para: &'a AstNode<'a>) -> bool {
-    para.descendants()
-        .any(|n| matches!(&n.data.borrow().value, NodeValue::Math(_)))
-}
-
-/// Render an inline or display math node.
+/// Render an inline or display math node as a native Word equation.
 ///
-/// With the `math-render` feature, the LaTeX is typeset to an embedded image (LaTeX -> Typst ->
-/// SVG -> PNG) so equations actually look like math. Without the feature, or if rendering fails
-/// for a given equation, it falls back to [`math_literal_run`] and warns once so the degradation
-/// is never silent.
+/// The LaTeX is converted to OMML (LaTeX -> MathML -> `<m:oMath>`) and emitted as a unique
+/// sentinel run that [`inject_math`] swaps for the equation XML after packing — Word can't be
+/// driven to write `<m:oMath>` through docx-rs directly. If an equation can't be represented it
+/// falls back to [`math_literal_run`] and warns once so the degradation is never silent.
 fn math_run(literal: &str, display: bool, ctx: &mut Ctx) -> Run {
-    #[cfg(feature = "math-render")]
-    {
-        match math::to_svg(literal, display) {
-            Ok(svg) => match images::embed_svg_run(svg, literal, ctx) {
-                Ok(run) => return run,
-                Err(e) => warn_math_fallback(ctx, &e),
-            },
-            Err(e) => warn_math_fallback(ctx, &e),
+    match omml::latex_to_omml(literal, display) {
+        Ok(xml) => {
+            let sentinel = mathsplice::sentinel(ctx.math_embeds.len());
+            ctx.math_embeds.push(MathEmbed {
+                sentinel: sentinel.clone(),
+                omml: xml,
+            });
+            Run::new().add_text(sentinel)
+        }
+        Err(e) => {
+            warn_math_fallback(ctx, &e);
+            math_literal_run(literal, ctx.opts.theme.mono_font)
         }
     }
-    #[cfg(not(feature = "math-render"))]
-    {
-        let _ = display;
-        warn_math_fallback(ctx, "built without the `math-render` feature");
-    }
-    math_literal_run(literal, ctx.opts.theme.mono_font)
 }
 
 /// Record a one-time warning that math degraded to literal source, tagged with the reason.
@@ -972,8 +967,8 @@ fn warn_math_fallback(ctx: &mut Ctx, reason: &str) {
 }
 
 /// A math fallback run: the literal LaTeX in the mono font, italicised so it reads as math and is
-/// visually distinct from inline code. Used when the `math-render` feature is off or rendering an
-/// individual equation fails.
+/// visually distinct from inline code. Used when converting an individual equation to OMML fails
+/// (an unsupported LaTeX construct).
 fn math_literal_run(text: &str, mono_font: &str) -> Run {
     mono_run(text, mono_font).italic()
 }
