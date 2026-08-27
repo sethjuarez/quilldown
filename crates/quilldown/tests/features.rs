@@ -1572,3 +1572,50 @@ fn empty_language_leaves_run_defaults_untouched() {
         "an empty language setting should not inject a lang tag\n{styles}"
     );
 }
+
+// --- Fidelity #12: image alt text (wp:docPr descr) -----------------------------------------
+
+/// Convert the image-alt sample through the bytes path that runs the post-packing docPr pass.
+fn convert_imagealt_sample() -> Vec<u8> {
+    let md = read_feature("imagealt");
+    let (docx, _stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    docx
+}
+
+#[test]
+fn image_alt_text_becomes_docpr_descr() {
+    let docx = convert_imagealt_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"descr="A tidy left-to-right flow diagram""#),
+        "the Markdown alt text should land in wp:docPr/@descr\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"name="A tidy left-to-right flow diagram""#),
+        "the alt text should also name the drawing object\n{xml}"
+    );
+}
+
+#[test]
+fn image_title_is_the_alt_text_fallback() {
+    let docx = convert_imagealt_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"descr="Fallback description""#),
+        "an image with no alt text should fall back to its title for descr\n{xml}"
+    );
+}
+
+#[test]
+fn image_without_alt_or_title_gets_no_descr() {
+    let (docx, _stats) = convert_bytes_with(
+        "![](../diagrams/01-flow.svg)\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("descr="),
+        "an image with neither alt nor title must not gain a descr attribute\n{xml}"
+    );
+}

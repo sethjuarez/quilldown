@@ -21,12 +21,14 @@ mod colormap;
 mod endnotes;
 mod frontmatter;
 mod highlight;
+mod imagealt;
 mod images;
 mod proofing;
 mod tables;
 
 pub(crate) use asvg::{inject as inject_svg_layers, SvgEmbed};
 pub(crate) use frontmatter::{inject as inject_core_props, DocMeta};
+pub(crate) use imagealt::{inject as inject_image_alts, ImageAlt};
 pub(crate) use proofing::inject as inject_proofing_language;
 
 /// Counts and warnings describing a single conversion. Useful for tests and CLI output.
@@ -128,6 +130,8 @@ pub(crate) struct Ctx<'a> {
     /// SVGs to embed as `<asvg>` vector layers during post-processing (only when
     /// `opts.embed_svg` is set). Each records the PNG fallback's rid and the SVG source.
     pub svg_embeds: Vec<SvgEmbed>,
+    /// Alt text for embedded images, keyed by blip rid, injected into `wp:docPr` post-packing.
+    pub image_alts: Vec<ImageAlt>,
     /// Ordered-list numbering instances allocated during the walk (one per ordered list, each
     /// with its own start override) to be registered on the document before paragraphs.
     pub list_numberings: Vec<Numbering>,
@@ -287,13 +291,17 @@ pub(crate) fn bold_inline(child: InlineChild) -> InlineChild {
     }
 }
 
+/// Everything produced by a single render pass: the `Docx` builder, stats, and the sidecar data
+/// (SVG layers, image alt text, core-property metadata) that later post-packing passes consume.
+pub(crate) type BuildOutput = (Docx, RenderStats, Vec<SvgEmbed>, Vec<ImageAlt>, DocMeta);
+
 /// Parse `markdown` and render it to a [`Docx`] builder plus [`RenderStats`], along with any
 /// SVGs to embed as `<asvg>` vector layers during post-packing (empty unless `embed_svg`).
 pub(crate) fn build_docx(
     markdown: &str,
     opts: &ConvertOptions,
     base: &Path,
-) -> Result<(Docx, RenderStats, Vec<SvgEmbed>, DocMeta), ConvertError> {
+) -> Result<BuildOutput, ConvertError> {
     let arena = Arena::new();
     let options = comrak_options();
     let root = parse_document(&arena, markdown, &options);
@@ -311,6 +319,7 @@ pub(crate) fn build_docx(
         quote_depth: 0,
         content_width_dxa: opts.page.content_width_dxa(),
         svg_embeds: Vec::new(),
+        image_alts: Vec::new(),
         list_numberings: Vec::new(),
         next_num_id: styles::FIRST_LIST_NUM_ID,
         stats: RenderStats::default(),
@@ -358,7 +367,7 @@ pub(crate) fn build_docx(
         };
     }
 
-    Ok((docx, ctx.stats, ctx.svg_embeds, doc_meta))
+    Ok((docx, ctx.stats, ctx.svg_embeds, ctx.image_alts, doc_meta))
 }
 
 /// A centered "Page X of Y" footer built from native Word `PAGE` and `NUMPAGES` fields, so the
@@ -659,7 +668,12 @@ pub(crate) fn render_inlines<'a>(
             }
             NodeValue::Image(link) => {
                 let alt = text_of(child);
-                out.push(InlineChild::run(images::run(&link.url, &alt, ctx)));
+                out.push(InlineChild::run(images::run(
+                    &link.url,
+                    &alt,
+                    &link.title,
+                    ctx,
+                )));
             }
             NodeValue::FootnoteReference(fref) => {
                 out.push(endnotes::reference(&fref.name, ctx));

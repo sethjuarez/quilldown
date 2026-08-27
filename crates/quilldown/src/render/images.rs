@@ -38,12 +38,22 @@ struct Embedded {
 ///
 /// On any failure (missing file, unsupported/remote URL, decode/raster error) this records
 /// a warning and falls back to italic placeholder text so the document still builds.
-pub(crate) fn run(url: &str, alt: &str, ctx: &mut Ctx) -> Run {
+pub(crate) fn run(url: &str, alt: &str, title: &str, ctx: &mut Ctx) -> Run {
     match load(url, ctx.base, ctx.opts) {
         Ok(img) => {
             ctx.stats.images_embedded += 1;
             let (w, h) = fit(img.width_px, img.height_px, ctx.opts.max_image_width_px);
             let pic = Pic::new(&img.bytes).size(w * EMU_PER_PX, h * EMU_PER_PX);
+            // Record alt text (Markdown alt, falling back to the image title) so the packer can
+            // set `wp:docPr/@descr` on the drawing. One entry per embedded image, in document
+            // order, so the post-packing pass can match drawings positionally.
+            let descr = if !alt.trim().is_empty() {
+                alt.to_string()
+            } else {
+                title.to_string()
+            };
+            let name = (!alt.trim().is_empty()).then(|| alt.to_string());
+            ctx.image_alts.push(super::ImageAlt { descr, name });
             // Record the SVG source (paired with the PNG's rid) so the packer can add the
             // <asvg> vector layer after docx-rs writes the PNG blip.
             if ctx.opts.embed_svg {
