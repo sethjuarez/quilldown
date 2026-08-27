@@ -18,9 +18,9 @@ Format:
 
 Allowed `type` values:
 
-| Type | Use for | Version effect (pre-1.0) |
-|------|---------|--------------------------|
-| `feat` | A new user-facing feature | patch bump |
+| Type | Use for | Version effect |
+|------|---------|----------------|
+| `feat` | A new user-facing feature | minor bump |
 | `fix` | A bug fix | patch bump |
 | `docs` | Documentation only | none |
 | `refactor` | Code change that isn't a feature or fix | none |
@@ -36,7 +36,7 @@ Rules:
 - Use a **scope** when it adds clarity: `feat(math):`, `fix(cli):`, `docs(readme):`.
 - Write the description in the **imperative mood**, lowercase, no trailing period: `fix(math): stop clipping tall glyphs` (not "Fixed clipping").
 - Keep the subject line ≤ ~72 characters; put detail in the body.
-- **Breaking changes:** append `!` after the type/scope (`feat(cli)!: ...`) **or** add a `BREAKING CHANGE:` footer. Pre-1.0 a breaking change bumps the **minor** version (e.g. `0.2.0` → `0.3.0`).
+- **Breaking changes:** append `!` after the type/scope (`feat(cli)!: ...`) **or** add a `BREAKING CHANGE:` footer. Now that the project is 1.0+, a breaking change bumps the **major** version (e.g. `1.0.0` → `2.0.0`).
 
 Good:
 

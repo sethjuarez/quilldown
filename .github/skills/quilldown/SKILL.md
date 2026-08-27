@@ -149,7 +149,7 @@ commit without a valid `type:` prefix is silently skipped and never released.
 - Common types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`,
   `ci`, `chore`, `style`. Only `feat`/`fix` bump the version.
 - Breaking change: add `!` (`feat(cli)!: ...`) or a `BREAKING CHANGE:` footer;
-  pre-1.0 this bumps the **minor** version.
+  1.0+ this bumps the **major** version.
 - Examples: `feat(math): render LaTeX as native OMML`, `fix(cli): exit
   non-zero on missing input`. Never `Add math` or `Fixed a bug`.
 
