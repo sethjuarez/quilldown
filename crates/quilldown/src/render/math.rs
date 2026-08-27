@@ -25,6 +25,12 @@ use typst_svg::SvgOptions;
 /// at roughly the surrounding text's scale.
 const MATH_PT: f64 = 11.0;
 
+/// Transparent gutter (points) left around the equation on the auto-sized page. Without it,
+/// tall glyph ink (fraction bars, superscripts, radicals) sits flush against the page edge and
+/// Typst clips the outermost pixels. A hair of margin is invisible once embedded but prevents
+/// the numerator/denominator or superscripts from being sheared off.
+const MATH_MARGIN_PT: f64 = 1.5;
+
 /// Vendored MiTeX Typst scope files. Registered as in-memory sources so the converted math can
 /// resolve `mitexsqrt` and friends. `standard.typ` imports `../prelude.typ`, so the relative
 /// layout (a `latex/` subdirectory) must be preserved when registering the virtual paths.
@@ -43,12 +49,14 @@ pub(crate) fn to_svg(latex: &str, display: bool) -> Result<Vec<u8>, String> {
     let block = if display { "true" } else { "false" };
 
     // Shrink-wrap the page to the equation's ink and keep the background transparent so the PNG
-    // composites cleanly onto Word's white page. Evaluate the converted markup inside the MiTeX
-    // scope exactly as the upstream `mitex()` function does; `block` selects display vs inline.
+    // composites cleanly onto Word's white page. A hair of margin keeps tall glyph ink (fraction
+    // bars, superscripts, radicals) off the auto-sized page edge, which Typst would otherwise
+    // clip. Evaluate the converted markup inside the MiTeX scope exactly as the upstream
+    // `mitex()` function does; `block` selects display vs inline.
     let main = format!(
         "#import \"latex/standard.typ\": package as latex-std\n\
          #let mitex-scope = latex-std.scope\n\
-         #set page(width: auto, height: auto, margin: 0pt, fill: none)\n\
+         #set page(width: auto, height: auto, margin: {MATH_MARGIN_PT}pt, fill: none)\n\
          #set text(size: {MATH_PT}pt)\n\
          #math.equation(block: {block}, eval(\"$\" + \"{escaped}\" + \"$\", scope: mitex-scope))\n"
     );
