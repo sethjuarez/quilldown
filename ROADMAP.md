@@ -47,10 +47,11 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   original SVG is embedded as the modern Word vector extension (`asvg:svgBlip`) with the
   rasterized PNG kept as fallback, for crisp scaling in recent Word versions. The PNG fallback is
   always retained, so older viewers that ignore `<asvg>` are unaffected
-- **Light-mode SVG remap** (opt-in via `svg_light_mode`) → dark-themed diagrams are recolored
-  for a white page by flipping each color's lightness in HSL (hue and saturation preserved), so
-  near-black backgrounds become light and light text becomes dark while accent hues stay
-  recognizable. Applied before rasterizing (and to the embedded `<asvg>` layer). Off by default
+- **Light-mode SVG remap** (on by default, opt out via `--no-svg-light-mode`) → dark-themed
+  diagrams are recolored for a white page by flipping each color's lightness in HSL (hue and
+  saturation preserved), so near-black backgrounds become light and light text becomes dark while
+  accent hues stay recognizable. Applied before rasterizing (and to the embedded `<asvg>` layer).
+  It is an unconditional flip, so pass `--no-svg-light-mode` for light-authored sources
 - **Configurable page setup** (via `ConvertOptions::page` / CLI `--page-size`, `--orientation`,
   `--margin`) → choose the page size (US Letter, A4, Legal, or custom twips), portrait or
   landscape orientation, and uniform margins. Landscape swaps the dimensions and sets

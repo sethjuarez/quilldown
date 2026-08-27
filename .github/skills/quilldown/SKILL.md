@@ -59,7 +59,7 @@ If `-o` is omitted, output defaults to the input path with a `.docx` extension.
 | `--dpi <N>` | DPI when rasterizing SVG diagrams to PNG | `192` (2×) |
 | `--base-dir <DIR>` | Resolve relative image paths against this dir | input's dir |
 | `--no-embed-svg` | Skip original SVG (`<asvg>`) layer, embed only the PNG | on |
-| `--svg-light-mode` | Remap dark-authored SVGs to print-friendly light | off |
+| `--no-svg-light-mode` | Embed SVGs with authored colors (skip light remap) | remap on |
 | `--allow-remote-images` | Fetch/embed http(s) images (needs `--features remote-images`) | off |
 | `-v, --verbose` | Print a render summary | off |
 

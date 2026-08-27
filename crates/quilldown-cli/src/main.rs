@@ -89,10 +89,11 @@ struct Cli {
     #[arg(long)]
     no_embed_svg: bool,
 
-    /// Remap dark-themed SVG diagrams to a print-friendly light mode (flip color lightness)
-    /// before rasterizing. Enable only for dark-authored diagrams.
+    /// Don't remap dark-themed SVG diagrams to a print-friendly light mode. By default quilldown
+    /// flips each SVG color's lightness so dark-authored diagrams read well on a white page; pass
+    /// this to embed SVGs with their authored colors (use it for light-authored sources).
     #[arg(long)]
-    svg_light_mode: bool,
+    no_svg_light_mode: bool,
 
     /// Disable syntax highlighting and language labels on fenced code blocks (render them as
     /// uniform, uncolored monospace instead).
@@ -168,7 +169,7 @@ fn main() -> Result<()> {
     let opts = ConvertOptions {
         image_dpi: cli.dpi,
         embed_svg: !cli.no_embed_svg,
-        svg_light_mode: cli.svg_light_mode,
+        svg_light_mode: !cli.no_svg_light_mode,
         highlight_code: !cli.no_highlight,
         base_dir: cli.base_dir.clone(),
         page,

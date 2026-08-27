@@ -119,7 +119,7 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 | `--dpi <N>` | DPI when rasterizing SVG to PNG | `192` (2×) |
 | `--base-dir <DIR>` | Resolve relative image paths against this dir | input's dir |
 | `--no-embed-svg` | Skip the original SVG (`<asvg>`) layer, embed only the PNG | on |
-| `--svg-light-mode` | Remap dark-authored SVGs to a print-friendly light palette | off |
+| `--no-svg-light-mode` | Embed SVGs with authored colors (skip the light remap) | remap on |
 | `--allow-remote-images` | Fetch/embed remote images (needs `--features remote-images`) | off |
 | `-v, --verbose` | Print a render summary | off |
 
