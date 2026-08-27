@@ -112,7 +112,7 @@ fn rewrite_blip(doc: &str, png_rid: &str, svg_rid: &str) -> String {
 }
 
 /// Read every file entry (skipping directory entries) out of a zip into memory.
-fn read_entries(docx: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ConvertError> {
+pub(super) fn read_entries(docx: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ConvertError> {
     let mut archive = zip::ZipArchive::new(Cursor::new(docx))
         .map_err(|e| ConvertError::Docx(format!("reopen packed docx: {e}")))?;
     let mut entries = Vec::with_capacity(archive.len());
@@ -132,7 +132,7 @@ fn read_entries(docx: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ConvertError> {
 }
 
 /// Re-pack entries into a deflated zip.
-fn write_entries(entries: Vec<(String, Vec<u8>)>) -> Result<Vec<u8>, ConvertError> {
+pub(super) fn write_entries(entries: Vec<(String, Vec<u8>)>) -> Result<Vec<u8>, ConvertError> {
     let mut out = Cursor::new(Vec::new());
     {
         let mut zip = zip::ZipWriter::new(&mut out);

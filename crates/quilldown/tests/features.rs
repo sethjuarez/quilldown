@@ -1184,3 +1184,86 @@ fn toc_emits_live_field_over_headings_1_to_3() {
         "TOC should be preceded by a Contents title\n{xml}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #6 — YAML front matter -> Word core document properties
+// ---------------------------------------------------------------------------------------------
+
+/// The `docProps/core.xml` part of a document converted through the byte (post-pack) path.
+fn core_props(md: &str) -> String {
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    entry(&docx, "docProps/core.xml").expect("core.xml must exist")
+}
+
+#[test]
+fn front_matter_maps_to_core_properties() {
+    let md = "---\n\
+        title: Quarterly Report\n\
+        author: Seth Juarez\n\
+        subject: Finance\n\
+        description: Q3 results & outlook\n\
+        keywords: [finance, report]\n\
+        lang: en-US\n\
+        date: 2024-09-30\n\
+        ---\n\n# Body\n\nText.\n";
+    let core = core_props(md);
+    assert!(
+        core.contains("<dc:title>Quarterly Report</dc:title>"),
+        "title should map to dc:title\n{core}"
+    );
+    assert!(
+        core.contains("<dc:creator>Seth Juarez</dc:creator>"),
+        "author should map to dc:creator\n{core}"
+    );
+    assert!(
+        core.contains("<dc:subject>Finance</dc:subject>"),
+        "subject should map to dc:subject\n{core}"
+    );
+    assert!(
+        core.contains("<dc:description>Q3 results &amp; outlook</dc:description>"),
+        "description should be present and XML-escaped\n{core}"
+    );
+    assert!(
+        core.contains("<cp:keywords>finance, report</cp:keywords>"),
+        "keywords list should be flattened, brackets stripped\n{core}"
+    );
+    assert!(
+        core.contains("<dc:language>en-US</dc:language>"),
+        "lang should map to dc:language\n{core}"
+    );
+    assert!(
+        core.contains(r#"<dcterms:created xsi:type="dcterms:W3CDTF">2024-09-30</dcterms:created>"#),
+        "date should populate the created property\n{core}"
+    );
+}
+
+#[test]
+fn front_matter_is_not_rendered_as_body_text() {
+    let md = "---\ntitle: Hidden\nauthor: Nobody\n---\n\n# Visible Heading\n\nBody.\n";
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    let body = document_xml(&docx);
+    assert!(
+        !body.contains("author"),
+        "front-matter keys must not leak into the document body\n{body}"
+    );
+    assert!(
+        body.contains("Visible Heading"),
+        "real body content should still render\n{body}"
+    );
+}
+
+#[test]
+fn documents_without_front_matter_keep_default_core_props() {
+    // No front matter -> the core.xml is left exactly as docx-rs emits it (creator "unknown").
+    let core = core_props("# Just a heading\n\nBody.\n");
+    assert!(
+        core.contains("<dc:creator>unknown</dc:creator>"),
+        "absent front matter must not alter the default core properties\n{core}"
+    );
+    assert!(
+        !core.contains("<dc:title>"),
+        "no title element should be added when there is no front matter\n{core}"
+    );
+}

@@ -18,11 +18,13 @@ use crate::{ConvertError, ConvertOptions};
 mod asvg;
 mod colormap;
 mod endnotes;
+mod frontmatter;
 mod highlight;
 mod images;
 mod tables;
 
 pub(crate) use asvg::{inject as inject_svg_layers, SvgEmbed};
+pub(crate) use frontmatter::{inject as inject_core_props, DocMeta};
 
 /// Counts and warnings describing a single conversion. Useful for tests and CLI output.
 #[derive(Debug, Clone, Default)]
@@ -263,10 +265,12 @@ pub(crate) fn build_docx(
     markdown: &str,
     opts: &ConvertOptions,
     base: &Path,
-) -> Result<(Docx, RenderStats, Vec<SvgEmbed>), ConvertError> {
+) -> Result<(Docx, RenderStats, Vec<SvgEmbed>, DocMeta), ConvertError> {
     let arena = Arena::new();
     let options = comrak_options();
     let root = parse_document(&arena, markdown, &options);
+
+    let doc_meta = frontmatter::parse(root);
 
     let mut ctx = Ctx {
         opts,
@@ -326,7 +330,7 @@ pub(crate) fn build_docx(
         };
     }
 
-    Ok((docx, ctx.stats, ctx.svg_embeds))
+    Ok((docx, ctx.stats, ctx.svg_embeds, doc_meta))
 }
 
 /// A centered "Page X of Y" footer built from native Word `PAGE` and `NUMPAGES` fields, so the
@@ -359,6 +363,7 @@ fn comrak_options() -> Options<'static> {
     o.extension.autolink = true;
     o.extension.footnotes = true;
     o.extension.superscript = true;
+    o.extension.front_matter_delimiter = Some("---".to_string());
     o
 }
 
@@ -452,6 +457,8 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             }
             // Footnote definitions are rendered as a numbered Notes section at the end.
             NodeValue::FootnoteDefinition(_) => {}
+            // Front matter is document metadata, not body content — mapped to core.xml instead.
+            NodeValue::FrontMatter(_) => {}
             // Catch-all: recurse so unknown/unhandled block content is not dropped.
             _ => render_blocks(child, ctx, out),
         }

@@ -348,7 +348,7 @@ impl Converter {
             .base_dir
             .clone()
             .unwrap_or_else(|| PathBuf::from("."));
-        let (docx, _stats, _svg) = render::build_docx(markdown, &self.opts, &base)?;
+        let (docx, _stats, _svg, _meta) = render::build_docx(markdown, &self.opts, &base)?;
         Ok(docx)
     }
 
@@ -359,7 +359,7 @@ impl Converter {
         markdown: &str,
         base_dir: &Path,
     ) -> Result<(Docx, RenderStats), ConvertError> {
-        let (docx, stats, _svg) = render::build_docx(markdown, &self.opts, base_dir)?;
+        let (docx, stats, _svg, _meta) = render::build_docx(markdown, &self.opts, base_dir)?;
         Ok((docx, stats))
     }
 
@@ -372,12 +372,14 @@ impl Converter {
         markdown: &str,
         base_dir: &Path,
     ) -> Result<(Vec<u8>, RenderStats), ConvertError> {
-        let (docx, stats, svg_embeds) = render::build_docx(markdown, &self.opts, base_dir)?;
+        let (docx, stats, svg_embeds, doc_meta) =
+            render::build_docx(markdown, &self.opts, base_dir)?;
         let mut cursor = std::io::Cursor::new(Vec::new());
         docx.build()
             .pack(&mut cursor)
             .map_err(|e| ConvertError::Docx(e.to_string()))?;
         let bytes = render::inject_svg_layers(cursor.into_inner(), &svg_embeds)?;
+        let bytes = render::inject_core_props(bytes, &doc_meta)?;
         Ok((bytes, stats))
     }
 
