@@ -1756,3 +1756,173 @@ fn remote_image_falls_back_when_disabled() {
         "the alt text should render as an italic placeholder\n{xml}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #15 — opt-in figure/table captions and cross-references
+// ---------------------------------------------------------------------------------------------
+
+/// Options with captions enabled.
+fn captions_opts() -> ConvertOptions {
+    ConvertOptions {
+        captions: true,
+        ..ConvertOptions::default()
+    }
+}
+
+#[test]
+fn caption_paragraph_becomes_seq_field_with_style_and_bookmark() {
+    let (docx, _stats) = convert_with(
+        "Figure: A flow diagram {#flow}\n",
+        &features_dir(),
+        captions_opts(),
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"w:val="Caption""#),
+        "a caption should carry the Caption paragraph style\n{doc}"
+    );
+    assert!(
+        doc.contains(r"SEQ Figure \* ARABIC"),
+        "the number should come from a native SEQ field\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:fldCharType="begin" w:dirty="true""#),
+        "the SEQ field should be marked dirty so Word numbers it on open"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd_cap_flow""#),
+        "the label should publish a sanitized bookmark\n{doc}"
+    );
+    assert!(
+        doc.contains("A flow diagram") && !doc.contains("{#flow}"),
+        "the caption text should render without the label marker\n{doc}"
+    );
+}
+
+#[test]
+fn figures_and_tables_number_independently() {
+    let md = "Figure: One {#a}\n\nTable: Two {#b}\n\nFigure: Three {#c}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    let figs = doc.matches(r"SEQ Figure \* ARABIC").count();
+    let tbls = doc.matches(r"SEQ Table \* ARABIC").count();
+    assert_eq!(figs, 2, "two figure captions -> two Figure SEQ fields");
+    assert_eq!(tbls, 1, "one table caption -> one Table SEQ field");
+}
+
+#[test]
+fn link_to_caption_label_becomes_ref_cross_reference() {
+    let md = "See [it](#flow).\n\nFigure: A flow diagram {#flow}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    // A live REF field to the caption's bookmark, not a plain anchor hyperlink.
+    assert!(
+        doc.contains(r"REF qd_cap_flow \h"),
+        "a link to a caption label should emit a REF field\n{doc}"
+    );
+    assert!(
+        doc.contains("it"),
+        "the link text should survive as the field placeholder"
+    );
+    assert!(
+        !doc.contains(r#"w:anchor="flow""#),
+        "the caption cross-reference should not fall back to an anchor hyperlink"
+    );
+}
+
+#[test]
+fn captions_are_off_by_default() {
+    // Without the flag, a `Figure:` paragraph is ordinary prose — no SEQ, no Caption style.
+    let (docx, _stats) = convert("Figure: A flow diagram {#flow}\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "captions must be opt-in — no SEQ field by default\n{doc}"
+    );
+    assert!(
+        doc.contains("{#flow}"),
+        "the raw text (including the label marker) should render verbatim by default"
+    );
+}
+
+#[test]
+fn caption_prefix_must_be_exact() {
+    // A paragraph that merely mentions a figure is not a caption.
+    let (docx, _stats) = convert_with(
+        "Figure 3 shows the result.\n",
+        &features_dir(),
+        captions_opts(),
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "only a leading `Figure:`/`Table:` prefix opts in, not a passing mention\n{doc}"
+    );
+}
+
+#[test]
+fn unlabeled_caption_numbers_without_bookmark_and_unknown_link_stays_anchor() {
+    let md = "Figure: No label here\n\nJump to [notes](#unknown).\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r"SEQ Figure \* ARABIC"),
+        "an unlabeled caption still auto-numbers"
+    );
+    assert!(
+        !doc.contains("qd_cap_"),
+        "an unlabeled caption publishes no bookmark\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="unknown""#),
+        "a link to a non-caption label falls back to a normal anchor hyperlink\n{doc}"
+    );
+}
+
+#[test]
+fn captions_sample_renders() {
+    let md = read_feature("captions");
+    let (docx, _stats) = convert_with(&md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(doc.contains(r"SEQ Figure \* ARABIC"));
+    assert!(doc.contains(r"SEQ Table \* ARABIC"));
+    assert!(doc.contains(r"REF qd_cap_flow \h"));
+    assert!(doc.contains(r"REF qd_cap_summary \h"));
+}
+
+#[test]
+fn caption_inside_blockquote_is_not_a_caption_and_ref_does_not_dangle() {
+    // A `Figure:` line inside a quote stays prose, so its label must not be collected — a link
+    // to it falls back to a normal anchor rather than a REF pointing at a missing bookmark.
+    let md = "> Figure: Quoted {#q}\n\nSee [it](#q).\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "a quoted `Figure:` line must not become a caption\n{doc}"
+    );
+    assert!(
+        !doc.contains("REF qd_cap_q"),
+        "a link to an uncollected label must not emit a dangling REF field\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="q""#),
+        "the link should fall back to a normal anchor hyperlink\n{doc}"
+    );
+}
+
+#[test]
+fn colliding_labels_get_distinct_bookmarks() {
+    // `a-b` and `a_b` both sanitize to `qd_cap_a_b`; the second must be disambiguated.
+    let md = "Figure: One {#a-b}\n\nFigure: Two {#a_b}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"w:name="qd_cap_a_b""#),
+        "first label keeps the base name"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd_cap_a_b_2""#),
+        "the colliding label gets a numeric suffix\n{doc}"
+    );
+}

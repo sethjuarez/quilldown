@@ -109,6 +109,13 @@ pub const TABLE_HEADER_FILL: &str = "D9D9D9";
 /// Half-point size of the language label above a highlighted code block (8pt -> 16).
 pub const CODE_LABEL_SIZE: usize = 16;
 
+/// Half-point size of caption text (9pt -> 18), matching Word's built-in `Caption` style.
+pub const CAPTION_SIZE: usize = 18;
+/// Space *before* a caption, in twips (`40` = 2pt) — hugs the figure/table it labels.
+const CAPTION_BEFORE: u32 = 40;
+/// Space *after* a caption, in twips (`160` = 8pt) — a body-sized gap below.
+const CAPTION_AFTER: u32 = 160;
+
 /// Border color (hex, no `#`) for table grid lines — matches cutready's `BFBFBF`.
 pub const TABLE_BORDER_COLOR: &str = "BFBFBF";
 
@@ -189,10 +196,29 @@ pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx 
         .add_style(h4)
         .add_style(h5)
         .add_style(h6)
+        .add_style(caption_style())
         .add_abstract_numbering(ordered_abstract())
         .add_numbering(Numbering::new(ORDERED_NUM_ID, ORDERED_NUM_ID))
         .add_abstract_numbering(bullet_abstract())
         .add_numbering(Numbering::new(BULLET_NUM_ID, BULLET_NUM_ID))
+}
+
+/// Word's built-in `Caption` paragraph style: small italic text with a tight gap above and a
+/// body-sized gap below, so an auto-numbered figure/table caption sits close to what it labels.
+/// Registered unconditionally (Word always carries this latent style); only used when the
+/// `captions` option turns matching paragraphs into captions.
+fn caption_style() -> Style {
+    Style::new("Caption", StyleType::Paragraph)
+        .name("caption")
+        .italic()
+        .size(CAPTION_SIZE)
+        .line_spacing(
+            LineSpacing::new()
+                .line(BODY_LINE)
+                .line_rule(LineSpacingType::Auto)
+                .before(CAPTION_BEFORE)
+                .after(CAPTION_AFTER),
+        )
 }
 
 fn heading_style(

@@ -17,6 +17,7 @@ use crate::{ConvertError, ConvertOptions};
 
 mod alerts;
 mod asvg;
+mod captions;
 mod colormap;
 mod endnotes;
 mod frontmatter;
@@ -124,6 +125,9 @@ pub(crate) struct Ctx<'a> {
     pub next_bookmark_id: usize,
     /// GitHub-style heading slug -> times seen, for de-duplicating anchor targets.
     pub heading_slugs: HashMap<String, usize>,
+    /// Labeled-caption anchor -> bookmark name, collected in a pre-pass so cross-references
+    /// resolve even when the reference precedes its caption. Empty unless captions are enabled.
+    pub caption_labels: HashMap<String, String>,
     /// Current block-quote nesting depth (0 = not inside a quote). Drives quote styling.
     pub quote_depth: usize,
     /// Usable text-column width in twips (from the configured page setup). Tables, code
@@ -318,6 +322,7 @@ pub(crate) fn build_docx(
         endnote_numbers: HashMap::new(),
         next_bookmark_id: 1,
         heading_slugs: HashMap::new(),
+        caption_labels: HashMap::new(),
         quote_depth: 0,
         content_width_dxa: opts.page.content_width_dxa(),
         svg_embeds: Vec::new(),
@@ -330,6 +335,8 @@ pub(crate) fn build_docx(
     // Footnote definitions can appear anywhere; record them so references resolve, then
     // render their bodies once at the end as a numbered "Notes" section.
     endnotes::collect(root, &mut ctx);
+    // Record labeled captions up front so cross-references resolve regardless of order.
+    captions::collect(root, &mut ctx);
 
     let mut blocks = Vec::new();
     render_blocks(root, &mut ctx, &mut blocks);
@@ -436,6 +443,15 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 ctx.stats.headings += 1;
             }
             NodeValue::Paragraph => {
+                // Opt-in: a top-level `Figure:`/`Table:` paragraph becomes an auto-numbered
+                // caption. Inside a block quote it stays ordinary prose.
+                if ctx.opts.captions && ctx.quote_depth == 0 {
+                    if let Some(cap) = captions::caption_of(&text_of(child)) {
+                        out.push(Block::Para(captions::paragraph(&cap, ctx)));
+                        ctx.stats.paragraphs += 1;
+                        continue;
+                    }
+                }
                 let mut runs = Vec::new();
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
@@ -656,6 +672,16 @@ pub(crate) fn render_inlines<'a>(
             )),
             NodeValue::HtmlInline(raw) => html.consume(&raw, out, ctx),
             NodeValue::Link(link) => {
+                // A link to a labeled caption (`#label`) becomes a live REF cross-reference; a
+                // plain link text serves as the placeholder Word shows until it updates fields.
+                if ctx.opts.captions {
+                    if let Some(label) = link.url.strip_prefix('#') {
+                        if let Some(r) = captions::reference(label, &text_of(child), ctx) {
+                            out.push(InlineChild::run(r));
+                            continue;
+                        }
+                    }
+                }
                 // Emit a native external `w:hyperlink`; docx-rs registers the relationship in
                 // document.xml.rels automatically at build time. The link text is styled
                 // blue + underlined so it reads as a link even before the relationship

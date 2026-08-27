@@ -136,6 +136,12 @@ struct Cli {
     #[arg(long)]
     allow_remote_images: bool,
 
+    /// Auto-number `Figure:`/`Table:` paragraphs with live Word SEQ fields and resolve
+    /// `[text](#label)` links to captions ending in `{#label}` into REF cross-references (off by
+    /// default, matching a plain typed document).
+    #[arg(long)]
+    captions: bool,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -170,6 +176,7 @@ fn main() -> Result<()> {
         table_of_contents: cli.toc,
         language: cli.language.clone(),
         allow_remote_images: cli.allow_remote_images,
+        captions: cli.captions,
         ..ConvertOptions::default()
     };
 

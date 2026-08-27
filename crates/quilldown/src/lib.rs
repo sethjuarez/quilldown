@@ -311,6 +311,16 @@ pub struct ConvertOptions {
     /// crate to be built with the `remote-images` feature; without it, remote URLs always fall
     /// back even when this flag is `true`.
     pub allow_remote_images: bool,
+
+    /// When `true`, turn paragraphs that begin with `Figure:` or `Table:` into auto-numbered,
+    /// `Caption`-styled captions backed by native Word `SEQ` fields, and resolve in-document
+    /// links whose target matches a caption label (`[see](#label)` where a caption ended with
+    /// `{#label}`) into live `REF` cross-references that Word updates on open.
+    ///
+    /// Off by default so plain output matches a freshly-typed Word document; enable it for
+    /// figure/table numbering in structured reports. Word populates the numbers when the
+    /// document opens (the fields are marked dirty).
+    pub captions: bool,
 }
 
 impl Default for ConvertOptions {
@@ -328,6 +338,7 @@ impl Default for ConvertOptions {
             table_of_contents: false,
             language: "en-US".to_string(),
             allow_remote_images: false,
+            captions: false,
         }
     }
 }
