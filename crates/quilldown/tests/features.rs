@@ -1030,7 +1030,6 @@ fn multi_paragraph_item_is_numbered_once() {
 // ---------------------------------------------------------------------------------------------
 // Fidelity #2 — GFM table column alignment
 // ---------------------------------------------------------------------------------------------
-
 #[test]
 fn table_columns_carry_their_gfm_alignment() {
     // `:--`, `:-:`, `--:` set left / center / right alignment on their whole column.
@@ -1058,4 +1057,37 @@ fn table_without_alignment_omits_cell_justification() {
         jc_count, 1,
         "an unaligned table should only carry the table-level justification, not per-cell\n{doc}"
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #3 — headings 4-6 with distinct styles and outline levels
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn headings_four_to_six_get_distinct_styles() {
+    // Deep headings must not all collapse onto Heading3; each level keeps its own style id.
+    let (docx, _stats) = convert("#### Four\n\n##### Five\n\n###### Six\n");
+    let doc = document_xml(&docx);
+    for style in ["Heading4", "Heading5", "Heading6"] {
+        assert!(
+            doc.contains(&format!(r#"w:val="{style}""#)),
+            "heading level should map to {style}\n{doc}"
+        );
+    }
+}
+
+#[test]
+fn all_heading_levels_declare_outline_levels() {
+    // Outline levels drive Word's navigation pane and native TOC; H1..H6 => 0..5.
+    let docx = convert_themed(
+        "# H1\n\n## H2\n\n### H3\n\n#### H4\n\n##### H5\n\n###### H6\n",
+        Theme::DEFAULT,
+    );
+    let styles = styles_xml(&docx);
+    for lvl in 0..6 {
+        assert!(
+            styles.contains(&format!(r#"<w:outlineLvl w:val="{lvl}" />"#)),
+            "heading styles should declare outline level {lvl}\n{styles}"
+        );
+    }
 }

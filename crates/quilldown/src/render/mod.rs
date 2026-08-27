@@ -727,7 +727,11 @@ fn heading_style_id(level: u8) -> &'static str {
     match level {
         1 => "Heading1",
         2 => "Heading2",
-        _ => "Heading3",
+        3 => "Heading3",
+        4 => "Heading4",
+        5 => "Heading5",
+        // Markdown has no heading past level 6; clamp anything deeper to Heading6.
+        _ => "Heading6",
     }
 }
 

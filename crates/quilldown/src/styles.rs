@@ -27,6 +27,10 @@ const H1_BEFORE: u32 = 360;
 const H2_BEFORE: u32 = 200;
 /// Space *before* an `H3`, in twips (`160` = 8pt).
 const H3_BEFORE: u32 = 160;
+/// Space *before* headings 4-6, in twips — a gentle taper matching Word's built-ins.
+const H4_BEFORE: u32 = 140;
+const H5_BEFORE: u32 = 120;
+const H6_BEFORE: u32 = 120;
 /// Space *after* any heading, in twips (`80` = 4pt) — mirrors Word's built-in heading styles.
 const HEADING_AFTER: u32 = 80;
 
@@ -162,13 +166,19 @@ pub fn apply(docx: Docx, page: &crate::PageSetup, theme: &crate::Theme) -> Docx 
         docx = docx.page_orient(PageOrientationType::Landscape);
     }
 
-    let h1 = heading_style("Heading1", "heading 1", 40, H1_BEFORE, theme);
-    let h2 = heading_style("Heading2", "heading 2", 32, H2_BEFORE, theme);
-    let h3 = heading_style("Heading3", "heading 3", 28, H3_BEFORE, theme);
+    let h1 = heading_style("Heading1", "heading 1", 40, H1_BEFORE, 0, theme);
+    let h2 = heading_style("Heading2", "heading 2", 32, H2_BEFORE, 1, theme);
+    let h3 = heading_style("Heading3", "heading 3", 28, H3_BEFORE, 2, theme);
+    let h4 = heading_style("Heading4", "heading 4", 24, H4_BEFORE, 3, theme);
+    let h5 = heading_style("Heading5", "heading 5", 22, H5_BEFORE, 4, theme);
+    let h6 = heading_style("Heading6", "heading 6", 20, H6_BEFORE, 5, theme);
 
     docx.add_style(h1)
         .add_style(h2)
         .add_style(h3)
+        .add_style(h4)
+        .add_style(h5)
+        .add_style(h6)
         .add_abstract_numbering(ordered_abstract())
         .add_numbering(Numbering::new(ORDERED_NUM_ID, ORDERED_NUM_ID))
         .add_abstract_numbering(bullet_abstract())
@@ -180,6 +190,7 @@ fn heading_style(
     name: &str,
     half_points: usize,
     before: u32,
+    outline_lvl: usize,
     theme: &crate::Theme,
 ) -> Style {
     Style::new(id, StyleType::Paragraph)
@@ -192,6 +203,7 @@ fn heading_style(
                 .hi_ansi(theme.heading_font),
         )
         .color(theme.heading_color)
+        .outline_lvl(outline_lvl)
         .line_spacing(heading_spacing(before))
 }
 
