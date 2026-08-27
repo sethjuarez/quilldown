@@ -296,6 +296,12 @@ pub struct ConvertOptions {
     /// matches a freshly-typed Word document; enable it for longer, structured reports. Word
     /// populates the entries when the document opens (the field is marked dirty).
     pub table_of_contents: bool,
+
+    /// BCP-47 language tag (e.g. `en-US`) written as the document's default proofing/editing
+    /// language so spellcheck and the accessibility checker behave like a freshly-typed Word
+    /// document. Front-matter `language:`/`lang:` overrides this per document. Set to an empty
+    /// string to leave the language unset.
+    pub language: String,
 }
 
 impl Default for ConvertOptions {
@@ -311,6 +317,7 @@ impl Default for ConvertOptions {
             theme: Theme::DEFAULT,
             page_numbers: false,
             table_of_contents: false,
+            language: "en-US".to_string(),
         }
     }
 }
@@ -380,6 +387,13 @@ impl Converter {
             .map_err(|e| ConvertError::Docx(e.to_string()))?;
         let bytes = render::inject_svg_layers(cursor.into_inner(), &svg_embeds)?;
         let bytes = render::inject_core_props(bytes, &doc_meta)?;
+        // Front-matter `language:` wins over the configured default so a document can declare its
+        // own proofing language.
+        let language = doc_meta
+            .language
+            .clone()
+            .unwrap_or_else(|| self.opts.language.clone());
+        let bytes = render::inject_proofing_language(bytes, &language)?;
         Ok((bytes, stats))
     }
 

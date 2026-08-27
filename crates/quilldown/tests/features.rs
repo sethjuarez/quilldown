@@ -1511,3 +1511,64 @@ fn unquoted_heading_has_no_quote_chrome() {
         "an ordinary heading must not gain a quote accent bar\n{xml}"
     );
 }
+
+// --- Fidelity #11: document proofing language ------------------------------------------------
+
+#[test]
+fn default_proofing_language_is_set_on_run_defaults() {
+    let (docx, _stats) = convert_bytes_with(
+        "# Hi\n\nHello.\n",
+        std::path::Path::new("."),
+        ConvertOptions::default(),
+    );
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:rPrDefault><w:rPr><w:lang w:val=\"en-US\" />"),
+        "default run properties should declare the en-US proofing language\n{styles}"
+    );
+}
+
+#[test]
+fn configured_language_overrides_the_default() {
+    let opts = ConvertOptions {
+        language: "de-DE".to_string(),
+        ..ConvertOptions::default()
+    };
+    let (docx, _stats) = convert_bytes_with("# Hallo\n", std::path::Path::new("."), opts);
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:lang w:val=\"de-DE\" />"),
+        "configured language should reach the run defaults\n{styles}"
+    );
+}
+
+#[test]
+fn front_matter_language_wins_over_configured_default() {
+    let md = "---\nlang: fr-FR\n---\n\n# Bonjour\n";
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:lang w:val=\"fr-FR\" />"),
+        "front-matter language should override the configured default in styles.xml\n{styles}"
+    );
+    let core = entry(&docx, "docProps/core.xml").expect("core.xml should exist");
+    assert!(
+        core.contains("<dc:language>fr-FR</dc:language>"),
+        "front-matter language should also land in core properties\n{core}"
+    );
+}
+
+#[test]
+fn empty_language_leaves_run_defaults_untouched() {
+    let opts = ConvertOptions {
+        language: String::new(),
+        ..ConvertOptions::default()
+    };
+    let (docx, _stats) = convert_bytes_with("# Hi\n", std::path::Path::new("."), opts);
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        !styles.contains("<w:lang "),
+        "an empty language setting should not inject a lang tag\n{styles}"
+    );
+}

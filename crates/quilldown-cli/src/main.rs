@@ -125,6 +125,11 @@ struct Cli {
     #[arg(long)]
     toc: bool,
 
+    /// Default proofing/editing language (BCP-47, e.g. "en-US") for spellcheck and the Word
+    /// accessibility checker. Front-matter `language:` overrides this; pass "" to leave it unset.
+    #[arg(long, default_value = "en-US")]
+    language: String,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -157,6 +162,7 @@ fn main() -> Result<()> {
         theme: cli.theme.into(),
         page_numbers: cli.page_numbers,
         table_of_contents: cli.toc,
+        language: cli.language.clone(),
         ..ConvertOptions::default()
     };
 

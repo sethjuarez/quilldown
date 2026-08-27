@@ -22,10 +22,12 @@ mod endnotes;
 mod frontmatter;
 mod highlight;
 mod images;
+mod proofing;
 mod tables;
 
 pub(crate) use asvg::{inject as inject_svg_layers, SvgEmbed};
 pub(crate) use frontmatter::{inject as inject_core_props, DocMeta};
+pub(crate) use proofing::inject as inject_proofing_language;
 
 /// Counts and warnings describing a single conversion. Useful for tests and CLI output.
 #[derive(Debug, Clone, Default)]
