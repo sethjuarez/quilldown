@@ -8,11 +8,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use comrak::nodes::{AstNode, ListType, NodeValue};
+use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use comrak::{parse_document, Arena, Options};
 use docx_rs::*;
 
-use crate::styles::{self, BULLET_NUM_ID, ORDERED_NUM_ID};
+use crate::styles::{self, BULLET_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
 mod asvg;
@@ -111,6 +111,11 @@ pub(crate) struct Ctx<'a> {
     /// SVGs to embed as `<asvg>` vector layers during post-processing (only when
     /// `opts.embed_svg` is set). Each records the PNG fallback's rid and the SVG source.
     pub svg_embeds: Vec<SvgEmbed>,
+    /// Ordered-list numbering instances allocated during the walk (one per ordered list, each
+    /// with its own start override) to be registered on the document before paragraphs.
+    pub list_numberings: Vec<Numbering>,
+    /// Monotonic id source for the numbering instances in `list_numberings`.
+    pub next_num_id: usize,
     pub stats: RenderStats,
 }
 
@@ -274,6 +279,8 @@ pub(crate) fn build_docx(
         quote_depth: 0,
         content_width_dxa: opts.page.content_width_dxa(),
         svg_embeds: Vec::new(),
+        list_numberings: Vec::new(),
+        next_num_id: styles::FIRST_LIST_NUM_ID,
         stats: RenderStats::default(),
     };
 
@@ -294,6 +301,9 @@ pub(crate) fn build_docx(
     }
 
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
+    for numbering in std::mem::take(&mut ctx.list_numberings) {
+        docx = docx.add_numbering(numbering);
+    }
     for b in blocks {
         docx = match b {
             Block::Body(p) => docx.add_paragraph(p),
@@ -365,7 +375,7 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 ctx.stats.paragraphs += 1;
             }
             NodeValue::List(list) => {
-                render_list(child, list.list_type, 0, ctx, out);
+                render_list(child, &list, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
                 push_gap(out);
@@ -415,24 +425,46 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
 }
 
 /// Render a list (`list_node`) whose items sit at nesting `depth`.
+///
+/// Ordered lists each receive a freshly-allocated numbering instance with a `start` override, so
+/// separate lists restart independently and an explicit `1.`/`7.` start marker is honored. Only
+/// the first paragraph of a multi-paragraph ("loose") item carries the marker; continuation
+/// paragraphs render as plain indented body text aligned under the item. Loose lists get
+/// body space-after between items; tight lists stay compact.
 fn render_list<'a>(
     list_node: &'a AstNode<'a>,
-    list_type: ListType,
+    list: &NodeList,
     depth: usize,
     ctx: &mut Ctx,
     out: &mut Vec<Block>,
 ) {
-    let num_id = match list_type {
-        ListType::Ordered => ORDERED_NUM_ID,
+    let level = depth.min(8);
+    let num_id = match list.list_type {
+        ListType::Ordered => {
+            let id = ctx.next_num_id;
+            ctx.next_num_id += 1;
+            ctx.list_numberings
+                .push(styles::ordered_numbering(id, level, list.start));
+            id
+        }
         ListType::Bullet => BULLET_NUM_ID,
     };
-    let level = depth.min(4);
+    let item_line = if list.tight {
+        styles::tight_after()
+    } else {
+        styles::body_spacing()
+    };
+    // Text-column indent for continuation paragraphs, aligned under the marker's text.
+    let continuation_indent = styles::LIST_INDENT_STEP_DXA * (level as i32 + 1);
 
     for item in list_node.children() {
         let task_symbol = match item.data.borrow().value {
             NodeValue::TaskItem(ref t) => Some(t.symbol),
             _ => None,
         };
+        // Only the first block-level paragraph of the item carries the list marker; later
+        // paragraphs are continuation text so the item isn't re-numbered once per paragraph.
+        let mut marker_used = false;
 
         for block in item.children() {
             let value = block.data.borrow().value.clone();
@@ -440,7 +472,16 @@ fn render_list<'a>(
                 NodeValue::Paragraph => {
                     let mut runs = Vec::new();
                     render_inlines(block, Inline::default(), &mut runs, ctx);
-                    let mut p = if let Some(sym) = task_symbol {
+                    let mut p = if marker_used {
+                        // Continuation paragraph inside a loose item: indent to line up under
+                        // the item text, no marker.
+                        Paragraph::new().line_spacing(item_line.clone()).indent(
+                            Some(continuation_indent),
+                            None,
+                            None,
+                            None,
+                        )
+                    } else if let Some(sym) = task_symbol {
                         // Task-list items render a checkbox marker instead of the list
                         // bullet (matching GitHub, which shows no bullet). This is a glyph +
                         // tab marker manually indented to line up with sibling list items.
@@ -452,7 +493,7 @@ fn render_list<'a>(
                             styles::TASK_UNCHECKED
                         };
                         let left = styles::LIST_INDENT_STEP_DXA * (level as i32 + 1);
-                        let mut tp = Paragraph::new().line_spacing(styles::tight_after()).indent(
+                        let mut tp = Paragraph::new().line_spacing(item_line.clone()).indent(
                             Some(left),
                             Some(SpecialIndentType::Hanging(styles::LIST_HANGING_DXA)),
                             None,
@@ -462,16 +503,17 @@ fn render_list<'a>(
                         tp
                     } else {
                         Paragraph::new()
-                            .line_spacing(styles::tight_after())
+                            .line_spacing(item_line.clone())
                             .numbering(NumberingId::new(num_id), IndentLevel::new(level))
                     };
+                    marker_used = true;
                     for r in runs {
                         p = add_inline(p, r);
                     }
                     out.push(Block::Para(p));
                 }
                 NodeValue::List(sub) => {
-                    render_list(block, sub.list_type, depth + 1, ctx, out);
+                    render_list(block, &sub, depth + 1, ctx, out);
                 }
                 _ => render_blocks(block, ctx, out),
             }

@@ -939,3 +939,90 @@ fn data_tables_pad_their_cells() {
         "table cells carry a horizontal inset\n{doc}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #1 — ordered-list start/restart, loose spacing, deep nesting
+// ---------------------------------------------------------------------------------------------
+
+/// Read `word/numbering.xml`, which carries the per-list numbering instances (and their
+/// `startOverride` values). Returns an empty string when the part is absent.
+fn numbering_xml(docx: &[u8]) -> String {
+    entry(docx, "word/numbering.xml").unwrap_or_default()
+}
+
+#[test]
+fn ordered_list_honors_explicit_start_ordinal() {
+    // A list beginning at `7.` must actually start at seven, via a numbering start override.
+    let (docx, _stats) = convert("7. Seven\n8. Eight\n");
+    let numbering = numbering_xml(&docx);
+    assert!(
+        numbering.contains(r#"<w:startOverride w:val="7" />"#)
+            || numbering.contains(r#"<w:startOverride w:val="7"/>"#),
+        "ordered list starting at 7 must emit a startOverride of 7\n{numbering}"
+    );
+}
+
+#[test]
+fn separate_ordered_lists_restart_independently() {
+    // Two ordered lists split by a paragraph should each restart at 1, i.e. get distinct
+    // numbering instances rather than sharing one running counter.
+    let (docx, _stats) = convert("1. one\n2. two\n\nA break.\n\n1. uno\n2. dos\n");
+    let doc = document_xml(&docx);
+    let ids: std::collections::BTreeSet<&str> = doc
+        .match_indices("<w:numId w:val=\"")
+        .map(|(i, _)| {
+            let rest = &doc[i + "<w:numId w:val=\"".len()..];
+            &rest[..rest.find('"').unwrap()]
+        })
+        .collect();
+    assert!(
+        ids.len() >= 2,
+        "two separate ordered lists must reference two distinct numIds, saw {ids:?}\n{doc}"
+    );
+    // Both restart at 1 → two start overrides of 1 in numbering.xml.
+    let numbering = numbering_xml(&docx);
+    let starts = numbering.matches("<w:startOverride").count();
+    assert!(
+        starts >= 2,
+        "each ordered list should declare its own start override, saw {starts}\n{numbering}"
+    );
+}
+
+#[test]
+fn loose_list_items_breathe_but_tight_stay_compact() {
+    // A loose list (blank lines between items) gets body space-after; a tight list does not.
+    let loose = document_xml(&convert("- first\n\n- second\n").0);
+    let tight = document_xml(&convert("- first\n- second\n").0);
+    assert!(
+        loose.contains(r#"w:after="160""#),
+        "loose list items should carry body space-after (160)\n{loose}"
+    );
+    assert!(
+        !tight.contains(r#"w:after="160""#),
+        "tight list items should not add body space-after\n{tight}"
+    );
+}
+
+#[test]
+fn deeply_nested_ordered_lists_keep_numbering() {
+    // Six levels of nesting used to collapse past level 4; every level should still number.
+    let md = "1. a\n   1. b\n      1. c\n         1. d\n            1. e\n               1. f\n";
+    let (docx, _stats) = convert(md);
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:ilvl w:val="5" />"#) || doc.contains(r#"<w:ilvl w:val="5"/>"#),
+        "sixth nesting level should render at ilvl 5, not clamp to 4\n{doc}"
+    );
+}
+
+#[test]
+fn multi_paragraph_item_is_numbered_once() {
+    // A loose item with a continuation paragraph must be numbered once, not once per paragraph.
+    let (docx, _stats) = convert("1. First paragraph.\n\n   Continued here.\n2. Second item.\n");
+    let doc = document_xml(&docx);
+    let num_refs = doc.matches("<w:numId w:val=\"").count();
+    assert_eq!(
+        num_refs, 2,
+        "two items = two numbered paragraphs; the continuation paragraph must not be numbered\n{doc}"
+    );
+}

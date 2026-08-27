@@ -195,10 +195,24 @@ fn heading_style(
         .line_spacing(heading_spacing(before))
 }
 
-/// Abstract numbering definition for ordered lists (`1.`, `2.`, ...), 5 nesting levels.
+/// First dynamically-allocated numbering-instance id. Each ordered list gets its own instance
+/// (from this base upward) pointing at [`ORDERED_NUM_ID`]'s abstract definition, with a start
+/// override, so separate ordered lists restart independently instead of sharing one counter.
+pub const FIRST_LIST_NUM_ID: usize = 200;
+
+/// Build a fresh ordered-list numbering instance that restarts at `start` on nesting level
+/// `ilvl`. Register it on the document with `add_numbering`; reference it from list paragraphs
+/// via `NumberingId::new(num_id)`.
+pub fn ordered_numbering(num_id: usize, ilvl: usize, start: usize) -> Numbering {
+    Numbering::new(num_id, ORDERED_NUM_ID)
+        .add_override(LevelOverride::new(ilvl).start(start.max(1)))
+}
+
+/// Abstract numbering definition for ordered lists (`1.`, `2.`, ...), 9 nesting levels (Word's
+/// maximum), so deeply nested procedures keep numbering instead of collapsing.
 fn ordered_abstract() -> AbstractNumbering {
     let mut a = AbstractNumbering::new(ORDERED_NUM_ID);
-    for level in 0..5usize {
+    for level in 0..9usize {
         let indent = 720 * (level as i32 + 1);
         a = a.add_level(
             Level::new(
@@ -219,12 +233,12 @@ fn ordered_abstract() -> AbstractNumbering {
     a
 }
 
-/// Abstract numbering definition for unordered (bullet) lists, 5 nesting levels.
+/// Abstract numbering definition for unordered (bullet) lists, 9 nesting levels.
 fn bullet_abstract() -> AbstractNumbering {
     // Cycle bullet glyphs by depth for visual distinction.
     const BULLETS: [&str; 3] = ["\u{2022}", "\u{25E6}", "\u{25AA}"];
     let mut a = AbstractNumbering::new(BULLET_NUM_ID);
-    for level in 0..5usize {
+    for level in 0..9usize {
         let indent = 720 * (level as i32 + 1);
         a = a.add_level(
             Level::new(
