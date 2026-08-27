@@ -41,8 +41,8 @@ release tooling** and won't show up in any release notes.
   trailing period — e.g. `fix(math): stop clipping tall glyphs`.
 - Keep the subject line short (≤ ~72 chars); explain the "why" in the body.
 - **Breaking changes:** add `!` after the type/scope (e.g. `feat(cli)!: ...`)
-  or include a `BREAKING CHANGE:` footer. While the project is pre-1.0, a
-  breaking change bumps the **minor** version.
+  or include a `BREAKING CHANGE:` footer. Now that the project is 1.0+, a
+  breaking change bumps the **major** version.
 
 ### Examples
 
