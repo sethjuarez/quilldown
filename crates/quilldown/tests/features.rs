@@ -1926,3 +1926,244 @@ fn colliding_labels_get_distinct_bookmarks() {
         "the colliding label gets a numeric suffix\n{doc}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #16 — math
+//
+// With the `math-render` feature, `$...$`/`$$...$$` LaTeX is typeset to an embedded image so it
+// looks like real math. Without the feature it degrades to the literal LaTeX source (italic
+// mono) and warns once. Each behaviour is asserted under its own `cfg`.
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn documents_without_math_have_no_math_warning() {
+    // True regardless of feature: no math means no math span and no math warning.
+    let (_docx, stats) = convert("Just prose, no math here.\n");
+    assert_eq!(stats.math_spans, 0);
+    assert!(
+        !stats.warnings.iter().any(|w| w.contains("math")),
+        "no math warning when there is no math"
+    );
+}
+
+#[cfg(not(feature = "math-render"))]
+mod math_literal_fallback {
+    use super::*;
+
+    #[test]
+    fn inline_math_preserves_literal_source_as_italic_mono() {
+        // No equation backend: the LaTeX is kept verbatim (no `$` delimiters) in the mono
+        // font, italicised so it reads as math and is distinct from inline code.
+        let (docx, stats) = convert("The identity $E = mc^2$ is famous.\n");
+        let doc = document_xml(&docx);
+        assert_eq!(
+            stats.math_spans, 1,
+            "one inline math span should be counted"
+        );
+        assert!(
+            doc.contains("E = mc^2"),
+            "the LaTeX source must survive\n{doc}"
+        );
+        assert!(
+            !doc.contains(">$") && !doc.contains("$<"),
+            "the `$` delimiters must not leak into the document\n{doc}"
+        );
+        // The math run carries both the mono font and italics.
+        let i = doc.find("E = mc^2").unwrap();
+        let run = &doc[doc[..i].rfind("<w:r>").unwrap()..i];
+        assert!(run.contains(r#"w:ascii="Consolas""#), "math is mono\n{run}");
+        assert!(run.contains("<w:i />"), "math is italicised\n{run}");
+    }
+
+    #[test]
+    fn code_style_inline_math_is_supported() {
+        // The `` $`...`$ `` code-math syntax (math_code extension) is also preserved.
+        let (docx, stats) = convert("A sum $`\\sum_{i=1}^{n} i`$ inline.\n");
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1);
+        assert!(
+            doc.contains(r"\sum_{i=1}^{n} i"),
+            "code-math source must survive\n{doc}"
+        );
+    }
+
+    #[test]
+    fn display_math_is_preserved() {
+        let (docx, stats) = convert("$$\\int_a^b f(x)\\,dx$$\n");
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1, "display math counts as a math span");
+        assert!(
+            doc.contains(r"\int_a^b f(x)"),
+            "display math source must survive\n{doc}"
+        );
+    }
+
+    #[test]
+    fn math_emits_a_single_dedup_warning() {
+        let (_docx, stats) = convert("$a$ and $b$ and $$c$$\n");
+        assert_eq!(stats.math_spans, 3, "three math spans");
+        let math_warnings = stats.warnings.iter().filter(|w| w.contains("math")).count();
+        assert_eq!(
+            math_warnings, 1,
+            "the fallback warns exactly once, not per span"
+        );
+    }
+
+    #[test]
+    fn math_sample_renders() {
+        let (docx, stats) = convert_feature("math");
+        let doc = document_xml(&docx);
+        assert_eq!(
+            stats.math_spans, 6,
+            "sample has 6 math spans (inline, display, and the fenced block)"
+        );
+        assert_eq!(
+            stats.code_blocks, 1,
+            "without the feature, the fenced ```math block renders as a code block"
+        );
+        assert!(
+            doc.contains(r"e^{i\pi} + 1 = 0"),
+            "display equation survives\n{doc}"
+        );
+        assert!(
+            doc.contains(r"\begin{aligned}"),
+            "fenced math block survives\n{doc}"
+        );
+    }
+
+    #[test]
+    fn fenced_math_block_counts_and_warns_without_feature() {
+        // Even without a renderer, a fenced ```math block is recognized: it counts as a math
+        // span and warns once (parity with inline `$...$`), and still shows its source as code.
+        let (docx, stats) = convert("```math\ne^{i\\pi} + 1 = 0\n```\n");
+        let doc = document_xml(&docx);
+        assert_eq!(
+            stats.math_spans, 1,
+            "the fenced block counts as a math span"
+        );
+        assert_eq!(stats.code_blocks, 1, "and still renders as a code block");
+        assert_eq!(
+            stats
+                .warnings
+                .iter()
+                .filter(|w| w.starts_with("math:"))
+                .count(),
+            1,
+            "the degradation warns exactly once"
+        );
+        assert!(doc.contains(r"e^{i\pi} + 1 = 0"), "source survives\n{doc}");
+    }
+}
+
+#[cfg(feature = "math-render")]
+mod math_rendered_images {
+    use super::*;
+
+    #[test]
+    fn inline_math_renders_as_embedded_image() {
+        // The `$...$` equation is typeset and embedded as a picture, not left as literal text.
+        let (docx, stats) = convert("The identity $E = mc^2$ is famous.\n");
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1, "one inline math span");
+        assert_eq!(stats.images_embedded, 1, "the equation embeds one image");
+        assert!(doc.contains("<w:drawing>"), "math is a drawing\n{doc}");
+        assert!(
+            !stats.warnings.iter().any(|w| w.starts_with("math:")),
+            "successful rendering must not warn about a fallback: {:?}",
+            stats.warnings
+        );
+    }
+
+    #[test]
+    fn code_style_inline_math_renders_as_embedded_image() {
+        // The `` $`...`$ `` code-math syntax also typesets to an image.
+        let (docx, stats) = convert("A sum $`\\sum_{i=1}^{n} i`$ inline.\n");
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1);
+        assert_eq!(stats.images_embedded, 1);
+        assert!(doc.contains("<w:drawing>"), "code-math is a drawing\n{doc}");
+    }
+
+    #[test]
+    fn display_math_renders_as_centered_image() {
+        // A standalone `$$...$$` equation is an embedded image in a centered paragraph.
+        let (docx, stats) = convert("$$\\int_a^b f(x)\\,dx$$\n");
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1, "display math counts as a math span");
+        assert_eq!(stats.images_embedded, 1);
+        assert!(
+            doc.contains("<w:drawing>"),
+            "display math is a drawing\n{doc}"
+        );
+        assert!(
+            doc.contains(r#"<w:jc w:val="center" />"#),
+            "standalone display math is centered\n{doc}"
+        );
+    }
+
+    #[test]
+    fn math_sample_renders_every_equation_as_an_image() {
+        let (_docx, stats) = convert_feature("math");
+        assert_eq!(
+            stats.math_spans, 6,
+            "sample has 6 math spans (inline, display, and the fenced block)"
+        );
+        assert_eq!(
+            stats.code_blocks, 0,
+            "with the feature, the fenced ```math block is intercepted, not rendered as code"
+        );
+        assert_eq!(
+            stats.images_embedded, 6,
+            "every equation embeds as an image"
+        );
+        assert!(
+            !stats.warnings.iter().any(|w| w.starts_with("math:")),
+            "the whole sample renders without a fallback: {:?}",
+            stats.warnings
+        );
+    }
+
+    #[test]
+    fn fenced_aligned_environment_renders_as_centered_image() {
+        // A multi-line `aligned` environment exercises newline escaping in the Typst source; it
+        // must typeset to a single centered image with no fallback.
+        let md = "```math\n\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n```\n";
+        let (docx, stats) = convert(md);
+        let doc = document_xml(&docx);
+        assert_eq!(stats.math_spans, 1);
+        assert_eq!(
+            stats.images_embedded, 1,
+            "the aligned block embeds one image"
+        );
+        assert_eq!(stats.code_blocks, 0, "it is not rendered as code");
+        assert!(
+            doc.contains(r#"<w:jc w:val="center" />"#),
+            "the fenced math block is centered\n{doc}"
+        );
+        assert!(
+            !stats.warnings.iter().any(|w| w.starts_with("math:")),
+            "multi-line escaping must not break rendering: {:?}",
+            stats.warnings
+        );
+    }
+
+    #[test]
+    fn math_is_unaffected_by_svg_light_mode() {
+        // Math glyphs are black-on-transparent and must never be light-mode flipped (that would
+        // turn the equation invisible on a white page). The rasterized PNG is therefore identical
+        // whether or not `svg_light_mode` is set.
+        let md = "The identity $E = mc^2$ is famous.\n";
+        let (plain, _) = convert(md);
+        let (light, _) = convert_with(
+            md,
+            std::path::Path::new("."),
+            ConvertOptions {
+                svg_light_mode: true,
+                ..Default::default()
+            },
+        );
+        let a = first_media_png(&plain).expect("plain math png");
+        let b = first_media_png(&light).expect("light-mode math png");
+        assert_eq!(a, b, "svg_light_mode must not alter the math image");
+    }
+}

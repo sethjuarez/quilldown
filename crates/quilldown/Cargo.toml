@@ -20,11 +20,32 @@ syntect.workspace = true
 base64.workspace = true
 ureq = { workspace = true, optional = true }
 zip = "2"
+mitex = { version = "0.2", optional = true }
+typst = { version = "0.15", optional = true }
+typst-layout = { version = "0.15", optional = true }
+typst-svg = { version = "0.15", optional = true }
+typst-as-lib = { version = "0.16", optional = true }
+typst-assets = { version = "0.15", features = ["fonts"], optional = true }
 
 [features]
 # Opt-in fetching of remote (http/https) images. Off by default so the standard build
 # pulls no TLS stack and conversions stay reproducible; `data:` URLs work without it.
 remote-images = ["dep:ureq"]
+# Opt-in rendering of `$...$` / `$$...$$` math to real typeset equations (LaTeX -> Typst ->
+# SVG, embedded like any other image). Off by default because it pulls the Typst engine and
+# its bundled math fonts; without it, math degrades to its literal LaTeX source.
+#
+# NOTE: enabling this feature raises the effective MSRV well above the workspace `rust-version`
+# (the Typst 0.15 crates require a recent stable toolchain). The default build keeps the lower
+# MSRV; only builds that turn on `math-render` need the newer compiler.
+math-render = [
+    "dep:mitex",
+    "dep:typst",
+    "dep:typst-layout",
+    "dep:typst-svg",
+    "dep:typst-as-lib",
+    "dep:typst-assets",
+]
 
 [dev-dependencies]
 zip = "2"

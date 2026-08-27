@@ -68,6 +68,12 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
   keep-with-next so headings never orphan), a smaller 10pt code face, tight list/quote spacing,
   padded table + code-block cells so text never jams against borders, and a uniform 8pt gap
   above and below every block element (tables, code blocks, thematic breaks, block quotes)
+- **Math** (`$...$` / `$$...$$` and fenced ` ```math ` blocks) → with the optional `math-render`
+  feature, LaTeX is typeset to real equations (LaTeX → Typst → SVG → PNG) and embedded as inline
+  images, so math actually looks like math. Standalone `$$…$$` display equations and fenced math
+  blocks are centered; inline math sits on the text baseline. Without the feature (the default
+  build) it degrades gracefully to the literal LaTeX source in italic monospace and warns once.
+  Enable with `--features math-render`
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 

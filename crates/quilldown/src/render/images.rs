@@ -84,6 +84,34 @@ pub(crate) fn run(url: &str, alt: &str, title: &str, ctx: &mut Ctx) -> Run {
     }
 }
 
+/// Embed an in-memory SVG (e.g. a rendered equation) as an inline image run, reusing the same
+/// rasterisation, sizing, alt-text, and `<asvg>` vector-layer handling as file/URL images.
+///
+/// `alt` becomes the drawing's accessibility description/name. Returns an error (rather than a
+/// placeholder run) so the caller can decide how to degrade.
+#[cfg(feature = "math-render")]
+pub(crate) fn embed_svg_run(svg: Vec<u8>, alt: &str, ctx: &mut Ctx) -> Result<Run, String> {
+    // Never light-mode remap: math glyphs are already black-on-transparent and read correctly on
+    // a white page (flipping them would turn the equation invisible).
+    let img = rasterize_svg_inner(&svg, ctx.opts, false)?;
+    ctx.stats.images_embedded += 1;
+    let (w, h) = fit(img.width_px, img.height_px, ctx.opts.max_image_width_px);
+    let pic = Pic::new(&img.bytes).size(w * EMU_PER_PX, h * EMU_PER_PX);
+    ctx.image_alts.push(super::ImageAlt {
+        descr: alt.to_string(),
+        name: (!alt.trim().is_empty()).then(|| alt.to_string()),
+    });
+    if ctx.opts.embed_svg {
+        if let Some(svg_source) = img.svg_source {
+            ctx.svg_embeds.push(super::SvgEmbed {
+                png_rid: pic.id.clone(),
+                svg: svg_source,
+            });
+        }
+    }
+    Ok(Run::new().add_image(pic))
+}
+
 /// Load and decode an image from a local path, a `data:` URL, or (opt-in) a remote URL.
 fn load(url: &str, base: &Path, opts: &ConvertOptions) -> Result<Embedded, String> {
     if let Some(rest) = url.strip_prefix("data:") {
@@ -242,13 +270,24 @@ fn sniff_svg(bytes: &[u8]) -> bool {
 }
 
 /// Rasterize SVG bytes to a PNG at `opts.image_dpi`, returning the PNG plus the SVG's
-/// logical (CSS-pixel) size for on-page display.
+/// logical (CSS-pixel) size for on-page display. Honors `opts.svg_light_mode`.
 fn rasterize_svg(bytes: &[u8], opts: &ConvertOptions) -> Result<Embedded, String> {
+    rasterize_svg_inner(bytes, opts, opts.svg_light_mode)
+}
+
+/// Rasterize SVG bytes to a PNG. `light_mode` controls whether the dark-to-light color remap is
+/// applied; it is forced off for program-generated SVGs (e.g. math) whose glyphs are already
+/// black-on-transparent and would be flipped to invisible white on a white page.
+fn rasterize_svg_inner(
+    bytes: &[u8],
+    opts: &ConvertOptions,
+    light_mode: bool,
+) -> Result<Embedded, String> {
     // Optionally remap a dark-themed diagram to light mode first. The transformed source is
     // what we rasterize *and* what we keep for the <asvg> vector layer, so both read well on
     // a white page.
     let owned;
-    let bytes: &[u8] = if opts.svg_light_mode {
+    let bytes: &[u8] = if light_mode {
         let src = std::str::from_utf8(bytes).map_err(|e| format!("svg is not utf-8: {e}"))?;
         owned = super::colormap::to_light_mode(src).into_bytes();
         &owned

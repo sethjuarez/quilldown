@@ -24,6 +24,8 @@ mod frontmatter;
 mod highlight;
 mod imagealt;
 mod images;
+#[cfg(feature = "math-render")]
+mod math;
 mod proofing;
 mod tableheader;
 mod tables;
@@ -45,6 +47,9 @@ pub struct RenderStats {
     pub images_embedded: usize,
     pub images_failed: usize,
     pub endnotes: usize,
+    /// Number of math spans rendered. quilldown has no OMML backend, so these are emitted as
+    /// their literal LaTeX source rather than native Word equations (see the `math_spans` warning).
+    pub math_spans: usize,
     /// Number of raw-HTML constructs that were skipped because they fall outside the supported
     /// safe subset (unknown inline tags and all raw HTML blocks).
     pub raw_html_skipped: usize,
@@ -56,7 +61,7 @@ impl RenderStats {
     /// A one-line human-readable summary.
     pub fn summary(&self) -> String {
         format!(
-            "{} headings, {} paragraphs, {} list items, {} tables, {} code blocks, {} images ({} failed), {} endnotes",
+            "{} headings, {} paragraphs, {} list items, {} tables, {} code blocks, {} images ({} failed), {} endnotes, {} math spans",
             self.headings,
             self.paragraphs,
             self.list_items,
@@ -65,6 +70,7 @@ impl RenderStats {
             self.images_embedded,
             self.images_failed,
             self.endnotes,
+            self.math_spans,
         )
     }
 }
@@ -411,6 +417,8 @@ fn comrak_options() -> Options<'static> {
     o.extension.superscript = true;
     o.extension.subscript = true;
     o.extension.alerts = true;
+    o.extension.math_dollars = true;
+    o.extension.math_code = true;
     o.extension.front_matter_delimiter = Some("---".to_string());
     o
 }
@@ -455,6 +463,12 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 let mut runs = Vec::new();
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
+                // A standalone `$$...$$` display equation is centered, matching how Word and
+                // LaTeX present display math (only when it actually renders to an image).
+                #[cfg(feature = "math-render")]
+                if ctx.quote_depth == 0 && is_display_math_paragraph(child) {
+                    p = p.align(AlignmentType::Center);
+                }
                 for r in runs {
                     p = add_inline(p, r);
                 }
@@ -472,6 +486,37 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_list(child, &list, 0, ctx, out);
             }
             NodeValue::CodeBlock(cb) => {
+                // A fenced ```math block is a standalone display equation. With the math-render
+                // feature, typeset it to a centered image; on failure (or without the feature)
+                // fall through to ordinary code-block rendering so the source is still shown. The
+                // block is counted and warned about consistently with inline `$...$` math either
+                // way, so the stats don't depend on the build.
+                let is_math_fence = cb.info.split_whitespace().next() == Some("math");
+                #[cfg(feature = "math-render")]
+                if is_math_fence {
+                    match math::to_svg(&cb.literal, true)
+                        .and_then(|svg| images::embed_svg_run(svg, &cb.literal, ctx))
+                    {
+                        Ok(run) => {
+                            push_gap(out);
+                            out.push(Block::Para(
+                                Paragraph::new().align(AlignmentType::Center).add_run(run),
+                            ));
+                            push_gap(out);
+                            ctx.stats.math_spans += 1;
+                            continue;
+                        }
+                        Err(e) => {
+                            ctx.stats.math_spans += 1;
+                            warn_math_fallback(ctx, &e);
+                        }
+                    }
+                }
+                #[cfg(not(feature = "math-render"))]
+                if is_math_fence {
+                    ctx.stats.math_spans += 1;
+                    warn_math_fallback(ctx, "built without the `math-render` feature");
+                }
                 push_gap(out);
                 let mut t = code_block(
                     &cb.literal,
@@ -664,6 +709,14 @@ pub(crate) fn render_inlines<'a>(
                 &code.literal,
                 ctx.opts.theme.mono_font,
             ))),
+            NodeValue::Math(math) => {
+                ctx.stats.math_spans += 1;
+                out.push(InlineChild::run(math_run(
+                    &math.literal,
+                    math.display_math,
+                    ctx,
+                )));
+            }
             NodeValue::SoftBreak => {
                 out.push(InlineChild::run(tint_quote(styled(cur).add_text(" "), ctx)))
             }
@@ -848,6 +901,65 @@ fn mono_run(text: &str, mono_font: &str) -> Run {
         .fonts(RunFonts::new().ascii(mono_font).hi_ansi(mono_font))
         .size(styles::CODE_SIZE)
         .add_text(text)
+}
+
+/// True if a paragraph node's only meaningful content is a display-math node — i.e. the
+/// paragraph is a standalone `$$...$$` equation, which should be centered. Surrounding empty
+/// text and breaks are ignored; any other inline content disqualifies it.
+#[cfg(feature = "math-render")]
+fn is_display_math_paragraph<'a>(para: &'a AstNode<'a>) -> bool {
+    let mut saw_display_math = false;
+    for child in para.children() {
+        match &child.data.borrow().value {
+            NodeValue::Math(m) if m.display_math => saw_display_math = true,
+            NodeValue::Text(t) if t.trim().is_empty() => {}
+            NodeValue::SoftBreak | NodeValue::LineBreak => {}
+            _ => return false,
+        }
+    }
+    saw_display_math
+}
+
+/// Render an inline or display math node.
+///
+/// With the `math-render` feature, the LaTeX is typeset to an embedded image (LaTeX -> Typst ->
+/// SVG -> PNG) so equations actually look like math. Without the feature, or if rendering fails
+/// for a given equation, it falls back to [`math_literal_run`] and warns once so the degradation
+/// is never silent.
+fn math_run(literal: &str, display: bool, ctx: &mut Ctx) -> Run {
+    #[cfg(feature = "math-render")]
+    {
+        match math::to_svg(literal, display) {
+            Ok(svg) => match images::embed_svg_run(svg, literal, ctx) {
+                Ok(run) => return run,
+                Err(e) => warn_math_fallback(ctx, &e),
+            },
+            Err(e) => warn_math_fallback(ctx, &e),
+        }
+    }
+    #[cfg(not(feature = "math-render"))]
+    {
+        let _ = display;
+        warn_math_fallback(ctx, "built without the `math-render` feature");
+    }
+    math_literal_run(literal, ctx.opts.theme.mono_font)
+}
+
+/// Record a one-time warning that math degraded to literal source, tagged with the reason.
+/// Deduplicated so a document with many equations produces a single, non-noisy warning.
+fn warn_math_fallback(ctx: &mut Ctx, reason: &str) {
+    if !ctx.stats.warnings.iter().any(|w| w.starts_with("math:")) {
+        ctx.stats
+            .warnings
+            .push(format!("math: rendered as literal LaTeX source ({reason})"));
+    }
+}
+
+/// A math fallback run: the literal LaTeX in the mono font, italicised so it reads as math and is
+/// visually distinct from inline code. Used when the `math-render` feature is off or rendering an
+/// individual equation fails.
+fn math_literal_run(text: &str, mono_font: &str) -> Run {
+    mono_run(text, mono_font).italic()
 }
 
 /// Render a fenced/indented code block as a single shaded, full-width table cell whose

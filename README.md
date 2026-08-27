@@ -60,6 +60,13 @@ quilldown report.md --no-highlight
 quilldown report.md --theme github
 ```
 
+Math rendering is a build-time cargo feature (`math-render`), not a runtime flag. Build the CLI
+with it enabled to typeset `$…$` / `$$…$$` / ` ```math ` blocks as equation images:
+
+```sh
+cargo run -p quilldown-cli --features math-render -- report.md
+```
+
 Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
 directory unless `--base-dir` is given.
 
@@ -94,6 +101,9 @@ the PNG fallback only.
   walked node-by-node and mapped to OOXML.
 - **SVG rasterization:** [`resvg`/`usvg`/`tiny-skia`](https://crates.io/crates/resvg) — pure
   Rust, no native/system dependencies.
+- **Math (optional `math-render` feature):** [`mitex`](https://crates.io/crates/mitex) converts
+  LaTeX to [Typst](https://crates.io/crates/typst), which is compiled to SVG and rasterized
+  through the same `resvg` stack — all pure Rust, so no LaTeX/TeX install is required.
 
 Document styling mirrors Microsoft 365's stock blank document so converted Markdown feels
 native in Word: an **Aptos 12pt** body on 1.08-line / 8pt-after `Normal`, **Aptos Display**
@@ -154,6 +164,11 @@ Tradeoffs:
 - **Swappable style themes** (via `--theme` or `ConvertOptions::theme`) → `default`, `github`, or
   `solarized` presets restyle the body/heading fonts, heading accent, link color, code fill, and
   syntax-highlight palette without touching the Markdown (`Theme` also accepts a custom look)
+- **Math** (`$…$` / `$$…$$` and fenced ` ```math ` blocks, opt-in via the `math-render` cargo
+  feature) → LaTeX is typeset to real equations (LaTeX → Typst → SVG → PNG) and embedded as
+  inline images, so math looks like math; display equations and fenced math blocks are centered.
+  Build with `cargo build --features math-render` (or `quilldown-cli`'s `math-render`). Without
+  the feature it degrades to the literal LaTeX source in italic monospace and warns once
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
