@@ -1721,7 +1721,18 @@ fn inline_svg_data_url_is_rasterized() {
         stats.images_embedded, 1,
         "the inline SVG should rasterize+embed"
     );
-    assert_eq!(media_count(&docx), 1);
+    // Default options embed the vector layer too, so the media folder holds the rasterized
+    // PNG fallback plus the original SVG.
+    let names = entry_names(&docx);
+    assert!(
+        names.iter().any(|n| n.starts_with("word/media/") && n.ends_with(".png")),
+        "the rasterized PNG fallback should be present\n{names:?}"
+    );
+    assert!(
+        names.iter().any(|n| n.starts_with("word/media/") && n.ends_with(".svg")),
+        "the original SVG vector layer should be embedded by default\n{names:?}"
+    );
+    assert_eq!(media_count(&docx), 2);
 }
 
 #[test]

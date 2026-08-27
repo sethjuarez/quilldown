@@ -118,8 +118,8 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 | `--no-highlight` | Uniform monospace code (no colors/labels) | highlight on |
 | `--dpi <N>` | DPI when rasterizing SVG to PNG | `192` (2×) |
 | `--base-dir <DIR>` | Resolve relative image paths against this dir | input's dir |
-| `--embed-svg` | Also embed the original SVG (`<asvg>`) beside the PNG | off |
-| `--svg-light-mode` | Remap dark-authored SVGs to a print-friendly light palette | off |
+| `--no-embed-svg` | Skip the original SVG (`<asvg>`) layer, embed only the PNG | on |
+| `--no-svg-light-mode` | Embed SVGs with authored colors (skip the light remap) | remap on |
 | `--allow-remote-images` | Fetch/embed remote images (needs `--features remote-images`) | off |
 | `-v, --verbose` | Print a render summary | off |
 
@@ -188,9 +188,10 @@ export.
 
 Word doesn't render SVG the way browsers do, and `docx-rs` embeds **raster**
 images, so quilldown rasterizes SVG to PNG at a configurable DPI (default
-**192**, i.e. 2×) and embeds that. `--embed-svg` additionally attaches the
-original vector as a Word `<asvg>` extension with the PNG as fallback — best
-fidelity in modern Word, at the cost of more complex OOXML.
+**192**, i.e. 2×) and embeds that. By default it *also* attaches the original
+vector as a Word `<asvg>` extension with the PNG as fallback — best fidelity in
+modern Word, with the raster kept for older viewers. Pass `--no-embed-svg` to
+embed only the PNG.
 
 ## Examples
 

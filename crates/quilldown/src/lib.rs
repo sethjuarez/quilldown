@@ -241,23 +241,24 @@ pub struct ConvertOptions {
     /// output at the cost of a larger file.
     pub image_dpi: f32,
 
-    /// When `true`, also embed the original SVG alongside the PNG fallback using the
-    /// modern Word `<asvg>` extension, for best fidelity in recent Word versions.
+    /// When `true` (the default), also embed the original SVG alongside the PNG fallback using
+    /// the modern Word `<asvg>` extension, for best fidelity in recent Word versions.
     ///
     /// The vector layer is added as a post-packing pass, so it is present in the byte and
     /// file outputs ([`Converter::convert_to_bytes`], [`Converter::convert_file`]); the
     /// [`Docx`] returned by [`Converter::convert_str`] embeds the PNG fallback only. The
-    /// raster PNG stays the safe default because older Word versions ignore `<asvg>`.
+    /// raster PNG is always kept as a fallback because older Word versions ignore `<asvg>`.
+    /// Set `false` to embed only the rasterized PNG.
     pub embed_svg: bool,
 
-    /// When `true`, remap dark-themed SVG diagrams to a print-friendly light mode before
-    /// rasterizing, by flipping each color's lightness (hue and saturation preserved).
+    /// When `true` (the default), remap dark-themed SVG diagrams to a print-friendly light mode
+    /// before rasterizing, by flipping each color's lightness (hue and saturation preserved).
     ///
     /// Dark backgrounds become light and light text becomes dark, while saturated accent
-    /// colors keep their hue. This is off by default because diagrams already authored for a
-    /// white page would be inverted the wrong way — enable it only for dark-themed sources.
-    /// When combined with [`ConvertOptions::embed_svg`], the embedded vector layer is the
-    /// remapped (light) SVG too, so both raster and vector read well on paper.
+    /// colors keep their hue. This is an *unconditional* lightness flip: a diagram already
+    /// authored for a white page is inverted the wrong way (to dark), so set `false` for
+    /// light-authored sources. When combined with [`ConvertOptions::embed_svg`], the embedded
+    /// vector layer is the remapped (light) SVG too, so both raster and vector read well on paper.
     pub svg_light_mode: bool,
 
     /// Maximum rendered image width in pixels; larger images are scaled down (aspect
@@ -327,8 +328,8 @@ impl Default for ConvertOptions {
     fn default() -> Self {
         ConvertOptions {
             image_dpi: 192.0,
-            embed_svg: false,
-            svg_light_mode: false,
+            embed_svg: true,
+            svg_light_mode: true,
             max_image_width_px: 600,
             base_dir: None,
             highlight_code: true,
