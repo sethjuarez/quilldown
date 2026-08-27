@@ -17,7 +17,7 @@ name = "quilldown"
 path = "src/main.rs"
 
 [dependencies]
-quilldown = { path = "../quilldown", version = "0.1.0" } # x-release-please-version
+quilldown = { path = "../quilldown", version = "0.2.0" } # x-release-please-version
 clap.workspace = true
 anyhow.workspace = true
 
