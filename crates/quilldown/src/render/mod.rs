@@ -178,6 +178,13 @@ fn slugify(text: &str) -> String {
 fn quote_style(mut p: Paragraph, depth: usize) -> Paragraph {
     let left = styles::QUOTE_INDENT_DXA * depth as i32;
     p = p.indent(Some(left), None, None, None);
+    p = quote_border(p);
+    p
+}
+
+/// Add only the block-quote left accent bar to a paragraph, leaving its indent untouched. Used
+/// for list items inside a quote, whose left indent already comes from the list numbering.
+fn quote_border(mut p: Paragraph) -> Paragraph {
     let border = ParagraphBorder::new(ParagraphBorderPosition::Left)
         .size(styles::QUOTE_BORDER_SIZE)
         .space(styles::QUOTE_BORDER_SPACE)
@@ -189,13 +196,19 @@ fn quote_style(mut p: Paragraph, depth: usize) -> Paragraph {
     p
 }
 
-/// Tint an inline child with the muted quote text color. Plain runs are recolored; hyperlinks
-/// keep their link color so they still read as links inside a quote.
-fn quote_tint(child: InlineChild) -> InlineChild {
-    match child {
-        InlineChild::Run(r) => InlineChild::Run(r.color(styles::QUOTE_TEXT_COLOR)),
-        other => other,
+/// Recolor a run with the muted quote text color when currently inside a block quote. Applied at
+/// run creation so quote text tints uniformly across paragraphs, headings, and list items.
+fn tint_quote(run: Run, ctx: &Ctx) -> Run {
+    if ctx.quote_depth > 0 {
+        run.color(styles::QUOTE_TEXT_COLOR)
+    } else {
+        run
     }
+}
+
+/// Left indent (in twips) for block content nested at the given block-quote depth.
+fn quote_indent(depth: usize) -> i32 {
+    styles::QUOTE_INDENT_DXA * depth as i32
 }
 
 /// A top-level block element to be added to the document.
@@ -403,6 +416,9 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                     p = add_inline(p, r);
                 }
                 p = p.add_bookmark_end(bid);
+                if ctx.quote_depth > 0 {
+                    p = quote_style(p, ctx.quote_depth);
+                }
                 out.push(Block::Para(p));
                 ctx.stats.headings += 1;
             }
@@ -411,11 +427,6 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 render_inlines(child, Inline::default(), &mut runs, ctx);
                 let mut p = Paragraph::new();
                 for r in runs {
-                    let r = if ctx.quote_depth > 0 {
-                        quote_tint(r)
-                    } else {
-                        r
-                    };
                     p = add_inline(p, r);
                 }
                 if ctx.quote_depth > 0 {
@@ -433,19 +444,27 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             }
             NodeValue::CodeBlock(cb) => {
                 push_gap(out);
-                out.push(Block::Table(code_block(
+                let mut t = code_block(
                     &cb.literal,
                     &cb.info,
                     ctx.content_width_dxa,
                     ctx.opts.highlight_code,
                     &ctx.opts.theme,
-                )));
+                );
+                if ctx.quote_depth > 0 {
+                    t = t.indent(quote_indent(ctx.quote_depth));
+                }
+                out.push(Block::Table(t));
                 push_gap(out);
                 ctx.stats.code_blocks += 1;
             }
             NodeValue::Table(_) => {
                 push_gap(out);
-                out.push(Block::Table(tables::build(child, ctx)));
+                let mut t = tables::build(child, ctx);
+                if ctx.quote_depth > 0 {
+                    t = t.indent(quote_indent(ctx.quote_depth));
+                }
+                out.push(Block::Table(t));
                 push_gap(out);
                 ctx.stats.tables += 1;
             }
@@ -574,6 +593,9 @@ fn render_list<'a>(
                     for r in runs {
                         p = add_inline(p, r);
                     }
+                    if ctx.quote_depth > 0 {
+                        p = quote_border(p);
+                    }
                     out.push(Block::Para(p));
                 }
                 NodeValue::List(sub) => {
@@ -601,7 +623,9 @@ pub(crate) fn render_inlines<'a>(
         let value = child.data.borrow().value.clone();
         let cur = html.apply(style);
         match value {
-            NodeValue::Text(t) => out.push(InlineChild::run(styled(cur).add_text(t))),
+            NodeValue::Text(t) => {
+                out.push(InlineChild::run(tint_quote(styled(cur).add_text(t), ctx)))
+            }
             NodeValue::Emph => render_inlines(child, cur.italicized(), out, ctx),
             NodeValue::Strong => render_inlines(child, cur.bolded(), out, ctx),
             NodeValue::Strikethrough => render_inlines(child, cur.struck(), out, ctx),
@@ -611,7 +635,9 @@ pub(crate) fn render_inlines<'a>(
                 &code.literal,
                 ctx.opts.theme.mono_font,
             ))),
-            NodeValue::SoftBreak => out.push(InlineChild::run(styled(cur).add_text(" "))),
+            NodeValue::SoftBreak => {
+                out.push(InlineChild::run(tint_quote(styled(cur).add_text(" "), ctx)))
+            }
             NodeValue::LineBreak => out.push(InlineChild::run(
                 Run::new().add_break(BreakType::TextWrapping),
             )),

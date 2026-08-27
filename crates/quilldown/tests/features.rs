@@ -1457,3 +1457,57 @@ fn alert_with_custom_title_overrides_the_default() {
         "a custom alert title should replace the default label\n{xml}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #10 — quote chrome threads into nested headings, lists, code, and tables
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn quoted_heading_keeps_style_and_gains_quote_chrome() {
+    let (docx, _stats) = convert("> ## Quoted heading\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"w:val="Heading2""#),
+        "a quoted heading should keep its heading style\n{xml}"
+    );
+    assert!(
+        xml.contains("<w:pBdr>") && xml.contains(r#"w:val="57606A""#),
+        "a quoted heading should gain the quote accent bar and tint\n{xml}"
+    );
+}
+
+#[test]
+fn quoted_list_items_get_the_accent_bar_and_tint() {
+    let (docx, _stats) = convert("> - First\n> - Second\n");
+    let xml = document_xml(&docx);
+    // Two list items, each carrying the left accent bar.
+    assert!(
+        xml.matches("<w:pBdr>").count() >= 2,
+        "each quoted list item should carry a left accent bar\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:val="57606A""#),
+        "quoted list text should be tinted\n{xml}"
+    );
+}
+
+#[test]
+fn quoted_code_block_and_table_are_indented() {
+    let md = "> ```\n> code\n> ```\n>\n> | A | B |\n> | - | - |\n> | 1 | 2 |\n";
+    let (docx, _stats) = convert(md);
+    let xml = document_xml(&docx);
+    assert!(
+        xml.matches("<w:tblInd ").count() >= 2,
+        "both a quoted code block and table should be indented from the margin\n{xml}"
+    );
+}
+
+#[test]
+fn unquoted_heading_has_no_quote_chrome() {
+    let (docx, _stats) = convert("## Plain heading\n");
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("<w:pBdr>"),
+        "an ordinary heading must not gain a quote accent bar\n{xml}"
+    );
+}
