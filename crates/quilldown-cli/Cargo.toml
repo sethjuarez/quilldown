@@ -7,13 +7,17 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
+readme = "README.md"
+homepage = "https://github.com/sethjuarez/quilldown"
+keywords = ["markdown", "docx", "word", "cli", "converter"]
+categories = ["command-line-utilities", "text-processing"]
 
 [[bin]]
 name = "quilldown"
 path = "src/main.rs"
 
 [dependencies]
-quilldown = { path = "../quilldown" }
+quilldown = { path = "../quilldown", version = "0.1.0" } # x-release-please-version
 clap.workspace = true
 anyhow.workspace = true
 
