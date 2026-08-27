@@ -307,6 +307,16 @@ pub(crate) fn build_docx(
     for numbering in std::mem::take(&mut ctx.list_numberings) {
         docx = docx.add_numbering(numbering);
     }
+    if opts.table_of_contents {
+        docx = docx.add_paragraph(table_of_contents_title());
+        docx = docx.add_table_of_contents(
+            TableOfContents::new()
+                .heading_styles_range(1, 3)
+                .hyperlink()
+                .dirty(),
+        );
+        docx = docx.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+    }
     for b in blocks {
         docx = match b {
             Block::Body(p) => docx.add_paragraph(p),
@@ -330,6 +340,14 @@ fn page_number_footer() -> Footer {
         .add_run(Run::new().add_text(" of "))
         .add_num_pages(NumPages::new());
     Footer::new().add_paragraph(para)
+}
+
+/// A bold "Contents" heading placed above the table of contents. It is deliberately *not* an
+/// outline heading so Word does not list the TOC title inside the TOC itself.
+fn table_of_contents_title() -> Paragraph {
+    Paragraph::new()
+        .line_spacing(styles::body_spacing())
+        .add_run(Run::new().bold().size(28).add_text("Contents"))
 }
 
 /// Build comrak options with the GFM extensions the test documents rely on.

@@ -120,6 +120,11 @@ struct Cli {
     #[arg(long)]
     page_numbers: bool,
 
+    /// Insert a native Word table of contents (live TOC field over Heading 1-3) at the top,
+    /// followed by a page break (off by default, matching a plain typed document).
+    #[arg(long)]
+    toc: bool,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -151,6 +156,7 @@ fn main() -> Result<()> {
         page,
         theme: cli.theme.into(),
         page_numbers: cli.page_numbers,
+        table_of_contents: cli.toc,
         ..ConvertOptions::default()
     };
 

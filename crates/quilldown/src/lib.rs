@@ -290,6 +290,12 @@ pub struct ConvertOptions {
     /// fields. Off by default so plain output matches a freshly-typed Word document (which has
     /// no page numbers); enable it for printable reports.
     pub page_numbers: bool,
+
+    /// When `true`, insert a native Word table of contents (a live `TOC` field over Heading 1-3)
+    /// at the top of the document, followed by a page break. Off by default so plain output
+    /// matches a freshly-typed Word document; enable it for longer, structured reports. Word
+    /// populates the entries when the document opens (the field is marked dirty).
+    pub table_of_contents: bool,
 }
 
 impl Default for ConvertOptions {
@@ -304,6 +310,7 @@ impl Default for ConvertOptions {
             page: PageSetup::default(),
             theme: Theme::DEFAULT,
             page_numbers: false,
+            table_of_contents: false,
         }
     }
 }

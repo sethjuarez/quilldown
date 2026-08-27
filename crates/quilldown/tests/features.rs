@@ -1137,3 +1137,50 @@ fn page_numbers_emit_live_footer_fields() {
         "the page-number footer should be centered\n{footer}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #5 — opt-in native table of contents
+// ---------------------------------------------------------------------------------------------
+
+/// Convert with a specific `table_of_contents` setting, leaving everything else at defaults.
+fn convert_toc(md: &str, toc: bool) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            table_of_contents: toc,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn toc_is_off_by_default() {
+    // A plain conversion should not emit any TOC field.
+    let docx = convert_toc("# Title\n\nBody.\n", false);
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("TOC "),
+        "default output must not carry a table-of-contents field\n{xml}"
+    );
+}
+
+#[test]
+fn toc_emits_live_field_over_headings_1_to_3() {
+    // Enabling the TOC inserts a live `TOC \o "1-3"` field marked dirty so Word populates it.
+    let docx = convert_toc("# Intro\n\n## Background\n\n# Methods\n", true);
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"TOC \o &quot;1-3&quot;"#),
+        "TOC field should span Heading 1-3\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:fldCharType="begin" w:dirty="true""#),
+        "TOC field should be marked dirty so Word rebuilds it on open\n{xml}"
+    );
+    assert!(
+        xml.contains("Contents"),
+        "TOC should be preceded by a Contents title\n{xml}"
+    );
+}
