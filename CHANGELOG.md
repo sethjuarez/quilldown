@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0](https://github.com/sethjuarez/quilldown/compare/v0.2.0...v1.0.0) (2026-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** the `--svg-light-mode` flag is removed. The light remap is now on by default; pass `--no-svg-light-mode` to keep an SVG's authored colors.
+* **cli:** the `--embed-svg` flag is removed. Vector embedding is now on by default; pass `--no-embed-svg` to embed only the rasterized PNG.
+
+### Features
+
+* **cli:** embed SVG vector layer by default ([c92e863](https://github.com/sethjuarez/quilldown/commit/c92e8639d114662b8acebd19fc2df995d78f24f7))
+* **cli:** remap SVGs to light mode by default ([7876407](https://github.com/sethjuarez/quilldown/commit/7876407a73dc3e10f16a6bcdd62174aad3c6ac2e))
+
 ## [0.2.0](https://github.com/sethjuarez/quilldown/compare/v0.1.0...v0.2.0) (2026-08-27)
 
 
