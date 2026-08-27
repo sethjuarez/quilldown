@@ -375,6 +375,7 @@ fn comrak_options() -> Options<'static> {
     o.extension.autolink = true;
     o.extension.footnotes = true;
     o.extension.superscript = true;
+    o.extension.subscript = true;
     o.extension.front_matter_delimiter = Some("---".to_string());
     o
 }

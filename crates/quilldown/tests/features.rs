@@ -1368,3 +1368,32 @@ fn supported_inline_html_reports_no_skips() {
         "fully-supported inline HTML should not count any skips"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #8 — inline subscript (`~x~`) via the comrak subscript extension
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn tilde_subscript_becomes_native_vert_align() {
+    let (docx, _stats) = convert("Water is H~2~O.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "`~2~` should emit native subscript vertAlign\n{xml}"
+    );
+}
+
+#[test]
+fn double_tilde_still_strikes_through_alongside_subscript() {
+    // Enabling subscript must not break `~~...~~` strikethrough.
+    let (docx, _stats) = convert("This is ~~removed~~ but H~2~O stays.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:strike "),
+        "`~~removed~~` should still strike through\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "`~2~` subscript should coexist with strikethrough\n{xml}"
+    );
+}
