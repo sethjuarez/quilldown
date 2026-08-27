@@ -1,6 +1,6 @@
 //! GFM table -> Word table rendering.
 
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use docx_rs::*;
 
 use super::{add_inline, bold_inline, render_inlines, Ctx, Inline};
@@ -33,15 +33,24 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
     let width_dxa = ctx.content_width_dxa;
     let mut rows = Vec::new();
 
+    // GFM column alignments (from the delimiter row) apply to every cell in the column.
+    let alignments = match table_node.data.borrow().value {
+        NodeValue::Table(ref t) => t.alignments.clone(),
+        _ => Vec::new(),
+    };
+
     for row in table_node.children() {
         let is_header = matches!(row.data.borrow().value, NodeValue::TableRow(true));
         let mut cells = Vec::new();
 
-        for cell in row.children() {
+        for (col, cell) in row.children().enumerate() {
             let mut runs = Vec::new();
             render_inlines(cell, Inline::default(), &mut runs, ctx);
 
             let mut para = Paragraph::new().line_spacing(crate::styles::tight_after());
+            if let Some(align) = alignments.get(col).and_then(column_alignment) {
+                para = para.align(align);
+            }
             for r in runs {
                 let r = if is_header { bold_inline(r) } else { r };
                 para = add_inline(para, r);
@@ -61,4 +70,15 @@ pub(crate) fn build<'a>(table_node: &'a AstNode<'a>, ctx: &mut Ctx) -> Table {
         .width(width_dxa, WidthType::Dxa)
         .set_borders(light_borders())
         .margins(crate::styles::table_cell_margins())
+}
+
+/// Map a GFM column alignment to a Word paragraph alignment. `None` (unaligned) returns `None`
+/// so the cell keeps the default left flow without emitting a redundant `<w:jc>`.
+fn column_alignment(a: &TableAlignment) -> Option<AlignmentType> {
+    match a {
+        TableAlignment::Left => Some(AlignmentType::Left),
+        TableAlignment::Center => Some(AlignmentType::Center),
+        TableAlignment::Right => Some(AlignmentType::Right),
+        TableAlignment::None => None,
+    }
 }

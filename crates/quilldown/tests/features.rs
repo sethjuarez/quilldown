@@ -1026,3 +1026,36 @@ fn multi_paragraph_item_is_numbered_once() {
         "two items = two numbered paragraphs; the continuation paragraph must not be numbered\n{doc}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #2 — GFM table column alignment
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn table_columns_carry_their_gfm_alignment() {
+    // `:--`, `:-:`, `--:` set left / center / right alignment on their whole column.
+    let (docx, _stats) = convert("| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:jc w:val="center" />"#) || doc.contains(r#"<w:jc w:val="center"/>"#),
+        "center-aligned column should emit a centered paragraph\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:jc w:val="right" />"#) || doc.contains(r#"<w:jc w:val="right"/>"#),
+        "right-aligned column should emit a right-aligned paragraph\n{doc}"
+    );
+}
+
+#[test]
+fn table_without_alignment_omits_cell_justification() {
+    // A default (`---`) table leaves cells left-flowing without an explicit per-cell <w:jc>.
+    // docx-rs still emits one table-level <w:jc> (table-on-page alignment) inside <w:tblPr>;
+    // that is expected, so we assert no *additional* justification beyond it.
+    let (docx, _stats) = convert("| a | b |\n| --- | --- |\n| 1 | 2 |\n");
+    let doc = document_xml(&docx);
+    let jc_count = doc.matches("<w:jc ").count();
+    assert_eq!(
+        jc_count, 1,
+        "an unaligned table should only carry the table-level justification, not per-cell\n{doc}"
+    );
+}
