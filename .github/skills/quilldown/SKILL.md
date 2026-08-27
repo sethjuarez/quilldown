@@ -138,3 +138,19 @@ All three must be green. A single pre-existing benign clippy note
 - **`docx-rs` cannot emit raw OOXML**, which is why math/asvg use the
   sentinel-run + post-packing splice approach. Keep that pattern when extending
   either feature.
+
+## Commits (Conventional Commits — required)
+
+When you commit in this repo, use **Conventional Commits**. Release automation
+(`release-please`) parses messages to compute the version and changelog, so a
+commit without a valid `type:` prefix is silently skipped and never released.
+
+- Format: `type(scope): imperative, lowercase description` (no trailing period).
+- Common types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`,
+  `ci`, `chore`, `style`. Only `feat`/`fix` bump the version.
+- Breaking change: add `!` (`feat(cli)!: ...`) or a `BREAKING CHANGE:` footer;
+  pre-1.0 this bumps the **minor** version.
+- Examples: `feat(math): render LaTeX as native OMML`, `fix(cli): exit
+  non-zero on missing input`. Never `Add math` or `Fixed a bug`.
+
+See [`AGENTS.md`](../../../AGENTS.md) and [`CONTRIBUTING.md`](../../../CONTRIBUTING.md).
