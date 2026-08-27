@@ -1,0 +1,2111 @@
+//! Per-feature round-trip tests that assert Markdown lands as *native* Word OOXML.
+//!
+//! Grows one section at a time as roadmap items land. Samples live in `examples/features/`.
+
+mod common;
+
+use common::{
+    convert, convert_bytes_with, convert_feature, convert_with, document_rels, document_xml, entry,
+    entry_names, features_dir, first_media_png, read_feature,
+};
+use quilldown::{ConvertOptions, Margins, Orientation, PageSetup, PageSize, RenderStats, Theme};
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #1 — native hyperlink relationships
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn inline_link_becomes_native_hyperlink_with_relationship() {
+    let (docx, _stats) = convert("See the [project](https://example.com/project) page.\n");
+    let doc = document_xml(&docx);
+
+    // Native hyperlink element (references a relationship id), not just styled text.
+    assert!(
+        doc.contains("<w:hyperlink") && doc.contains("r:id="),
+        "an inline link should emit a native <w:hyperlink r:id=...> element"
+    );
+    assert!(doc.contains("project"), "link text should survive");
+
+    // The relationship must be registered in document.xml.rels as an external hyperlink.
+    let rels = document_rels(&docx).expect("document.xml.rels must exist when links are present");
+    assert!(
+        rels.contains("relationships/hyperlink") && rels.contains("https://example.com/project"),
+        "the hyperlink target must be an external relationship in document.xml.rels\n{rels}"
+    );
+    assert!(
+        rels.contains(r#"TargetMode="External""#),
+        "hyperlink relationship should be marked External"
+    );
+}
+
+#[test]
+fn anchor_link_becomes_in_document_anchor() {
+    let (docx, _stats) = convert("Jump to [notes](#my-notes).\n\n## my notes\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"w:anchor="my-notes""#),
+        "a `#fragment` link should become an in-document anchor hyperlink"
+    );
+    // The target heading must carry a matching bookmark so the anchor actually resolves.
+    assert!(
+        doc.contains("w:bookmarkStart") && doc.contains(r#"w:name="my-notes""#),
+        "the target heading should be bookmarked with the slug so the anchor is not dangling"
+    );
+}
+
+#[test]
+fn autolink_becomes_native_hyperlink() {
+    let (docx, _stats) = convert("Bare url https://www.rust-lang.org here.\n");
+    let doc = document_xml(&docx);
+    let rels = document_rels(&docx).expect("rels must exist");
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "autolink should be a hyperlink"
+    );
+    assert!(
+        rels.contains("https://www.rust-lang.org"),
+        "autolink target should be an external relationship"
+    );
+}
+
+#[test]
+fn hyperlinks_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("hyperlinks");
+    let doc = document_xml(&docx);
+    let rels = document_rels(&docx).expect("rels must exist");
+
+    // External + anchor links, including one inside a table cell.
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "sample should contain hyperlinks"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="anchor-target""#),
+        "sample has an anchor link"
+    );
+    for target in [
+        "https://github.com/sethjuarez/quilldown",
+        "https://docs.rs/docx-rs",
+    ] {
+        assert!(
+            rels.contains(target),
+            "external target {target} should be registered in rels"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #2 — clickable endnote reference marks
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn endnote_mark_links_forward_and_note_links_back() {
+    let (docx, _stats) = convert("Body text with a citation.[^a]\n\n[^a]: The note body.\n");
+    let doc = document_xml(&docx);
+
+    // Body mark: anchor hyperlink to the note, plus a bookmark for the back-link target.
+    assert!(
+        doc.contains(r#"w:anchor="qd-note-1""#),
+        "reference mark should be an anchor hyperlink to the note\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd-noteref-1""#),
+        "first reference should be bookmarked so the note can link back"
+    );
+
+    // Notes entry: bookmarked as the forward target, number links back to the reference.
+    assert!(
+        doc.contains(r#"w:name="qd-note-1""#),
+        "the Notes entry should be bookmarked as the forward-link target"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="qd-noteref-1""#),
+        "the note number should be a back-link to the first reference"
+    );
+}
+
+#[test]
+fn repeated_reference_dedups_to_single_note() {
+    let (docx, stats) = convert(
+        "First cite[^x] and second cite[^x] to the same note.\n\n[^x]: Only listed once.\n",
+    );
+    let doc = document_xml(&docx);
+
+    // Two body marks (both link to qd-note-1) but exactly one Notes entry.
+    assert_eq!(
+        stats.endnotes, 1,
+        "a twice-cited note should be listed once"
+    );
+    assert_eq!(
+        doc.matches(r#"w:name="qd-note-1""#).count(),
+        1,
+        "there should be exactly one Notes bookmark for the deduplicated note"
+    );
+    // The second reference must not re-emit the noteref bookmark.
+    assert_eq!(
+        doc.matches(r#"w:name="qd-noteref-1""#).count(),
+        1,
+        "only the first reference is bookmarked as the back-link target"
+    );
+}
+
+#[test]
+fn endnotes_sample_document_is_wired() {
+    let (docx, stats) = convert_feature("endnotes");
+    let doc = document_xml(&docx);
+
+    // Sample defines three notes; the attention note is cited twice.
+    assert_eq!(stats.endnotes, 3, "sample has three unique notes");
+    for n in 1..=3 {
+        assert!(
+            doc.contains(&format!(r#"w:name="qd-note-{n}""#)),
+            "note {n} should have a forward-link bookmark"
+        );
+        assert!(
+            doc.contains(&format!(r#"w:anchor="qd-note-{n}""#)),
+            "note {n} should be referenced by an anchor hyperlink"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #3 — block-quote styling (indent + left border)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn blockquote_gets_indent_and_left_border() {
+    let (docx, _stats) = convert("> Quoted text.\n\nPlain paragraph.\n");
+    let doc = document_xml(&docx);
+
+    // A left paragraph border is the distinctive quote cue — and ONLY the left side (not a box).
+    assert!(
+        doc.contains("<w:pBdr>") && doc.contains(r#"<w:left w:val="single""#),
+        "a block quote should emit a left paragraph border\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"<w:right w:val="single" w:space="0" w:sz="2""#),
+        "a block quote should NOT draw a full box (no default right/top/bottom borders)\n{doc}"
+    );
+    // And a left indent so the block is set in from the margin.
+    assert!(
+        doc.contains("<w:ind") && doc.contains(r#"w:left="360""#),
+        "a block quote paragraph should be indented from the left margin"
+    );
+    // Quote body text is tinted with the muted quote color.
+    assert!(
+        doc.contains(r#"w:val="57606A""#),
+        "quote text should use the muted quote color"
+    );
+}
+
+#[test]
+fn plain_paragraph_has_no_quote_border() {
+    let (docx, _stats) = convert("Just an ordinary paragraph.\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("<w:pBdr>"),
+        "ordinary paragraphs must not get a quote border"
+    );
+}
+
+#[test]
+fn nested_quote_indents_further() {
+    let (docx, _stats) = convert("> outer\n>\n> > inner\n");
+    let doc = document_xml(&docx);
+    // Depth 1 = 360, depth 2 = 720; both indents must be present.
+    assert!(
+        doc.contains(r#"w:left="360""#) && doc.contains(r#"w:left="720""#),
+        "nested quotes should step the indent (360 then 720)\n{doc}"
+    );
+}
+
+#[test]
+fn blockquotes_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("blockquotes");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains("<w:pBdr>"),
+        "sample should style quotes with borders"
+    );
+    assert!(
+        doc.contains(r#"w:left="720""#),
+        "sample includes a nested quote at depth 2"
+    );
+    // Inline formatting inside a quote should still round-trip (e.g. the hyperlink).
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "quote link should survive styling"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #4 — true OOXML superscript (w:vertAlign), incl. endnote marks
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn superscript_uses_true_vertical_alignment() {
+    let (docx, _stats) = convert("The area is A = pi r^2^ here.\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "^..^ should emit a true superscript run, not a Unicode glyph\n{doc}"
+    );
+    // The superscripted content is a normal digit, not a Unicode superscript character.
+    assert!(
+        doc.contains("<w:t"),
+        "superscript run should carry real text"
+    );
+    assert!(
+        !doc.contains('\u{00b2}'),
+        "must not fall back to Unicode superscript ²"
+    );
+}
+
+#[test]
+fn superscript_combines_with_emphasis() {
+    let (docx, _stats) = convert("A **bold x^2^** term.\n");
+    let doc = document_xml(&docx);
+    // The x^2^ run should carry both bold and superscript.
+    assert!(
+        doc.contains("<w:vertAlign w:val=\"superscript\" />"),
+        "superscript inside bold should still align"
+    );
+    assert!(
+        doc.contains("<w:b "),
+        "bold should survive alongside superscript"
+    );
+}
+
+#[test]
+fn endnote_mark_is_true_superscript() {
+    let (docx, _stats) = convert("Cite it.[^a]\n\n[^a]: Note.\n");
+    let doc = document_xml(&docx);
+    // The reference mark is now a true superscript digit inside the anchor hyperlink.
+    assert!(
+        doc.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "endnote reference marks should use true OOXML superscript\n{doc}"
+    );
+}
+
+#[test]
+fn superscript_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("superscript");
+    let doc = document_xml(&docx);
+    let count = doc
+        .matches(r#"<w:vertAlign w:val="superscript" />"#)
+        .count();
+    assert!(
+        count >= 8,
+        "sample exercises many superscripts; found {count}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #5 — task-list checkbox marker (no redundant bullet)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn task_items_render_checkbox_glyphs() {
+    let (docx, _stats) = convert("- [x] Done\n- [ ] Todo\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains('\u{2611}'),
+        "a checked task item should render the ballot-box-with-check glyph\n{doc}"
+    );
+    assert!(
+        doc.contains('\u{2610}'),
+        "an unchecked task item should render the empty ballot-box glyph\n{doc}"
+    );
+}
+
+#[test]
+fn task_items_suppress_the_list_bullet() {
+    // A list of only task items should carry no bullet numbering — the checkbox is the marker.
+    let (docx, _stats) = convert("- [x] Done\n- [ ] Todo\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("<w:numId"),
+        "task items must not also emit a list bullet (numId)\n{doc}"
+    );
+    // They align like list items via a hanging indent, and separate marker from text with a tab.
+    assert!(
+        doc.contains(r#"w:hanging="360""#),
+        "task item should use a hanging indent"
+    );
+    assert!(
+        doc.contains("<w:tab"),
+        "checkbox marker should be followed by a tab"
+    );
+}
+
+#[test]
+fn plain_bullets_keep_their_numbering_alongside_tasks() {
+    // A mixed list: plain bullets still get numbering; the task item does not.
+    let (docx, _stats) = convert("- Plain\n- [ ] Task\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains("<w:numId"),
+        "the plain bullet should still be a native list item"
+    );
+    assert!(
+        doc.contains('\u{2610}'),
+        "the task item should still render a checkbox"
+    );
+}
+
+#[test]
+fn task_list_sample_document_is_wired() {
+    let (docx, _stats) = convert_feature("tasklists");
+    let doc = document_xml(&docx);
+    let checked = doc.matches('\u{2611}').count();
+    let unchecked = doc.matches('\u{2610}').count();
+    assert!(
+        checked >= 5,
+        "sample has many checked items; found {checked}"
+    );
+    assert!(
+        unchecked >= 5,
+        "sample has many unchecked items; found {unchecked}"
+    );
+    // Inline formatting must still work inside a task item.
+    assert!(
+        doc.contains("<w:b "),
+        "bold inside a task item should survive"
+    );
+    assert!(
+        doc.contains("<w:hyperlink"),
+        "a link inside a task item should survive"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap (planned #1) — dual SVG embedding via the Word `<asvg>` extension (opt-in)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the asvg sample with `embed_svg` set, through the bytes path that runs the
+/// post-packing `<asvg>` injection.
+fn convert_asvg_sample(embed_svg: bool) -> Vec<u8> {
+    let md = read_feature("asvg");
+    let (docx, _stats) = convert_bytes_with(
+        &md,
+        &features_dir(),
+        ConvertOptions {
+            embed_svg,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn embed_svg_adds_the_original_vector_as_a_media_part() {
+    let docx = convert_asvg_sample(true);
+    let names = entry_names(&docx);
+    // The PNG fallback is still present...
+    assert!(
+        names
+            .iter()
+            .any(|n| n.starts_with("word/media/") && n.ends_with(".png")),
+        "the rasterized PNG fallback must still be embedded\n{names:?}"
+    );
+    // ...and the original SVG is embedded alongside it as its own media part.
+    assert!(
+        names
+            .iter()
+            .any(|n| n.starts_with("word/media/") && n.ends_with(".svg")),
+        "the original SVG should be embedded as a media part\n{names:?}"
+    );
+}
+
+#[test]
+fn embed_svg_registers_content_type_and_relationship() {
+    let docx = convert_asvg_sample(true);
+    let ct = entry(&docx, "[Content_Types].xml").expect("content types part");
+    assert!(
+        ct.contains("image/svg+xml"),
+        "an image/svg+xml default must be registered\n{ct}"
+    );
+    let rels = document_rels(&docx).expect("document rels");
+    assert!(
+        rels.contains(r#"Target="media/"#) && rels.contains(".svg"),
+        "an image relationship targeting the .svg part must exist\n{rels}"
+    );
+}
+
+#[test]
+fn embed_svg_decorates_the_blip_with_the_asvg_extension() {
+    let docx = convert_asvg_sample(true);
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains("asvg:svgBlip"),
+        "the picture blip must carry the asvg:svgBlip extension\n{doc}"
+    );
+    assert!(
+        doc.contains("{96DAC541-7B7A-43D3-8B79-37D633B846F1}"),
+        "the SVG blip extension GUID must be present\n{doc}"
+    );
+}
+
+#[test]
+fn without_embed_svg_no_vector_layer_is_added() {
+    let docx = convert_asvg_sample(false);
+    let names = entry_names(&docx);
+    assert!(
+        !names.iter().any(|n| n.ends_with(".svg")),
+        "the default (PNG-only) path must not embed any SVG part\n{names:?}"
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("asvg:svgBlip"),
+        "the default path must not decorate the blip with an asvg extension"
+    );
+    let ct = entry(&docx, "[Content_Types].xml").expect("content types part");
+    assert!(
+        !ct.contains("image/svg+xml"),
+        "the default path must not register an svg content type"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap (planned #2) — light-mode remap for dark-themed SVG diagrams (opt-in)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the dark-diagram sample, optionally with the light-mode remap, through the bytes
+/// path. Returns the packed `.docx` bytes.
+fn convert_dark_sample(light_mode: bool, embed_svg: bool) -> Vec<u8> {
+    let md = read_feature("svg-light-mode");
+    let (docx, _stats) = convert_bytes_with(
+        &md,
+        &features_dir(),
+        ConvertOptions {
+            svg_light_mode: light_mode,
+            embed_svg,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+/// Mean luminance (Rec. 601) of a decoded RGBA image's pixels.
+fn mean_luminance(png: &[u8]) -> f64 {
+    let img = image::load_from_memory(png).expect("media png should decode");
+    let rgb = img.to_rgb8();
+    let (mut sum, mut n) = (0.0f64, 0u64);
+    for p in rgb.pixels() {
+        sum += 0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64;
+        n += 1;
+    }
+    sum / n as f64
+}
+
+#[test]
+fn light_mode_lightens_a_dark_diagram() {
+    // The dark sample is mostly a near-black canvas; remapped, it should become mostly light.
+    let dark = mean_luminance(&first_media_png(&convert_dark_sample(false, false)).unwrap());
+    let light = mean_luminance(&first_media_png(&convert_dark_sample(true, false)).unwrap());
+    assert!(
+        dark < 90.0,
+        "as-authored dark diagram should rasterize dark (got mean luminance {dark:.0})"
+    );
+    assert!(
+        light > 160.0,
+        "light-mode diagram should rasterize light (got mean luminance {light:.0})"
+    );
+    assert!(
+        light > dark + 80.0,
+        "light mode should clearly lighten the diagram ({dark:.0} -> {light:.0})"
+    );
+}
+
+#[test]
+fn light_mode_remaps_the_embedded_vector_source() {
+    // With embed_svg on, the vector layer we keep is the *remapped* SVG, so the original dark
+    // color tokens must be gone from it.
+    let docx = convert_dark_sample(true, true);
+    let svg_name = entry_names(&docx)
+        .into_iter()
+        .find(|n| n.ends_with(".svg"))
+        .expect("an embedded svg part");
+    let svg = entry(&docx, &svg_name).expect("svg part readable");
+    assert!(
+        !svg.contains("#0d1117") && !svg.contains("#e6edf3"),
+        "remapped vector must not keep the dark background/text colors\n{svg}"
+    );
+}
+
+#[test]
+fn default_leaves_the_dark_source_untouched() {
+    // Without light mode, the embedded vector is the original dark SVG, verbatim.
+    let docx = convert_dark_sample(false, true);
+    let svg_name = entry_names(&docx)
+        .into_iter()
+        .find(|n| n.ends_with(".svg"))
+        .expect("an embedded svg part");
+    let svg = entry(&docx, &svg_name).expect("svg part readable");
+    assert!(
+        svg.contains("#0d1117"),
+        "the as-authored dark background must be preserved when light mode is off\n{svg}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #8 — configurable page setup (size / orientation / margins)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert the page-setup sample with a given page setup, from `examples/features` as base dir.
+fn convert_page(page: PageSetup) -> Vec<u8> {
+    let md = read_feature("page-setup");
+    let dir = features_dir();
+    let (docx, _stats) = convert_with(
+        &md,
+        &dir,
+        ConvertOptions {
+            page,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn default_page_setup_is_us_letter_portrait_one_inch() {
+    let doc = document_xml(&convert_page(PageSetup::default()));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="12240" w:h="15840" />"#),
+        "default page should be US Letter portrait (12240x15840)\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"w:orient="landscape""#),
+        "the default portrait page must not carry a landscape orientation flag"
+    );
+    assert!(
+        doc.contains(r#"w:top="1440""#) && doc.contains(r#"w:left="1440""#),
+        "default margins should be 1 in (1440 twips) on every side\n{doc}"
+    );
+}
+
+#[test]
+fn a4_page_size_sets_iso_dimensions_and_resizes_content() {
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::A4,
+        ..PageSetup::default()
+    }));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="11906" w:h="16838" />"#),
+        "A4 should be 11906x16838 twips\n{doc}"
+    );
+    // Content width = 11906 - 2*1440 = 9026; tables/code/rules must follow.
+    assert!(
+        doc.contains(r#"<w:tblW w:w="9026" w:type="dxa" />"#),
+        "tables must resize to the A4 content width (9026)\n{doc}"
+    );
+    assert!(
+        !doc.contains(r#"w:w="9360""#),
+        "no element should keep the Letter content width on an A4 page"
+    );
+}
+
+#[test]
+fn landscape_swaps_dimensions_and_sets_orientation() {
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::Letter,
+        orientation: Orientation::Landscape,
+        margins: Margins::uniform(1440),
+    }));
+    assert!(
+        doc.contains(r#"<w:pgSz w:w="15840" w:h="12240" w:orient="landscape" />"#),
+        "landscape Letter should swap to 15840x12240 and flag the orientation\n{doc}"
+    );
+    // Content width = 15840 - 2*1440 = 12960.
+    assert!(
+        doc.contains(r#"<w:tblW w:w="12960" w:type="dxa" />"#),
+        "content should widen to the landscape text column (12960)\n{doc}"
+    );
+}
+
+#[test]
+fn custom_margins_land_in_page_setup_and_content_width() {
+    // 0.5 in uniform margins on Letter -> content width 12240 - 2*720 = 10800.
+    let doc = document_xml(&convert_page(PageSetup {
+        size: PageSize::Letter,
+        orientation: Orientation::Portrait,
+        margins: Margins::uniform(720),
+    }));
+    assert!(
+        doc.contains(r#"w:top="720""#)
+            && doc.contains(r#"w:right="720""#)
+            && doc.contains(r#"w:bottom="720""#)
+            && doc.contains(r#"w:left="720""#),
+        "every margin side should be the custom 720 twips\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:tblW w:w="10800" w:type="dxa" />"#),
+        "content should widen to match the narrower margins (10800)\n{doc}"
+    );
+}
+
+#[test]
+fn page_setup_content_width_helper_matches_geometry() {
+    assert_eq!(PageSetup::default().content_width_dxa(), 9360);
+    assert_eq!(
+        PageSetup {
+            size: PageSize::A4,
+            ..PageSetup::default()
+        }
+        .content_width_dxa(),
+        9026
+    );
+    assert_eq!(
+        PageSetup {
+            size: PageSize::Legal,
+            orientation: Orientation::Landscape,
+            margins: Margins::uniform(720),
+        }
+        .content_width_dxa(),
+        20160 - 1440
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #9 — richer code-block fidelity (syntax highlighting + language label)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn labeled_code_fence_is_highlighted_with_a_language_label() {
+    let (docx, _stats) = convert("```rust\nfn main() {}\n```\n");
+    let doc = document_xml(&docx);
+
+    // Uppercase language label above the block.
+    assert!(
+        doc.contains(">RUST<"),
+        "a fenced block should carry an uppercase language label\n{doc}"
+    );
+    // Highlighted tokens carry explicit run colors. A71D5D is InspiredGitHub's keyword color
+    // (the pinned default theme), so `fn` colors that span — proving real highlighting, not
+    // just plain monospace.
+    assert!(
+        doc.contains(r#"<w:color w:val="A71D5D""#),
+        "keywords should be colored by the syntax highlighter\n{doc}"
+    );
+    assert!(doc.contains("main"), "code text must survive highlighting");
+}
+
+#[test]
+fn unlabeled_code_fence_falls_back_to_plain_monospace() {
+    let (docx, _stats) = convert("```\njust text\n```\n");
+    let doc = document_xml(&docx);
+
+    assert!(doc.contains("just text"), "code text must survive");
+    // No language means no label and no keyword coloring.
+    assert!(
+        !doc.contains(r#"<w:color w:val="A71D5D""#),
+        "an unlabeled fence must not be syntax-highlighted"
+    );
+}
+
+#[test]
+fn highlighting_can_be_disabled() {
+    let (docx, _stats) = convert_with(
+        "```rust\nfn main() {}\n```\n",
+        std::path::Path::new("."),
+        ConvertOptions {
+            highlight_code: false,
+            ..ConvertOptions::default()
+        },
+    );
+    let doc = document_xml(&docx);
+
+    assert!(doc.contains("main"), "code text must survive");
+    assert!(
+        !doc.contains(">RUST<"),
+        "no language label when highlighting is disabled"
+    );
+    assert!(
+        !doc.contains(r#"<w:color w:val="A71D5D""#),
+        "no token colors when highlighting is disabled"
+    );
+}
+
+#[test]
+fn code_highlight_sample_document_is_wired() {
+    let (docx, stats) = convert_feature("code-highlight");
+    let doc = document_xml(&docx);
+    assert!(stats.code_blocks >= 3, "sample has three fenced blocks");
+    assert!(doc.contains(">RUST<") && doc.contains(">PYTHON<"));
+    // The trailing unlabeled fence still renders its text.
+    assert!(doc.contains("plain text, no language"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #10 — swappable style themes (fonts, heading accent, link color, code theme)
+// ---------------------------------------------------------------------------------------------
+
+/// Convert `md` with a specific [`Theme`] preset (defaults otherwise), returning the raw docx
+/// bytes so callers can inspect both `document.xml` and `styles.xml`.
+fn convert_themed(md: &str, theme: Theme) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            theme,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+fn styles_xml(docx: &[u8]) -> String {
+    entry(docx, "word/styles.xml").expect("word/styles.xml present")
+}
+
+#[test]
+fn default_theme_uses_word_blue_accent_and_aptos() {
+    let docx = convert_themed(
+        "# Heading\n\n[link](https://example.com)\n\n`code`\n",
+        Theme::DEFAULT,
+    );
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    // Heading style (in styles.xml) carries the default accent color and Aptos font.
+    assert!(
+        styles.contains(r#"w:val="2F5496""#),
+        "default heading accent 2F5496\n{styles}"
+    );
+    assert!(
+        styles.contains("Aptos"),
+        "default body font is Aptos\n{styles}"
+    );
+    assert!(
+        styles.contains("Aptos Display"),
+        "default heading font is Aptos Display\n{styles}"
+    );
+    // Hyperlink runs (in document.xml) use the default link blue.
+    assert!(
+        doc.contains(r#"w:val="0563C1""#),
+        "default link color 0563C1"
+    );
+    // Inline code uses the default monospace font.
+    assert!(doc.contains("Consolas"), "default mono font is Consolas");
+}
+
+#[test]
+fn github_theme_recolors_heading_link_and_code_fill() {
+    let docx = convert_themed(
+        "# Heading\n\n[link](https://example.com)\n\n```rust\nfn main() {}\n```\n",
+        Theme::GITHUB,
+    );
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    // GitHub-blue accent replaces the default heading accent (styles.xml) and link (document.xml).
+    assert!(
+        styles.contains(r#"w:val="0969DA""#),
+        "github heading accent 0969DA\n{styles}"
+    );
+    assert!(
+        !styles.contains(r#"w:val="2F5496""#),
+        "default heading accent must be gone"
+    );
+    assert!(
+        doc.contains(r#"w:val="0969DA""#),
+        "github link color 0969DA"
+    );
+    // Cooler code fill.
+    assert!(
+        doc.contains(r#"w:fill="F6F8FA""#),
+        "github code fill F6F8FA"
+    );
+    assert!(
+        !doc.contains(r#"w:fill="F2F2F2""#),
+        "default code fill must be gone"
+    );
+}
+
+#[test]
+fn solarized_theme_swaps_highlight_palette_and_fill() {
+    let default_doc = document_xml(&convert_themed(
+        "```rust\nfn main() {}\n```\n",
+        Theme::DEFAULT,
+    ));
+    let solar_doc = document_xml(&convert_themed(
+        "```rust\nfn main() {}\n```\n",
+        Theme::SOLARIZED,
+    ));
+
+    // Warm Solarized code fill.
+    assert!(
+        solar_doc.contains(r#"w:fill="FDF6E3""#),
+        "solarized code fill FDF6E3\n{solar_doc}"
+    );
+    // The Solarized highlight theme colors keywords differently than InspiredGitHub's A71D5D.
+    assert!(
+        default_doc.contains(r#"w:color w:val="A71D5D""#),
+        "default highlight uses InspiredGitHub keyword color"
+    );
+    assert!(
+        !solar_doc.contains(r#"w:color w:val="A71D5D""#),
+        "solarized theme must not reuse the InspiredGitHub keyword color"
+    );
+}
+
+#[test]
+fn theme_from_name_resolves_known_presets() {
+    assert_eq!(Theme::from_name("default"), Some(Theme::DEFAULT));
+    assert_eq!(Theme::from_name("GitHub"), Some(Theme::GITHUB));
+    assert_eq!(Theme::from_name(" solarized "), Some(Theme::SOLARIZED));
+    assert_eq!(Theme::from_name("nope"), None);
+}
+
+#[test]
+fn document_defaults_match_word_normal_spacing() {
+    // Word's stock Normal: 1.08 line (259) with 8pt (160) after, emitted as pPrDefault.
+    let styles = styles_xml(&convert_themed("Body text.\n", Theme::DEFAULT));
+    assert!(
+        styles.contains(r#"w:line="259""#),
+        "doc default uses 1.08 line spacing\n{styles}"
+    );
+    assert!(
+        styles.contains(r#"w:after="160""#),
+        "doc default uses 8pt space-after\n{styles}"
+    );
+}
+
+#[test]
+fn body_font_is_twelve_point() {
+    // Aptos 12pt body -> 24 half-points as the default run size.
+    let styles = styles_xml(&convert_themed("Body text.\n", Theme::DEFAULT));
+    assert!(
+        styles.contains(r#"w:sz w:val="24""#),
+        "default body size is 12pt (24 half-points)\n{styles}"
+    );
+}
+
+#[test]
+fn headings_have_before_spacing_and_stay_with_next() {
+    let docx = convert_themed("# H1\n\n## H2\n\n### H3\n\nBody\n", Theme::DEFAULT);
+    let styles = styles_xml(&docx);
+    let doc = document_xml(&docx);
+    // Heading styles carry Word's before-spacing (H1 360 twips = 18pt).
+    assert!(
+        styles.contains(r#"w:before="360""#),
+        "H1 keeps 18pt before-spacing\n{styles}"
+    );
+    // Heading paragraphs keep with the following body so a heading never orphans at a page end.
+    assert!(
+        doc.contains("<w:keepNext") && doc.contains("<w:keepLines"),
+        "headings set keepNext/keepLines\n{doc}"
+    );
+}
+
+#[test]
+fn code_runs_are_smaller_than_body() {
+    // Inline and fenced code render at 10pt (20 half-points), below the 12pt body.
+    let doc = document_xml(&convert_themed(
+        "`inline`\n\n```\nblock\n```\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains(r#"w:sz w:val="20""#),
+        "code runs use the 10pt code size\n{doc}"
+    );
+}
+
+#[test]
+fn block_elements_get_breathing_room() {
+    // Tables, code blocks, and block quotes are aired out with an exact-height spacer paragraph
+    // so they sit apart from body text the way headings do.
+    let doc = document_xml(&convert_themed(
+        "Intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nMiddle\n\n```\ncode\n```\n\n> quote\n\nEnd\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains(r#"w:lineRule="exact""#) && doc.contains(r#"w:line="160""#),
+        "block spacers use an exact 8pt gap\n{doc}"
+    );
+}
+
+#[test]
+fn data_tables_pad_their_cells() {
+    // Cell margins keep 12pt text off the gridlines (Word's ~0.075in = 108 twip side inset).
+    let doc = document_xml(&convert_themed(
+        "| a | b |\n| - | - |\n| 1 | 2 |\n",
+        Theme::DEFAULT,
+    ));
+    assert!(
+        doc.contains("<w:tblCellMar>"),
+        "data table declares cell margins\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:w="108""#),
+        "table cells carry a horizontal inset\n{doc}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #1 — ordered-list start/restart, loose spacing, deep nesting
+// ---------------------------------------------------------------------------------------------
+
+/// Read `word/numbering.xml`, which carries the per-list numbering instances (and their
+/// `startOverride` values). Returns an empty string when the part is absent.
+fn numbering_xml(docx: &[u8]) -> String {
+    entry(docx, "word/numbering.xml").unwrap_or_default()
+}
+
+#[test]
+fn ordered_list_honors_explicit_start_ordinal() {
+    // A list beginning at `7.` must actually start at seven, via a numbering start override.
+    let (docx, _stats) = convert("7. Seven\n8. Eight\n");
+    let numbering = numbering_xml(&docx);
+    assert!(
+        numbering.contains(r#"<w:startOverride w:val="7" />"#)
+            || numbering.contains(r#"<w:startOverride w:val="7"/>"#),
+        "ordered list starting at 7 must emit a startOverride of 7\n{numbering}"
+    );
+}
+
+#[test]
+fn separate_ordered_lists_restart_independently() {
+    // Two ordered lists split by a paragraph should each restart at 1, i.e. get distinct
+    // numbering instances rather than sharing one running counter.
+    let (docx, _stats) = convert("1. one\n2. two\n\nA break.\n\n1. uno\n2. dos\n");
+    let doc = document_xml(&docx);
+    let ids: std::collections::BTreeSet<&str> = doc
+        .match_indices("<w:numId w:val=\"")
+        .map(|(i, _)| {
+            let rest = &doc[i + "<w:numId w:val=\"".len()..];
+            &rest[..rest.find('"').unwrap()]
+        })
+        .collect();
+    assert!(
+        ids.len() >= 2,
+        "two separate ordered lists must reference two distinct numIds, saw {ids:?}\n{doc}"
+    );
+    // Both restart at 1 → two start overrides of 1 in numbering.xml.
+    let numbering = numbering_xml(&docx);
+    let starts = numbering.matches("<w:startOverride").count();
+    assert!(
+        starts >= 2,
+        "each ordered list should declare its own start override, saw {starts}\n{numbering}"
+    );
+}
+
+#[test]
+fn loose_list_items_breathe_but_tight_stay_compact() {
+    // A loose list (blank lines between items) gets body space-after; a tight list does not.
+    let loose = document_xml(&convert("- first\n\n- second\n").0);
+    let tight = document_xml(&convert("- first\n- second\n").0);
+    assert!(
+        loose.contains(r#"w:after="160""#),
+        "loose list items should carry body space-after (160)\n{loose}"
+    );
+    assert!(
+        !tight.contains(r#"w:after="160""#),
+        "tight list items should not add body space-after\n{tight}"
+    );
+}
+
+#[test]
+fn deeply_nested_ordered_lists_keep_numbering() {
+    // Six levels of nesting used to collapse past level 4; every level should still number.
+    let md = "1. a\n   1. b\n      1. c\n         1. d\n            1. e\n               1. f\n";
+    let (docx, _stats) = convert(md);
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:ilvl w:val="5" />"#) || doc.contains(r#"<w:ilvl w:val="5"/>"#),
+        "sixth nesting level should render at ilvl 5, not clamp to 4\n{doc}"
+    );
+}
+
+#[test]
+fn multi_paragraph_item_is_numbered_once() {
+    // A loose item with a continuation paragraph must be numbered once, not once per paragraph.
+    let (docx, _stats) = convert("1. First paragraph.\n\n   Continued here.\n2. Second item.\n");
+    let doc = document_xml(&docx);
+    let num_refs = doc.matches("<w:numId w:val=\"").count();
+    assert_eq!(
+        num_refs, 2,
+        "two items = two numbered paragraphs; the continuation paragraph must not be numbered\n{doc}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #2 — GFM table column alignment
+// ---------------------------------------------------------------------------------------------
+#[test]
+fn table_columns_carry_their_gfm_alignment() {
+    // `:--`, `:-:`, `--:` set left / center / right alignment on their whole column.
+    let (docx, _stats) = convert("| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |\n");
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"<w:jc w:val="center" />"#) || doc.contains(r#"<w:jc w:val="center"/>"#),
+        "center-aligned column should emit a centered paragraph\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:jc w:val="right" />"#) || doc.contains(r#"<w:jc w:val="right"/>"#),
+        "right-aligned column should emit a right-aligned paragraph\n{doc}"
+    );
+}
+
+#[test]
+fn table_without_alignment_omits_cell_justification() {
+    // A default (`---`) table leaves cells left-flowing without an explicit per-cell <w:jc>.
+    // docx-rs still emits one table-level <w:jc> (table-on-page alignment) inside <w:tblPr>;
+    // that is expected, so we assert no *additional* justification beyond it.
+    let (docx, _stats) = convert("| a | b |\n| --- | --- |\n| 1 | 2 |\n");
+    let doc = document_xml(&docx);
+    let jc_count = doc.matches("<w:jc ").count();
+    assert_eq!(
+        jc_count, 1,
+        "an unaligned table should only carry the table-level justification, not per-cell\n{doc}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #3 — headings 4-6 with distinct styles and outline levels
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn headings_four_to_six_get_distinct_styles() {
+    // Deep headings must not all collapse onto Heading3; each level keeps its own style id.
+    let (docx, _stats) = convert("#### Four\n\n##### Five\n\n###### Six\n");
+    let doc = document_xml(&docx);
+    for style in ["Heading4", "Heading5", "Heading6"] {
+        assert!(
+            doc.contains(&format!(r#"w:val="{style}""#)),
+            "heading level should map to {style}\n{doc}"
+        );
+    }
+}
+
+#[test]
+fn all_heading_levels_declare_outline_levels() {
+    // Outline levels drive Word's navigation pane and native TOC; H1..H6 => 0..5.
+    let docx = convert_themed(
+        "# H1\n\n## H2\n\n### H3\n\n#### H4\n\n##### H5\n\n###### H6\n",
+        Theme::DEFAULT,
+    );
+    let styles = styles_xml(&docx);
+    for lvl in 0..6 {
+        assert!(
+            styles.contains(&format!(r#"<w:outlineLvl w:val="{lvl}" />"#)),
+            "heading styles should declare outline level {lvl}\n{styles}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #4 — opt-in "Page X of Y" footer with live fields
+// ---------------------------------------------------------------------------------------------
+
+/// Convert with a specific `page_numbers` setting, leaving everything else at defaults.
+fn convert_page_numbers(md: &str, page_numbers: bool) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            page_numbers,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn page_numbers_are_off_by_default() {
+    // A plain conversion should look like a freshly-typed document: no footer part at all.
+    let docx = convert_page_numbers("# Title\n\nBody.\n", false);
+    assert!(
+        entry(&docx, "word/footer1.xml").is_none(),
+        "default output must not carry a page-number footer"
+    );
+}
+
+#[test]
+fn page_numbers_emit_live_footer_fields() {
+    // Enabling page numbers adds a centered footer with native PAGE/NUMPAGES fields.
+    let docx = convert_page_numbers("# Title\n\nBody.\n", true);
+    let footer = entry(&docx, "word/footer1.xml").expect("footer part present when enabled");
+    assert!(
+        footer.contains("<w:instrText>PAGE</w:instrText>"),
+        "footer should carry a live PAGE field\n{footer}"
+    );
+    assert!(
+        footer.contains("<w:instrText>NUMPAGES</w:instrText>"),
+        "footer should carry a live NUMPAGES field\n{footer}"
+    );
+    assert!(
+        footer.contains(r#"<w:jc w:val="center" />"#),
+        "the page-number footer should be centered\n{footer}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #5 — opt-in native table of contents
+// ---------------------------------------------------------------------------------------------
+
+/// Convert with a specific `table_of_contents` setting, leaving everything else at defaults.
+fn convert_toc(md: &str, toc: bool) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            table_of_contents: toc,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn toc_is_off_by_default() {
+    // A plain conversion should not emit any TOC field.
+    let docx = convert_toc("# Title\n\nBody.\n", false);
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("TOC "),
+        "default output must not carry a table-of-contents field\n{xml}"
+    );
+}
+
+#[test]
+fn toc_emits_live_field_over_headings_1_to_3() {
+    // Enabling the TOC inserts a live `TOC \o "1-3"` field marked dirty so Word populates it.
+    let docx = convert_toc("# Intro\n\n## Background\n\n# Methods\n", true);
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"TOC \o &quot;1-3&quot;"#),
+        "TOC field should span Heading 1-3\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:fldCharType="begin" w:dirty="true""#),
+        "TOC field should be marked dirty so Word rebuilds it on open\n{xml}"
+    );
+    assert!(
+        xml.contains("Contents"),
+        "TOC should be preceded by a Contents title\n{xml}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #6 — YAML front matter -> Word core document properties
+// ---------------------------------------------------------------------------------------------
+
+/// The `docProps/core.xml` part of a document converted through the byte (post-pack) path.
+fn core_props(md: &str) -> String {
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    entry(&docx, "docProps/core.xml").expect("core.xml must exist")
+}
+
+#[test]
+fn front_matter_maps_to_core_properties() {
+    let md = "---\n\
+        title: Quarterly Report\n\
+        author: Seth Juarez\n\
+        subject: Finance\n\
+        description: Q3 results & outlook\n\
+        keywords: [finance, report]\n\
+        lang: en-US\n\
+        date: 2024-09-30\n\
+        ---\n\n# Body\n\nText.\n";
+    let core = core_props(md);
+    assert!(
+        core.contains("<dc:title>Quarterly Report</dc:title>"),
+        "title should map to dc:title\n{core}"
+    );
+    assert!(
+        core.contains("<dc:creator>Seth Juarez</dc:creator>"),
+        "author should map to dc:creator\n{core}"
+    );
+    assert!(
+        core.contains("<dc:subject>Finance</dc:subject>"),
+        "subject should map to dc:subject\n{core}"
+    );
+    assert!(
+        core.contains("<dc:description>Q3 results &amp; outlook</dc:description>"),
+        "description should be present and XML-escaped\n{core}"
+    );
+    assert!(
+        core.contains("<cp:keywords>finance, report</cp:keywords>"),
+        "keywords list should be flattened, brackets stripped\n{core}"
+    );
+    assert!(
+        core.contains("<dc:language>en-US</dc:language>"),
+        "lang should map to dc:language\n{core}"
+    );
+    assert!(
+        core.contains(r#"<dcterms:created xsi:type="dcterms:W3CDTF">2024-09-30</dcterms:created>"#),
+        "date should populate the created property\n{core}"
+    );
+}
+
+#[test]
+fn front_matter_is_not_rendered_as_body_text() {
+    let md = "---\ntitle: Hidden\nauthor: Nobody\n---\n\n# Visible Heading\n\nBody.\n";
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    let body = document_xml(&docx);
+    assert!(
+        !body.contains("author"),
+        "front-matter keys must not leak into the document body\n{body}"
+    );
+    assert!(
+        body.contains("Visible Heading"),
+        "real body content should still render\n{body}"
+    );
+}
+
+#[test]
+fn documents_without_front_matter_keep_default_core_props() {
+    // No front matter -> the core.xml is left exactly as docx-rs emits it (creator "unknown").
+    let core = core_props("# Just a heading\n\nBody.\n");
+    assert!(
+        core.contains("<dc:creator>unknown</dc:creator>"),
+        "absent front matter must not alter the default core properties\n{core}"
+    );
+    assert!(
+        !core.contains("<dc:title>"),
+        "no title element should be added when there is no front matter\n{core}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #7 — raw inline HTML (safe subset)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn html_sub_and_sup_become_native_vert_align() {
+    let (docx, _stats) = convert("Water is H<sub>2</sub>O and mc<sup>2</sup>.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "<sub> should emit native subscript vertAlign\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "<sup> should emit native superscript vertAlign\n{xml}"
+    );
+    assert!(
+        !xml.contains("&lt;sub&gt;") && !xml.contains("<sub>"),
+        "the <sub> tag text itself must not leak into the body\n{xml}"
+    );
+}
+
+#[test]
+fn html_mark_underline_and_break_map_to_native_runs() {
+    let (docx, _stats) = convert(
+        "This is <mark>highlighted</mark> and <u>underlined</u>.\n\nLine one<br>line two.\n",
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:highlight"),
+        "<mark> should emit a native highlight run\n{xml}"
+    );
+    assert!(
+        xml.contains("<w:u "),
+        "<u> should emit a native underline run\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:type="textWrapping""#),
+        "<br> should emit a native line break\n{xml}"
+    );
+}
+
+#[test]
+fn html_b_i_del_ins_map_to_native_styles() {
+    let (docx, _stats) = convert(
+        "<b>bold</b> <strong>strong</strong> <i>ital</i> <em>emph</em> <del>gone</del> <ins>added</ins>.\n",
+    );
+    let xml = document_xml(&docx);
+    assert!(xml.contains("<w:b "), "<b>/<strong> should bold\n{xml}");
+    assert!(xml.contains("<w:i "), "<i>/<em> should italicize\n{xml}");
+    assert!(xml.contains("<w:strike "), "<del> should strike\n{xml}");
+    assert!(xml.contains("<w:u "), "<ins> should underline\n{xml}");
+}
+
+#[test]
+fn unknown_inline_html_drops_tag_keeps_text_and_counts_skip() {
+    let (docx, stats) = convert("Press <kbd>Ctrl</kbd>+<kbd>C</kbd> now.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("Ctrl") && xml.contains("now."),
+        "text inside an unsupported tag must be preserved\n{xml}"
+    );
+    assert!(
+        !xml.contains("kbd"),
+        "the unsupported <kbd> tag text must be dropped\n{xml}"
+    );
+    assert!(
+        stats.raw_html_skipped >= 2,
+        "each unsupported tag should be counted, got {}",
+        stats.raw_html_skipped
+    );
+}
+
+#[test]
+fn raw_html_block_is_skipped_not_dumped() {
+    let (docx, stats) = convert("Before.\n\n<div class=\"note\">raw block</div>\n\nAfter.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("Before.") && xml.contains("After."),
+        "surrounding paragraphs should still render\n{xml}"
+    );
+    assert!(
+        !xml.contains("class=") && !xml.contains("<div"),
+        "raw HTML block markup must not be dumped into the body\n{xml}"
+    );
+    assert!(
+        stats.raw_html_skipped >= 1,
+        "a skipped raw HTML block should be counted, got {}",
+        stats.raw_html_skipped
+    );
+}
+
+#[test]
+fn supported_inline_html_reports_no_skips() {
+    let (_docx, stats) = convert("H<sub>2</sub>O and <mark>hi</mark> and <b>x</b>.\n");
+    assert_eq!(
+        stats.raw_html_skipped, 0,
+        "fully-supported inline HTML should not count any skips"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #8 — inline subscript (`~x~`) via the comrak subscript extension
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn tilde_subscript_becomes_native_vert_align() {
+    let (docx, _stats) = convert("Water is H~2~O.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "`~2~` should emit native subscript vertAlign\n{xml}"
+    );
+}
+
+#[test]
+fn double_tilde_still_strikes_through_alongside_subscript() {
+    // Enabling subscript must not break `~~...~~` strikethrough.
+    let (docx, _stats) = convert("This is ~~removed~~ but H~2~O stays.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:strike "),
+        "`~~removed~~` should still strike through\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "`~2~` subscript should coexist with strikethrough\n{xml}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #9 — GitHub alerts (`> [!NOTE]` ...) as styled callouts
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn note_alert_becomes_a_shaded_callout_table() {
+    let (docx, _stats) = convert("> [!NOTE]\n> Useful information.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:tbl>"),
+        "an alert should render as a native table callout\n{xml}"
+    );
+    assert!(
+        xml.contains("DDF4FF"),
+        "the NOTE callout should carry its light-blue cell fill\n{xml}"
+    );
+    assert!(
+        xml.contains("0969DA"),
+        "the NOTE callout should use its blue accent for the bar and title\n{xml}"
+    );
+    assert!(
+        xml.contains(">Note<"),
+        "the callout should carry a 'Note' title line\n{xml}"
+    );
+    assert!(
+        !xml.contains("[!NOTE]"),
+        "the raw [!NOTE] marker must not leak into the body\n{xml}"
+    );
+    assert!(
+        xml.contains("Useful information."),
+        "the alert body text should survive\n{xml}"
+    );
+}
+
+#[test]
+fn each_alert_type_uses_its_own_palette() {
+    let md = "> [!TIP]\n> t\n\n> [!IMPORTANT]\n> i\n\n> [!WARNING]\n> w\n\n> [!CAUTION]\n> c\n";
+    let (docx, _stats) = convert(md);
+    let xml = document_xml(&docx);
+    for fill in ["DAFBE1", "FBEFFF", "FFF8C5", "FFEBE9"] {
+        assert!(
+            xml.contains(fill),
+            "expected alert fill {fill} to appear\n{xml}"
+        );
+    }
+    for title in [">Tip<", ">Important<", ">Warning<", ">Caution<"] {
+        assert!(xml.contains(title), "expected title {title}\n{xml}");
+    }
+}
+
+#[test]
+fn alert_with_custom_title_overrides_the_default() {
+    let (docx, _stats) = convert("> [!NOTE] Heads up\n> Body.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(">Heads up<"),
+        "a custom alert title should replace the default label\n{xml}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #10 — quote chrome threads into nested headings, lists, code, and tables
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn quoted_heading_keeps_style_and_gains_quote_chrome() {
+    let (docx, _stats) = convert("> ## Quoted heading\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"w:val="Heading2""#),
+        "a quoted heading should keep its heading style\n{xml}"
+    );
+    assert!(
+        xml.contains("<w:pBdr>") && xml.contains(r#"w:val="57606A""#),
+        "a quoted heading should gain the quote accent bar and tint\n{xml}"
+    );
+}
+
+#[test]
+fn quoted_list_items_get_the_accent_bar_and_tint() {
+    let (docx, _stats) = convert("> - First\n> - Second\n");
+    let xml = document_xml(&docx);
+    // Two list items, each carrying the left accent bar.
+    assert!(
+        xml.matches("<w:pBdr>").count() >= 2,
+        "each quoted list item should carry a left accent bar\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:val="57606A""#),
+        "quoted list text should be tinted\n{xml}"
+    );
+}
+
+#[test]
+fn quoted_code_block_and_table_are_indented() {
+    let md = "> ```\n> code\n> ```\n>\n> | A | B |\n> | - | - |\n> | 1 | 2 |\n";
+    let (docx, _stats) = convert(md);
+    let xml = document_xml(&docx);
+    assert!(
+        xml.matches("<w:tblInd ").count() >= 2,
+        "both a quoted code block and table should be indented from the margin\n{xml}"
+    );
+}
+
+#[test]
+fn unquoted_heading_has_no_quote_chrome() {
+    let (docx, _stats) = convert("## Plain heading\n");
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("<w:pBdr>"),
+        "an ordinary heading must not gain a quote accent bar\n{xml}"
+    );
+}
+
+// --- Fidelity #11: document proofing language ------------------------------------------------
+
+#[test]
+fn default_proofing_language_is_set_on_run_defaults() {
+    let (docx, _stats) = convert_bytes_with(
+        "# Hi\n\nHello.\n",
+        std::path::Path::new("."),
+        ConvertOptions::default(),
+    );
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:rPrDefault><w:rPr><w:lang w:val=\"en-US\" />"),
+        "default run properties should declare the en-US proofing language\n{styles}"
+    );
+}
+
+#[test]
+fn configured_language_overrides_the_default() {
+    let opts = ConvertOptions {
+        language: "de-DE".to_string(),
+        ..ConvertOptions::default()
+    };
+    let (docx, _stats) = convert_bytes_with("# Hallo\n", std::path::Path::new("."), opts);
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:lang w:val=\"de-DE\" />"),
+        "configured language should reach the run defaults\n{styles}"
+    );
+}
+
+#[test]
+fn front_matter_language_wins_over_configured_default() {
+    let md = "---\nlang: fr-FR\n---\n\n# Bonjour\n";
+    let (docx, _stats) =
+        convert_bytes_with(md, std::path::Path::new("."), ConvertOptions::default());
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        styles.contains("<w:lang w:val=\"fr-FR\" />"),
+        "front-matter language should override the configured default in styles.xml\n{styles}"
+    );
+    let core = entry(&docx, "docProps/core.xml").expect("core.xml should exist");
+    assert!(
+        core.contains("<dc:language>fr-FR</dc:language>"),
+        "front-matter language should also land in core properties\n{core}"
+    );
+}
+
+#[test]
+fn empty_language_leaves_run_defaults_untouched() {
+    let opts = ConvertOptions {
+        language: String::new(),
+        ..ConvertOptions::default()
+    };
+    let (docx, _stats) = convert_bytes_with("# Hi\n", std::path::Path::new("."), opts);
+    let styles = entry(&docx, "word/styles.xml").expect("styles.xml should exist");
+    assert!(
+        !styles.contains("<w:lang "),
+        "an empty language setting should not inject a lang tag\n{styles}"
+    );
+}
+
+// --- Fidelity #12: image alt text (wp:docPr descr) -----------------------------------------
+
+/// Convert the image-alt sample through the bytes path that runs the post-packing docPr pass.
+fn convert_imagealt_sample() -> Vec<u8> {
+    let md = read_feature("imagealt");
+    let (docx, _stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    docx
+}
+
+#[test]
+fn image_alt_text_becomes_docpr_descr() {
+    let docx = convert_imagealt_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"descr="A tidy left-to-right flow diagram""#),
+        "the Markdown alt text should land in wp:docPr/@descr\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"name="A tidy left-to-right flow diagram""#),
+        "the alt text should also name the drawing object\n{xml}"
+    );
+}
+
+#[test]
+fn image_title_is_the_alt_text_fallback() {
+    let docx = convert_imagealt_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"descr="Fallback description""#),
+        "an image with no alt text should fall back to its title for descr\n{xml}"
+    );
+}
+
+#[test]
+fn image_without_alt_or_title_gets_no_descr() {
+    let (docx, _stats) = convert_bytes_with(
+        "![](../diagrams/01-flow.svg)\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("descr="),
+        "an image with neither alt nor title must not gain a descr attribute\n{xml}"
+    );
+}
+
+// --- Fidelity #13: repeating table header rows (w:tblHeader) --------------------------------
+
+/// Convert the table-header sample through the bytes path that runs the post-packing pass.
+fn convert_tableheader_sample() -> Vec<u8> {
+    let md = read_feature("tableheader");
+    let (docx, _stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    docx
+}
+
+#[test]
+fn gfm_header_row_is_marked_as_repeating_header() {
+    let docx = convert_tableheader_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:trPr><w:tblHeader /></w:trPr>"),
+        "the header row should declare w:tblHeader\n{xml}"
+    );
+    // Every marked header row is immediately followed by a header-filled first cell.
+    for (idx, _) in xml.match_indices("<w:tblHeader />") {
+        let after = &xml[idx..(idx + 200).min(xml.len())];
+        assert!(
+            after.contains(r#"w:fill="D9D9D9""#),
+            "a tblHeader must sit on a row whose first cell carries the header fill\n{after}"
+        );
+    }
+}
+
+#[test]
+fn only_real_data_table_headers_are_marked() {
+    let docx = convert_tableheader_sample();
+    let xml = document_xml(&docx);
+    // The sample has exactly two data tables (top-level + nested-in-alert); the code block and
+    // the alert callout are 1×1 wrapper tables and must not gain a header row.
+    let marked = xml.matches("<w:tblHeader />").count();
+    assert_eq!(
+        marked, 2,
+        "exactly the two data-table header rows should be marked, not the code/alert wrappers\n{xml}"
+    );
+}
+
+#[test]
+fn table_body_rows_are_not_marked() {
+    // A single table: one header row, three body rows -> exactly one tblHeader.
+    let (docx, _stats) = convert_bytes_with(
+        "| A | B |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert_eq!(
+        xml.matches("<w:tblHeader />").count(),
+        1,
+        "only the header row of a plain table should be marked\n{xml}"
+    );
+}
+
+#[test]
+fn code_block_wrapper_row_is_not_marked() {
+    let (docx, _stats) = convert_bytes_with(
+        "```rust\nfn main() {}\n```\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("<w:tblHeader />"),
+        "a code block's 1x1 wrapper table must not be marked as a header\n{xml}"
+    );
+}
+
+// --- Fidelity #14: data: URLs (always) and opt-in remote images -----------------------------
+
+/// A valid 1×1 PNG, base64-encoded, for building `data:` URLs without touching the filesystem.
+const PNG_1X1_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY+ASkfsPAAGkATy8Tqj3AAAAAElFTkSuQmCC";
+
+fn media_count(docx: &[u8]) -> usize {
+    entry_names(docx)
+        .iter()
+        .filter(|n| n.starts_with("word/media/"))
+        .count()
+}
+
+#[test]
+fn base64_data_url_image_is_embedded() {
+    let md = format!("![dot](data:image/png;base64,{PNG_1X1_B64})\n");
+    let (docx, stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    assert_eq!(stats.images_embedded, 1, "the data: URL image should embed");
+    assert_eq!(stats.images_failed, 0);
+    assert_eq!(media_count(&docx), 1, "one media part should be written");
+}
+
+#[test]
+fn inline_svg_data_url_is_rasterized() {
+    // Percent-encoded (non-base64) SVG payload exercises the percent-decode path.
+    let svg = "%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%2210%22%3E%3Crect%20width%3D%2210%22%20height%3D%2210%22%20fill%3D%22%23f00%22%2F%3E%3C%2Fsvg%3E";
+    let md = format!("![sq](data:image/svg+xml,{svg})\n");
+    let (docx, stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    assert_eq!(
+        stats.images_embedded, 1,
+        "the inline SVG should rasterize+embed"
+    );
+    assert_eq!(media_count(&docx), 1);
+}
+
+#[test]
+fn remote_image_falls_back_when_disabled() {
+    // Default options keep remote fetching off, so no network is touched.
+    let (docx, stats) = convert_bytes_with(
+        "![logo](https://example.com/logo.png)\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    assert_eq!(stats.images_embedded, 0);
+    assert_eq!(
+        stats.images_failed, 1,
+        "the remote image should fail to embed"
+    );
+    assert_eq!(
+        media_count(&docx),
+        0,
+        "no media part for a skipped remote image"
+    );
+    assert!(
+        stats
+            .warnings
+            .iter()
+            .any(|w| w.contains("remote images are disabled")),
+        "a warning should explain remote images are off\n{:?}",
+        stats.warnings
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("[logo]"),
+        "the alt text should render as an italic placeholder\n{xml}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #15 — opt-in figure/table captions and cross-references
+// ---------------------------------------------------------------------------------------------
+
+/// Options with captions enabled.
+fn captions_opts() -> ConvertOptions {
+    ConvertOptions {
+        captions: true,
+        ..ConvertOptions::default()
+    }
+}
+
+#[test]
+fn caption_paragraph_becomes_seq_field_with_style_and_bookmark() {
+    let (docx, _stats) = convert_with(
+        "Figure: A flow diagram {#flow}\n",
+        &features_dir(),
+        captions_opts(),
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"w:val="Caption""#),
+        "a caption should carry the Caption paragraph style\n{doc}"
+    );
+    assert!(
+        doc.contains(r"SEQ Figure \* ARABIC"),
+        "the number should come from a native SEQ field\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:fldCharType="begin" w:dirty="true""#),
+        "the SEQ field should be marked dirty so Word numbers it on open"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd_cap_flow""#),
+        "the label should publish a sanitized bookmark\n{doc}"
+    );
+    assert!(
+        doc.contains("A flow diagram") && !doc.contains("{#flow}"),
+        "the caption text should render without the label marker\n{doc}"
+    );
+}
+
+#[test]
+fn figures_and_tables_number_independently() {
+    let md = "Figure: One {#a}\n\nTable: Two {#b}\n\nFigure: Three {#c}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    let figs = doc.matches(r"SEQ Figure \* ARABIC").count();
+    let tbls = doc.matches(r"SEQ Table \* ARABIC").count();
+    assert_eq!(figs, 2, "two figure captions -> two Figure SEQ fields");
+    assert_eq!(tbls, 1, "one table caption -> one Table SEQ field");
+}
+
+#[test]
+fn link_to_caption_label_becomes_ref_cross_reference() {
+    let md = "See [it](#flow).\n\nFigure: A flow diagram {#flow}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    // A live REF field to the caption's bookmark, not a plain anchor hyperlink.
+    assert!(
+        doc.contains(r"REF qd_cap_flow \h"),
+        "a link to a caption label should emit a REF field\n{doc}"
+    );
+    assert!(
+        doc.contains("it"),
+        "the link text should survive as the field placeholder"
+    );
+    assert!(
+        !doc.contains(r#"w:anchor="flow""#),
+        "the caption cross-reference should not fall back to an anchor hyperlink"
+    );
+}
+
+#[test]
+fn captions_are_off_by_default() {
+    // Without the flag, a `Figure:` paragraph is ordinary prose — no SEQ, no Caption style.
+    let (docx, _stats) = convert("Figure: A flow diagram {#flow}\n");
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "captions must be opt-in — no SEQ field by default\n{doc}"
+    );
+    assert!(
+        doc.contains("{#flow}"),
+        "the raw text (including the label marker) should render verbatim by default"
+    );
+}
+
+#[test]
+fn caption_prefix_must_be_exact() {
+    // A paragraph that merely mentions a figure is not a caption.
+    let (docx, _stats) = convert_with(
+        "Figure 3 shows the result.\n",
+        &features_dir(),
+        captions_opts(),
+    );
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "only a leading `Figure:`/`Table:` prefix opts in, not a passing mention\n{doc}"
+    );
+}
+
+#[test]
+fn unlabeled_caption_numbers_without_bookmark_and_unknown_link_stays_anchor() {
+    let md = "Figure: No label here\n\nJump to [notes](#unknown).\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r"SEQ Figure \* ARABIC"),
+        "an unlabeled caption still auto-numbers"
+    );
+    assert!(
+        !doc.contains("qd_cap_"),
+        "an unlabeled caption publishes no bookmark\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="unknown""#),
+        "a link to a non-caption label falls back to a normal anchor hyperlink\n{doc}"
+    );
+}
+
+#[test]
+fn captions_sample_renders() {
+    let md = read_feature("captions");
+    let (docx, _stats) = convert_with(&md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(doc.contains(r"SEQ Figure \* ARABIC"));
+    assert!(doc.contains(r"SEQ Table \* ARABIC"));
+    assert!(doc.contains(r"REF qd_cap_flow \h"));
+    assert!(doc.contains(r"REF qd_cap_summary \h"));
+}
+
+#[test]
+fn caption_inside_blockquote_is_not_a_caption_and_ref_does_not_dangle() {
+    // A `Figure:` line inside a quote stays prose, so its label must not be collected — a link
+    // to it falls back to a normal anchor rather than a REF pointing at a missing bookmark.
+    let md = "> Figure: Quoted {#q}\n\nSee [it](#q).\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        !doc.contains("SEQ Figure"),
+        "a quoted `Figure:` line must not become a caption\n{doc}"
+    );
+    assert!(
+        !doc.contains("REF qd_cap_q"),
+        "a link to an uncollected label must not emit a dangling REF field\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"w:anchor="q""#),
+        "the link should fall back to a normal anchor hyperlink\n{doc}"
+    );
+}
+
+#[test]
+fn colliding_labels_get_distinct_bookmarks() {
+    // `a-b` and `a_b` both sanitize to `qd_cap_a_b`; the second must be disambiguated.
+    let md = "Figure: One {#a-b}\n\nFigure: Two {#a_b}\n";
+    let (docx, _stats) = convert_with(md, &features_dir(), captions_opts());
+    let doc = document_xml(&docx);
+    assert!(
+        doc.contains(r#"w:name="qd_cap_a_b""#),
+        "first label keeps the base name"
+    );
+    assert!(
+        doc.contains(r#"w:name="qd_cap_a_b_2""#),
+        "the colliding label gets a numeric suffix\n{doc}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap #16 — math
+//
+// `$...$`/`$$...$$`/```math LaTeX is converted to native Word equations (OMML `<m:oMath>`), so it
+// reflows, recolors in dark mode, and is editable — not a rasterized image. The OMML is spliced in
+// post-packing, so these assertions must go through `convert_bytes_with` (the byte/file path that
+// runs the inject passes), not the plain `convert` helper. LaTeX that the converter can't handle
+// degrades to the literal source and warns once.
+// ---------------------------------------------------------------------------------------------
+
+/// Convert Markdown through the byte path (which runs the math inject pass) with default options.
+fn convert_math(markdown: &str) -> (Vec<u8>, RenderStats) {
+    convert_bytes_with(
+        markdown,
+        std::path::Path::new("."),
+        ConvertOptions::default(),
+    )
+}
+
+#[test]
+fn documents_without_math_have_no_math_warning() {
+    // No math means no math span and no math warning.
+    let (_docx, stats) = convert("Just prose, no math here.\n");
+    assert_eq!(stats.math_spans, 0);
+    assert!(
+        !stats.warnings.iter().any(|w| w.contains("math")),
+        "no math warning when there is no math"
+    );
+}
+
+#[test]
+fn inline_math_becomes_a_native_equation() {
+    // `$E = mc^2$` lands as a real Word equation with a superscript — not literal text, and with
+    // no `$` delimiters leaking into the document.
+    let (docx, stats) = convert_math("The identity $E = mc^2$ is famous.\n");
+    let doc = document_xml(&docx);
+    assert_eq!(
+        stats.math_spans, 1,
+        "one inline math span should be counted"
+    );
+    assert!(doc.contains("<m:oMath"), "math is a native equation\n{doc}");
+    assert!(
+        doc.contains("<m:sSup>"),
+        "the exponent is a real superscript\n{doc}"
+    );
+    assert!(
+        !doc.contains(">$") && !doc.contains("$<"),
+        "the `$` delimiters must not leak into the document\n{doc}"
+    );
+    assert!(
+        !stats.warnings.iter().any(|w| w.starts_with("math:")),
+        "a well-formed equation must not warn: {:?}",
+        stats.warnings
+    );
+}
+
+#[test]
+fn inline_math_fraction_and_sqrt_are_native() {
+    // The golden ratio exercises a fraction over a square root.
+    let (docx, _) = convert_math("The golden ratio $\\varphi = \\frac{1+\\sqrt5}{2}$.\n");
+    let doc = document_xml(&docx);
+    assert!(doc.contains("<m:f>"), "fraction is a native `<m:f>`\n{doc}");
+    assert!(doc.contains("<m:rad>"), "root is a native `<m:rad>`\n{doc}");
+}
+
+#[test]
+fn code_style_inline_math_becomes_a_native_equation() {
+    // The `` $`...`$ `` code-math syntax also converts; a sum is an n-ary operator.
+    let (docx, stats) = convert_math("A sum $`\\sum_{i=1}^{n} i`$ inline.\n");
+    let doc = document_xml(&docx);
+    assert_eq!(stats.math_spans, 1);
+    assert!(
+        doc.contains("<m:oMath"),
+        "code-math is a native equation\n{doc}"
+    );
+    assert!(
+        doc.contains("<m:nary"),
+        "the sum is a native n-ary operator\n{doc}"
+    );
+}
+
+#[test]
+fn display_math_is_a_centered_native_equation() {
+    // A standalone `$$...$$` equation is a native equation in a centered paragraph.
+    let (docx, stats) = convert_math("$$\\int_a^b f(x)\\,dx$$\n");
+    let doc = document_xml(&docx);
+    assert_eq!(stats.math_spans, 1, "display math counts as a math span");
+    assert!(
+        doc.contains("<m:oMath"),
+        "display math is a native equation\n{doc}"
+    );
+    assert!(
+        doc.contains("<m:nary"),
+        "the integral is a native n-ary operator\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:jc w:val="center" />"#),
+        "standalone display math is centered\n{doc}"
+    );
+}
+
+#[test]
+fn fenced_math_block_is_intercepted_and_centered() {
+    // A fenced ```math block is a native equation (an `aligned` environment becomes an equation
+    // array), centered, and is NOT rendered as a code block.
+    let md = "```math\n\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n```\n";
+    let (docx, stats) = convert_math(md);
+    let doc = document_xml(&docx);
+    assert_eq!(stats.math_spans, 1);
+    assert_eq!(
+        stats.code_blocks, 0,
+        "the fenced math block is intercepted, not rendered as code"
+    );
+    assert!(
+        doc.contains("<m:oMath"),
+        "fenced math is a native equation\n{doc}"
+    );
+    assert!(
+        doc.contains("<m:eqArr>"),
+        "the aligned environment is an equation array\n{doc}"
+    );
+    assert!(
+        doc.contains(r#"<w:jc w:val="center" />"#),
+        "the fenced math block is centered\n{doc}"
+    );
+    assert!(
+        !stats.warnings.iter().any(|w| w.starts_with("math:")),
+        "multi-line aligned must convert without a fallback: {:?}",
+        stats.warnings
+    );
+}
+
+#[test]
+fn math_sample_renders_every_equation_natively() {
+    let md = read_feature("math");
+    let (docx, stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    let doc = document_xml(&docx);
+    assert_eq!(
+        stats.math_spans, 6,
+        "sample has 6 math spans (inline, display, and the fenced block)"
+    );
+    assert_eq!(
+        stats.code_blocks, 0,
+        "the fenced ```math block is intercepted, not rendered as code"
+    );
+    assert_eq!(stats.images_embedded, 0, "native equations embed no images");
+    assert!(
+        doc.contains("<m:oMath"),
+        "the sample has native equations\n{doc}"
+    );
+    assert!(
+        !stats.warnings.iter().any(|w| w.starts_with("math:")),
+        "the whole sample converts without a fallback: {:?}",
+        stats.warnings
+    );
+}
+
+#[test]
+fn unsupported_latex_degrades_to_source_and_warns_once() {
+    // LaTeX the converter can't handle keeps its literal source (so nothing is lost) and warns
+    // exactly once, not per span.
+    let (docx, stats) = convert_math("$\\qdbogus x$ and $\\qdbogus y$\n");
+    let doc = document_xml(&docx);
+    assert_eq!(stats.math_spans, 2, "two math spans");
+    assert!(
+        !doc.contains("<m:oMath"),
+        "unconvertible math is not a native equation\n{doc}"
+    );
+    assert!(
+        doc.contains(r"\qdbogus"),
+        "the literal source must survive\n{doc}"
+    );
+    assert_eq!(
+        stats
+            .warnings
+            .iter()
+            .filter(|w| w.starts_with("math:"))
+            .count(),
+        1,
+        "the fallback warns exactly once, not per span"
+    );
+}

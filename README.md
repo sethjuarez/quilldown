@@ -43,9 +43,25 @@ quilldown report.md -o out.docx --verbose
 
 # Control SVG rasterization DPI (default 192 = 2x) and image base directory
 quilldown report.md --dpi 288 --base-dir ./assets
+
+# Also embed the original SVG as a Word <asvg> vector layer (PNG kept as fallback)
+quilldown report.md --embed-svg
+
+# Remap dark-themed SVG diagrams to a print-friendly light mode before rasterizing
+quilldown report.md --svg-light-mode
+
+# Choose page size (letter/a4/legal), orientation, and uniform margin (inches)
+quilldown report.md --page-size a4 --orientation landscape --margin 0.5
+
+# Turn off syntax highlighting / language labels on code blocks
+quilldown report.md --no-highlight
+
+# Restyle with a built-in theme preset (default / github / solarized)
+quilldown report.md --theme github
 ```
 
-Relative image paths (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
+Math is always on: `$…$` / `$$…$$` / ` ```math ` blocks are converted to native Word equations
+(OMML) — no build flag or LaTeX/TeX install required. (e.g. `diagrams/01-flow.svg`) are resolved against the input file's
 directory unless `--base-dir` is given.
 
 ## Library usage
@@ -63,8 +79,12 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 # Ok::<(), quilldown::ConvertError>(())
 ```
 
-`ConvertOptions` controls `image_dpi`, `embed_svg` (reserved), `max_image_width_px`, and
-`base_dir`.
+`ConvertOptions` controls `image_dpi`, `embed_svg`, `svg_light_mode`, `highlight_code`,
+`max_image_width_px`, `base_dir`, `page` (a `PageSetup` of size / orientation / margins), and
+`theme` (a `Theme` of fonts / heading accent / link color / code appearance; presets
+`Theme::DEFAULT`, `Theme::GITHUB`, `Theme::SOLARIZED`). The `<asvg>` vector layer from `embed_svg` is applied while packing, so it lands via
+the byte/file outputs (`convert_file`, `convert_to_bytes`); `convert_str` returns a `Docx` with
+the PNG fallback only.
 
 ## How it works
 
@@ -75,10 +95,18 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
   walked node-by-node and mapped to OOXML.
 - **SVG rasterization:** [`resvg`/`usvg`/`tiny-skia`](https://crates.io/crates/resvg) — pure
   Rust, no native/system dependencies.
+- **Math:** [`latex2mathml`](https://crates.io/crates/latex2mathml) converts LaTeX to MathML,
+  which is translated to native Word equations (OMML `<m:oMath>`) — all pure Rust, so no
+  LaTeX/TeX install is required. Equations reflow, recolor in dark mode, and stay editable.
 
-Document styling (Calibri 11pt body, `Heading1..3`, `D9D9D9` header shading, `BFBFBF` table
-borders, decimal/bullet numbering) mirrors the validated OOXML choices in
-[`sethjuarez/cutready`](https://github.com/sethjuarez/cutready)'s Word export.
+Document styling mirrors Microsoft 365's stock blank document so converted Markdown feels
+native in Word: an **Aptos 12pt** body on 1.08-line / 8pt-after `Normal`, **Aptos Display**
+`Heading1..3` at Word's built-in sizes and spacing, `D9D9D9` header shading, `BFBFBF` table
+borders with padded cells, a smaller 10pt Consolas code face, and decimal/bullet numbering.
+Tables, code blocks, thematic breaks, and block quotes get a uniform 8pt gap above and below
+(matching the body's paragraph spacing) so blocks sit apart symmetrically.
+The base OOXML choices build on [`sethjuarez/cutready`](https://github.com/sethjuarez/cutready)'s
+validated Word export.
 
 ## The SVG fidelity note
 
@@ -91,8 +119,8 @@ which rasterizes its SVG-based visuals to PNG at `scale: 2`.
 Tradeoffs:
 
 - **Raster PNG (default):** always renders in every Word version; loses vector scalability.
-- **Dual SVG + PNG (`<asvg>`, planned):** best fidelity in modern Word, with PNG fallback; more
-  complex OOXML. Reserved behind the `embed_svg` option.
+- **Dual SVG + PNG (`<asvg>`, opt-in):** best fidelity in modern Word, with PNG fallback; more
+  complex OOXML. Enabled with `--embed-svg` / `ConvertOptions::embed_svg`.
 
 ## Status: done vs. stubbed
 
@@ -102,39 +130,52 @@ Tradeoffs:
 - Paragraphs and inline **bold** / *italic* / `inline code` / ~~strikethrough~~
 - Ordered and unordered lists (real Word numbering/bullets, incl. nesting)
 - GFM tables with a bold, shaded header row
-- Fenced code blocks → shaded monospace (via a 1-cell shaded table)
+- Fenced code blocks → shaded monospace (via a 1-cell shaded table), **syntax-highlighted**
+  with an uppercase language label when the fence names a known language (unlabeled fences fall
+  back to plain monospace; disable with `--no-highlight`)
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, incl. **SVG rasterized to PNG** and embedded
+- **Native hyperlinks** → real `w:hyperlink` relationships (external links land in
+  `document.xml.rels`; `#fragment` links become in-document anchors, and headings are
+  bookmarked with their GitHub-style slug so those anchors resolve)
 - Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end:
-  each `[^id]` becomes a superscript mark in the body, and every unique note is listed once
-  regardless of how many times it is referenced
-- US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules
-  size to the text column so nothing overflows the right margin
+  each `[^id]` becomes a **clickable** superscript mark that jumps to its note, every unique
+  note is listed once regardless of how many times it is referenced, and each note's number
+  links back to the first place it was cited
+- **Block quotes** → left accent border + per-level indent (nested quotes step in) + muted text
+- **Inline superscript** (`^text^`) → true OOXML superscript (`w:vertAlign`), composing with
+  bold/italic; endnote marks use the same real superscript
+- **Task lists** (`- [x]` / `- [ ]`) → a ☑ / ☐ checkbox marker with a hanging indent that lines
+  up like a list item, and no redundant bullet; plain bullets in the same list keep numbering
+- **Dual SVG `<asvg>` + PNG** (opt-in via `--embed-svg`) → embeds the original vector as a Word
+  `asvg:svgBlip` extension with the rasterized PNG as fallback, for crisp scaling in modern Word
+- **Light-mode SVG remap** (opt-in via `--svg-light-mode`) → recolors dark-themed diagrams for a
+  white page by flipping color lightness in HSL (hue/saturation preserved) before rasterizing
+- **Configurable page setup** (via `--page-size`/`--orientation`/`--margin` or
+  `ConvertOptions::page`) → US Letter, A4, Legal, or custom dimensions; portrait or landscape;
+  uniform margins. Tables, code blocks, and rules resize to the resulting text column so nothing
+  overflows. Defaults to US Letter, portrait, 1 in margins
+- **Swappable style themes** (via `--theme` or `ConvertOptions::theme`) → `default`, `github`, or
+  `solarized` presets restyle the body/heading fonts, heading accent, link color, code fill, and
+  syntax-highlight palette without touching the Markdown (`Theme` also accepts a custom look)
+- **Math** (`$…$` / `$$…$$` and fenced ` ```math ` blocks) → LaTeX is converted to native Word
+  equations (OMML), so math looks like math, reflows with the text, recolors in dark mode, and
+  stays editable; display equations and fenced math blocks are centered. Always on, no LaTeX/TeX
+  install required. LaTeX that can't be represented degrades to its literal source and warns once
 
 **Stubbed / best-effort (clear `TODO(quilldown)` markers in source):**
 
-- Hyperlinks render as styled text, not yet native `w:hyperlink` relationships
-- Block quotes preserve content but have no quote styling (indent/left border)
 - Endnote numbers are static text (docx-rs has no native endnote support), so they do not
   auto-renumber if you insert/delete notes by hand in Word — re-run quilldown to renumber
-- Endnote reference marks are not yet clickable links back to the Notes section
-- Task list items render a checkbox glyph, not a native content control
-- Superscript renders inline without true superscript alignment
-- Dual SVG `<asvg>` + PNG embedding (the `embed_svg` option is currently a no-op)
+- Task list checkboxes are static ☑ / ☐ glyphs, not interactive content controls (docx-rs
+  0.4.x has no checkbox structured-document-tag)
 
 ## Roadmap
 
 See [`ROADMAP.md`](./ROADMAP.md) for the full plan of record — planned work with rationale
-and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. In
-brief:
-
-- Native hyperlink relationships (`w:hyperlink` + `document.xml.rels`)
-- Clickable endnote marks (bookmark each Notes entry, link the body superscript to it)
-- Block-quote styling
-- Dual **SVG `<asvg>` + PNG** embedding behind `embed_svg` for modern-Word vector fidelity
-- **Optional light-mode SVG color remap** for dark/themed diagrams (as cutready does)
-- Configurable themes/style templates and page setup (page size, orientation, custom margins)
-- Richer code-block fidelity (syntax highlighting, language label)
+and tradeoffs, plus the known docx-rs/SVG constraints behind the stubbed items above. The
+initial fidelity backlog is now cleared; remaining ideas are larger explorations (custom
+theme files, native footnotes/checkboxes gated on docx-rs).
 
 ## License
 

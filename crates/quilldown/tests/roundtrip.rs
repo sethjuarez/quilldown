@@ -30,7 +30,8 @@ fn to_docx_with_stats(
 
 /// Read a single entry out of the `.docx` zip as a UTF-8 string.
 fn read_zip_entry(docx: &[u8], name: &str) -> Option<String> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
     let mut file = archive.by_name(name).ok()?;
     let mut s = String::new();
     file.read_to_string(&mut s).expect("entry should be UTF-8");
@@ -83,11 +84,11 @@ fn footnote_becomes_numbered_endnote() {
     assert_eq!(stats.endnotes, 1, "one unique note despite two references");
 
     let document = read_zip_entry(&docx, "word/document.xml").unwrap();
-    // The body carries superscript reference marks, and the note body survives once in the
+    // The body carries true superscript reference marks, and the note body survives once in the
     // "Notes" section at the end (not a native footnotes.xml part).
     assert!(
-        document.contains('\u{00b9}'),
-        "body should contain a superscript reference mark"
+        document.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "body should contain a true superscript reference mark"
     );
     assert!(
         document.contains("Notes"),
@@ -145,7 +146,10 @@ fn sample_document_converts_and_embeds_svg() {
         let f = archive.by_index(i).unwrap();
         f.name().starts_with("word/media/")
     });
-    assert!(has_media, "embedded image media should be present in the .docx");
+    assert!(
+        has_media,
+        "embedded image media should be present in the .docx"
+    );
 }
 
 /// Keep `Write` in scope (used via Cursor) without an unused-import warning.

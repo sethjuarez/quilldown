@@ -24,64 +24,101 @@ follow validated patterns from the `sethjuarez/cutready` Word export.
 - Paragraphs and inline **bold** / *italic* / `inline code` / ~~strikethrough~~
 - Ordered and unordered lists (real Word numbering/bullets, including nesting)
 - GFM tables with a bold, shaded header row
-- Fenced code blocks → shaded monospace (rendered via a 1-cell shaded table)
+- Fenced code blocks → shaded monospace (rendered via a 1-cell shaded table), with **syntax
+  highlighting and an uppercase language label** when the fence names a known language
+  (colored via a light theme; unlabeled fences fall back to plain monospace). Toggle with
+  `ConvertOptions::highlight_code` / CLI `--no-highlight`
 - Thematic breaks (`---`) → full-width horizontal rule
 - Block images, including **SVG rasterized to PNG** and embedded
-- Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end
-- US Letter page (8.5×11 in) with balanced 1 in margins; tables, code blocks, and rules size
-  to the text column (content width 9360 twips) so nothing overflows the right margin
+- **Native hyperlinks** → real `w:hyperlink` relationships. External links are registered in
+  `document.xml.rels` (`TargetMode="External"`); `#fragment` links become in-document anchors,
+  and every heading is bookmarked with its GitHub-style slug so those anchors resolve
+- Markdown footnotes → a deduplicated, numbered **"Notes" (endnotes) section** at the end,
+  with **clickable reference marks**: each body superscript is an anchor hyperlink to its note,
+  and each note's number links back to the first place it was cited
+- **Block quotes** → a left accent border, a per-level left indent (nested quotes step
+  further in), and muted body text, so quotes are visually distinct
+- **Inline superscript** (`^text^`) → true OOXML superscript (`w:vertAlign w:val="superscript"`),
+  composing with bold/italic; endnote reference marks use the same real superscript
+- **Task lists** (`- [x]` / `- [ ]`) → a checkbox marker (☑ / ☐) with a hanging indent that
+  lines up like a list item, and **no redundant bullet** (matching GitHub, which shows only the
+  checkbox). Plain bullets in the same list keep their native numbering
+- **Dual SVG `<asvg>` + PNG embedding** (opt-in via `embed_svg`) → the original SVG is embedded
+  as the modern Word vector extension (`asvg:svgBlip`) with the rasterized PNG kept as fallback,
+  for crisp scaling in recent Word versions. Off by default, so the safe PNG-only path is
+  unchanged
+- **Light-mode SVG remap** (opt-in via `svg_light_mode`) → dark-themed diagrams are recolored
+  for a white page by flipping each color's lightness in HSL (hue and saturation preserved), so
+  near-black backgrounds become light and light text becomes dark while accent hues stay
+  recognizable. Applied before rasterizing (and to the embedded `<asvg>` layer). Off by default
+- **Configurable page setup** (via `ConvertOptions::page` / CLI `--page-size`, `--orientation`,
+  `--margin`) → choose the page size (US Letter, A4, Legal, or custom twips), portrait or
+  landscape orientation, and uniform margins. Landscape swaps the dimensions and sets
+  `w:orient="landscape"`; tables, code blocks, and rules resize to the resulting text column so
+  nothing overflows. Defaults to US Letter, portrait, 1 in margins (content width 9360 twips)
+- **Swappable style themes** (via `ConvertOptions::theme` / CLI `--theme`) → restyle a document
+  without touching the Markdown. Each preset sets the body/heading fonts, the heading accent
+  color, the hyperlink color, the code-block fill, and the syntect highlight palette. Ships three
+  presets — `default` (Word blue + InspiredGitHub), `github` (GitHub blue + cooler fill), and
+  `solarized` (cyan accent + Solarized-light highlighting); `Theme` is a plain struct so callers
+  can also supply a fully custom look. Neutral elements (tables, block quotes) are theme-agnostic
+- **Native Word look-and-feel** → defaults mirror Microsoft 365's stock blank document so output
+  reads as if typed in Word: an Aptos 12pt body on 1.08-line / 8pt-after `Normal`, Aptos Display
+  `Heading1..3` at Word's built-in sizes (20/16/14pt) and before/after spacing (with
+  keep-with-next so headings never orphan), a smaller 10pt code face, tight list/quote spacing,
+  padded table + code-block cells so text never jams against borders, and a uniform 8pt gap
+  above and below every block element (tables, code blocks, thematic breaks, block quotes)
+- **Math** (`$...$` / `$$...$$` and fenced ` ```math ` blocks) → LaTeX is converted to native Word
+  equations (OMML `<m:oMath>`), so math actually looks like math while reflowing with the text,
+  recoloring in dark mode, and staying editable. Standalone `$$…$$` display equations and fenced
+  math blocks are centered; inline math sits on the text baseline. Always on — pure Rust
+  (`latex2mathml` → MathML → OMML), no LaTeX/TeX install required. LaTeX that can't be represented
+  degrades gracefully to its literal source and warns once
 
 ## Stubbed / best-effort (with `TODO(quilldown)` markers in source)
 
 Each item below is intentionally limited today; the "why" explains the constraint so nobody
 re-discovers it the hard way.
 
-- **Hyperlinks render as styled text**, not native `w:hyperlink` relationships. Links look
-  right (blue/underlined) but are not clickable.
-- **Block quotes preserve content but have no quote styling** (no indent / left border).
 - **Endnote numbers are static text.** docx-rs (0.4.x) has no native endnote support, so
-  quilldown assigns numbers at render time and writes them as literal superscript glyphs.
-  They will not auto-renumber if you insert/delete notes by hand in Word — re-run quilldown
-  to renumber. A fresh run always numbers correctly.
-- **Endnote reference marks are not clickable** links back to the Notes section (they are
-  plain superscript marks).
-- **Superscript renders inline** using Unicode superscript digits, without true OOXML
-  superscript vertical alignment. This is a docx-rs limitation: `Run` exposes no
-  `vert_align` builder (only `RunProperty`/`Style` do).
-- **Task list items render a checkbox glyph**, not a native Word content control.
-- **Dual SVG embedding is a no-op.** The `embed_svg` option is reserved but does not yet emit
-  the modern Word `<asvg>` vector extension (see roadmap item below).
+  quilldown assigns numbers at render time and writes them as (true superscript) literal
+  digits. They will not auto-renumber if you insert/delete notes by hand in Word — re-run
+  quilldown to renumber. A fresh run always numbers correctly. (The marks *are* now clickable
+  and use real superscript alignment — see Done.)
+- **Task list checkboxes are glyphs, not interactive content controls.** docx-rs (0.4.x)
+  exposes no checkbox structured-document-tag (`<w:sdt>` has only alias/data-binding, no
+  `w14:checkbox`), so the ☑ / ☐ markers are static symbols — they render correctly and read
+  as done/pending, but are not toggleable in Word. (The redundant bullet is now suppressed —
+  see Done.)
 
 ## Roadmap — planned work
 
-Ordered roughly by value-to-effort. Nothing here is committed to a release.
+The initial fidelity backlog is cleared: every item that was listed here has shipped (see Done).
+Remaining ideas are larger, lower-priority explorations — nothing is committed to a release.
 
-1. **Native hyperlink relationships** — emit `w:hyperlink` + `document.xml.rels` entries so
-   links are clickable, replacing the current styled-text approximation.
-2. **Clickable endnote marks** — bookmark each Notes entry and link the body superscript to
-   it, so readers can jump between a citation and its note. Pairs naturally with (1) since
-   both need the relationship/bookmark plumbing.
-3. **Block-quote styling** — indent + left border (and possibly a subtle background), so
-   quotes are visually distinct instead of reading as ordinary paragraphs.
-4. **Dual SVG `<asvg>` + PNG embedding** — behind the existing `embed_svg` option, embed the
-   original SVG as the modern Word vector extension with the rasterized PNG as fallback, for
-   crisp scaling in recent Word versions. Tradeoff: more complex OOXML and larger files, so
-   it stays opt-in; raster PNG remains the safe default.
-5. **Optional light-mode SVG color remap** — real technical-report diagrams are often
-   authored in dark/themed colors. Remap theme color tokens to print-friendly light-mode
-   values *before* rasterizing (as cutready does for its Word export) so diagrams read well
-   on a white page. Not always needed — diagrams already authored for light backgrounds pass
-   through fine — so this is a flag, not default behavior.
-6. **Configurable themes / style templates and page setup** — expose page size, orientation,
-   and custom margins (today: US Letter + 1 in), plus swappable style templates.
-7. **Richer code-block fidelity** — syntax highlighting and a language label on fenced code
-   blocks, beyond the current uniform monospace shading.
+- **Custom / user-supplied themes surfaced on the CLI** — the `Theme` struct already accepts an
+  arbitrary look; a future step could load a theme from a config file so users aren't limited to
+  the three built-in presets.
+- **Broader LaTeX → OMML coverage** — native equations ship (see Done), but the converter is
+  exercised mainly by the six-equation sample plus a handful of unit tests. Larger surfaces are
+  untested and may hit the graceful literal-source fallback: matrices / `pmatrix` / `bmatrix`,
+  `cases`, `\left…\right` auto-sized delimiters, and less common operators. Column alignment at
+  `&` is intentionally not preserved (rows stack). Follow-up: grow a corpus of real-world
+  equations, add fixtures for each, and map any that fall back. Verifiable via
+  `stats.warnings` containing no `math:` entries.
+- **Dark-mode visual confirmation** — OMML runs carry no explicit color, so Word recolors them
+  with the theme (the whole reason we moved off rasterized images). This is guaranteed by
+  construction but has only been eyeballed in light mode; a one-time check under Word's Black
+  theme would close the loop.
+- **Native footnotes/endnotes and content-control checkboxes** — both are blocked on docx-rs
+  limitations (see Known constraints); they would need upstream work or a docx-rs fork.
 
 ## Known constraints to respect
 
-- **docx-rs 0.4.x has no native footnote/endnote or run-level superscript support.** This is
-  the root cause behind the endnote-as-static-text and inline-superscript limitations above.
-  Any change here likely means patching around docx-rs or contributing upstream.
+- **docx-rs 0.4.x has no native footnote/endnote support and no `Run::vert_align` builder.**
+  Endnotes are therefore synthesized as a Notes section with static (though real superscript)
+  numbers. Superscript alignment is set via the public `run_property` field, since `Run` has
+  no `vert_align` method. Native endnotes would mean patching docx-rs or contributing upstream.
 - **Word does not reliably render SVG.** docx-rs embeds raster images; hence the
-  rasterize-to-PNG default. The `<asvg>` path (roadmap 4) is the fidelity upgrade, not a
-  replacement for the PNG fallback.
+  rasterize-to-PNG default. The opt-in `<asvg>` path (see Done) is the fidelity upgrade layered
+  on top, not a replacement for the PNG fallback.
