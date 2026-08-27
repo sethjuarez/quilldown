@@ -99,6 +99,17 @@ Remaining ideas are larger, lower-priority explorations — nothing is committed
 - **Custom / user-supplied themes surfaced on the CLI** — the `Theme` struct already accepts an
   arbitrary look; a future step could load a theme from a config file so users aren't limited to
   the three built-in presets.
+- **Broader LaTeX → OMML coverage** — native equations ship (see Done), but the converter is
+  exercised mainly by the six-equation sample plus a handful of unit tests. Larger surfaces are
+  untested and may hit the graceful literal-source fallback: matrices / `pmatrix` / `bmatrix`,
+  `cases`, `\left…\right` auto-sized delimiters, and less common operators. Column alignment at
+  `&` is intentionally not preserved (rows stack). Follow-up: grow a corpus of real-world
+  equations, add fixtures for each, and map any that fall back. Verifiable via
+  `stats.warnings` containing no `math:` entries.
+- **Dark-mode visual confirmation** — OMML runs carry no explicit color, so Word recolors them
+  with the theme (the whole reason we moved off rasterized images). This is guaranteed by
+  construction but has only been eyeballed in light mode; a one-time check under Word's Black
+  theme would close the loop.
 - **Native footnotes/endnotes and content-control checkboxes** — both are blocked on docx-rs
   limitations (see Known constraints); they would need upstream work or a docx-rs fork.
 
