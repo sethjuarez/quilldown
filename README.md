@@ -220,6 +220,14 @@ rationale and tradeoffs, plus the docx-rs/SVG constraints behind the best-effort
 items above. The initial fidelity backlog is cleared; remaining ideas are larger
 explorations (custom theme files, native footnotes/checkboxes gated on docx-rs).
 
+## Contributing
+
+Contributions welcome! This repo requires **[Conventional Commits](https://www.conventionalcommits.org/)**
+for every commit — the release pipeline parses commit messages to compute
+versions and changelogs, so non-conforming commits are skipped. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) for the commit convention and
+[`AGENTS.md`](./AGENTS.md) for guidance aimed at AI agents.
+
 ## License
 
 Licensed under the [MIT License](./LICENSE).
