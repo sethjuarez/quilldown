@@ -387,6 +387,7 @@ impl Converter {
             .map_err(|e| ConvertError::Docx(e.to_string()))?;
         let bytes = render::inject_svg_layers(cursor.into_inner(), &svg_embeds)?;
         let bytes = render::inject_image_alts(bytes, &image_alts)?;
+        let bytes = render::inject_table_headers(bytes)?;
         let bytes = render::inject_core_props(bytes, &doc_meta)?;
         // Front-matter `language:` wins over the configured default so a document can declare its
         // own proofing language.

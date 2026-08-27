@@ -1619,3 +1619,73 @@ fn image_without_alt_or_title_gets_no_descr() {
         "an image with neither alt nor title must not gain a descr attribute\n{xml}"
     );
 }
+
+// --- Fidelity #13: repeating table header rows (w:tblHeader) --------------------------------
+
+/// Convert the table-header sample through the bytes path that runs the post-packing pass.
+fn convert_tableheader_sample() -> Vec<u8> {
+    let md = read_feature("tableheader");
+    let (docx, _stats) = convert_bytes_with(&md, &features_dir(), ConvertOptions::default());
+    docx
+}
+
+#[test]
+fn gfm_header_row_is_marked_as_repeating_header() {
+    let docx = convert_tableheader_sample();
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:trPr><w:tblHeader /></w:trPr>"),
+        "the header row should declare w:tblHeader\n{xml}"
+    );
+    // Every marked header row is immediately followed by a header-filled first cell.
+    for (idx, _) in xml.match_indices("<w:tblHeader />") {
+        let after = &xml[idx..(idx + 200).min(xml.len())];
+        assert!(
+            after.contains(r#"w:fill="D9D9D9""#),
+            "a tblHeader must sit on a row whose first cell carries the header fill\n{after}"
+        );
+    }
+}
+
+#[test]
+fn only_real_data_table_headers_are_marked() {
+    let docx = convert_tableheader_sample();
+    let xml = document_xml(&docx);
+    // The sample has exactly two data tables (top-level + nested-in-alert); the code block and
+    // the alert callout are 1×1 wrapper tables and must not gain a header row.
+    let marked = xml.matches("<w:tblHeader />").count();
+    assert_eq!(
+        marked, 2,
+        "exactly the two data-table header rows should be marked, not the code/alert wrappers\n{xml}"
+    );
+}
+
+#[test]
+fn table_body_rows_are_not_marked() {
+    // A single table: one header row, three body rows -> exactly one tblHeader.
+    let (docx, _stats) = convert_bytes_with(
+        "| A | B |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert_eq!(
+        xml.matches("<w:tblHeader />").count(),
+        1,
+        "only the header row of a plain table should be marked\n{xml}"
+    );
+}
+
+#[test]
+fn code_block_wrapper_row_is_not_marked() {
+    let (docx, _stats) = convert_bytes_with(
+        "```rust\nfn main() {}\n```\n",
+        &features_dir(),
+        ConvertOptions::default(),
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        !xml.contains("<w:tblHeader />"),
+        "a code block's 1x1 wrapper table must not be marked as a header\n{xml}"
+    );
+}
