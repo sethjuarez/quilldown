@@ -1,7 +1,8 @@
 # Dual SVG embedding (`<asvg>`)
 
-With `--embed-svg`, the original vector is embedded via Word's modern `<asvg>`
-extension, with the rasterized PNG kept as a fallback for older viewers.
+By default, the original vector is embedded via Word's modern `<asvg>`
+extension, with the rasterized PNG kept as a fallback for older viewers. Pass
+`--no-embed-svg` to embed only the PNG.
 
 ![Flow diagram](../diagrams/01-flow.svg)
 

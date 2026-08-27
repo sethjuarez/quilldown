@@ -83,10 +83,11 @@ struct Cli {
     #[arg(long)]
     base_dir: Option<PathBuf>,
 
-    /// Also embed the original SVG (Word <asvg> extension) alongside the PNG fallback,
-    /// for crisp vector rendering in recent Word versions.
+    /// Don't embed the original SVG (Word <asvg> extension) alongside the PNG fallback.
+    /// By default the crisp vector layer is embedded for recent Word versions; pass this to
+    /// keep only the rasterized PNG.
     #[arg(long)]
-    embed_svg: bool,
+    no_embed_svg: bool,
 
     /// Remap dark-themed SVG diagrams to a print-friendly light mode (flip color lightness)
     /// before rasterizing. Enable only for dark-authored diagrams.
@@ -166,7 +167,7 @@ fn main() -> Result<()> {
 
     let opts = ConvertOptions {
         image_dpi: cli.dpi,
-        embed_svg: cli.embed_svg,
+        embed_svg: !cli.no_embed_svg,
         svg_light_mode: cli.svg_light_mode,
         highlight_code: !cli.no_highlight,
         base_dir: cli.base_dir.clone(),
