@@ -1397,3 +1397,63 @@ fn double_tilde_still_strikes_through_alongside_subscript() {
         "`~2~` subscript should coexist with strikethrough\n{xml}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #9 — GitHub alerts (`> [!NOTE]` ...) as styled callouts
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn note_alert_becomes_a_shaded_callout_table() {
+    let (docx, _stats) = convert("> [!NOTE]\n> Useful information.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:tbl>"),
+        "an alert should render as a native table callout\n{xml}"
+    );
+    assert!(
+        xml.contains("DDF4FF"),
+        "the NOTE callout should carry its light-blue cell fill\n{xml}"
+    );
+    assert!(
+        xml.contains("0969DA"),
+        "the NOTE callout should use its blue accent for the bar and title\n{xml}"
+    );
+    assert!(
+        xml.contains(">Note<"),
+        "the callout should carry a 'Note' title line\n{xml}"
+    );
+    assert!(
+        !xml.contains("[!NOTE]"),
+        "the raw [!NOTE] marker must not leak into the body\n{xml}"
+    );
+    assert!(
+        xml.contains("Useful information."),
+        "the alert body text should survive\n{xml}"
+    );
+}
+
+#[test]
+fn each_alert_type_uses_its_own_palette() {
+    let md = "> [!TIP]\n> t\n\n> [!IMPORTANT]\n> i\n\n> [!WARNING]\n> w\n\n> [!CAUTION]\n> c\n";
+    let (docx, _stats) = convert(md);
+    let xml = document_xml(&docx);
+    for fill in ["DAFBE1", "FBEFFF", "FFF8C5", "FFEBE9"] {
+        assert!(
+            xml.contains(fill),
+            "expected alert fill {fill} to appear\n{xml}"
+        );
+    }
+    for title in [">Tip<", ">Important<", ">Warning<", ">Caution<"] {
+        assert!(xml.contains(title), "expected title {title}\n{xml}");
+    }
+}
+
+#[test]
+fn alert_with_custom_title_overrides_the_default() {
+    let (docx, _stats) = convert("> [!NOTE] Heads up\n> Body.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(">Heads up<"),
+        "a custom alert title should replace the default label\n{xml}"
+    );
+}

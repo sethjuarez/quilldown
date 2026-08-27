@@ -15,6 +15,7 @@ use docx_rs::*;
 use crate::styles::{self, BULLET_NUM_ID};
 use crate::{ConvertError, ConvertOptions};
 
+mod alerts;
 mod asvg;
 mod colormap;
 mod endnotes;
@@ -376,6 +377,7 @@ fn comrak_options() -> Options<'static> {
     o.extension.footnotes = true;
     o.extension.superscript = true;
     o.extension.subscript = true;
+    o.extension.alerts = true;
     o.extension.front_matter_delimiter = Some("---".to_string());
     o
 }
@@ -450,6 +452,11 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             NodeValue::ThematicBreak => {
                 push_gap(out);
                 out.push(Block::Table(horizontal_rule(ctx.content_width_dxa)));
+                push_gap(out);
+            }
+            NodeValue::Alert(alert) => {
+                push_gap(out);
+                out.push(Block::Table(alerts::build(child, &alert, ctx)));
                 push_gap(out);
             }
             NodeValue::BlockQuote => {

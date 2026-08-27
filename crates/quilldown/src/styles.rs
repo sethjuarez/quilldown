@@ -123,6 +123,16 @@ pub const QUOTE_BORDER_SIZE: usize = 24;
 /// Gap between the block-quote left border and its text, in points.
 pub const QUOTE_BORDER_SPACE: usize = 12;
 
+/// GitHub-style alert (callout) palette: `(accent, fill)` per alert type, hex with no `#`.
+/// `accent` colors the bold title and the left accent bar; `fill` is the light cell background.
+pub const ALERT_NOTE: (&str, &str) = ("0969DA", "DDF4FF");
+pub const ALERT_TIP: (&str, &str) = ("1A7F37", "DAFBE1");
+pub const ALERT_IMPORTANT: (&str, &str) = ("8250DF", "FBEFFF");
+pub const ALERT_WARNING: (&str, &str) = ("9A6700", "FFF8C5");
+pub const ALERT_CAUTION: (&str, &str) = ("CF222E", "FFEBE9");
+/// Alert left accent-bar thickness, in eighths of a point. 24 = 3 pt.
+pub const ALERT_BORDER_SIZE: usize = 24;
+
 /// Numbering id used for ordered (decimal) lists.
 pub const ORDERED_NUM_ID: usize = 100;
 /// Numbering id used for unordered (bullet) lists.
