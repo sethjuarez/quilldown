@@ -1091,3 +1091,49 @@ fn all_heading_levels_declare_outline_levels() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #4 — opt-in "Page X of Y" footer with live fields
+// ---------------------------------------------------------------------------------------------
+
+/// Convert with a specific `page_numbers` setting, leaving everything else at defaults.
+fn convert_page_numbers(md: &str, page_numbers: bool) -> Vec<u8> {
+    let (docx, _stats) = convert_with(
+        md,
+        std::path::Path::new("."),
+        ConvertOptions {
+            page_numbers,
+            ..ConvertOptions::default()
+        },
+    );
+    docx
+}
+
+#[test]
+fn page_numbers_are_off_by_default() {
+    // A plain conversion should look like a freshly-typed document: no footer part at all.
+    let docx = convert_page_numbers("# Title\n\nBody.\n", false);
+    assert!(
+        entry(&docx, "word/footer1.xml").is_none(),
+        "default output must not carry a page-number footer"
+    );
+}
+
+#[test]
+fn page_numbers_emit_live_footer_fields() {
+    // Enabling page numbers adds a centered footer with native PAGE/NUMPAGES fields.
+    let docx = convert_page_numbers("# Title\n\nBody.\n", true);
+    let footer = entry(&docx, "word/footer1.xml").expect("footer part present when enabled");
+    assert!(
+        footer.contains("<w:instrText>PAGE</w:instrText>"),
+        "footer should carry a live PAGE field\n{footer}"
+    );
+    assert!(
+        footer.contains("<w:instrText>NUMPAGES</w:instrText>"),
+        "footer should carry a live NUMPAGES field\n{footer}"
+    );
+    assert!(
+        footer.contains(r#"<w:jc w:val="center" />"#),
+        "the page-number footer should be centered\n{footer}"
+    );
+}

@@ -285,6 +285,11 @@ pub struct ConvertOptions {
     /// [`Theme::DEFAULT`]. Swap in [`Theme::GITHUB`] or [`Theme::SOLARIZED`], or a custom
     /// [`Theme`], to restyle the document without touching the Markdown.
     pub theme: Theme,
+
+    /// When `true`, add a centered "Page X of Y" footer using native Word `PAGE`/`NUMPAGES`
+    /// fields. Off by default so plain output matches a freshly-typed Word document (which has
+    /// no page numbers); enable it for printable reports.
+    pub page_numbers: bool,
 }
 
 impl Default for ConvertOptions {
@@ -298,6 +303,7 @@ impl Default for ConvertOptions {
             highlight_code: true,
             page: PageSetup::default(),
             theme: Theme::DEFAULT,
+            page_numbers: false,
         }
     }
 }

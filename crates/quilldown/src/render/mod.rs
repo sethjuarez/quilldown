@@ -301,6 +301,9 @@ pub(crate) fn build_docx(
     }
 
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
+    if opts.page_numbers {
+        docx = docx.footer(page_number_footer());
+    }
     for numbering in std::mem::take(&mut ctx.list_numberings) {
         docx = docx.add_numbering(numbering);
     }
@@ -314,6 +317,19 @@ pub(crate) fn build_docx(
     }
 
     Ok((docx, ctx.stats, ctx.svg_embeds))
+}
+
+/// A centered "Page X of Y" footer built from native Word `PAGE` and `NUMPAGES` fields, so the
+/// numbers stay live as the document paginates. Used only when `page_numbers` is enabled.
+fn page_number_footer() -> Footer {
+    let para = Paragraph::new()
+        .align(AlignmentType::Center)
+        .line_spacing(styles::tight_after())
+        .add_run(Run::new().add_text("Page "))
+        .add_page_num(PageNum::new())
+        .add_run(Run::new().add_text(" of "))
+        .add_num_pages(NumPages::new());
+    Footer::new().add_paragraph(para)
 }
 
 /// Build comrak options with the GFM extensions the test documents rely on.

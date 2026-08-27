@@ -115,6 +115,11 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = ThemeArg::Default)]
     theme: ThemeArg,
 
+    /// Add a centered "Page X of Y" footer with live Word page-number fields (off by default,
+    /// matching a plain typed document).
+    #[arg(long)]
+    page_numbers: bool,
+
     /// Print a summary of what was rendered.
     #[arg(short, long)]
     verbose: bool,
@@ -145,6 +150,7 @@ fn main() -> Result<()> {
         base_dir: cli.base_dir.clone(),
         page,
         theme: cli.theme.into(),
+        page_numbers: cli.page_numbers,
         ..ConvertOptions::default()
     };
 
