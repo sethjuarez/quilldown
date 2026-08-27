@@ -15,7 +15,6 @@ use std::path::Path;
 
 let conv = Converter::new(ConvertOptions::default());
 conv.convert_file(Path::new("in.md"), Path::new("out.docx"))?;
-# Ok::<(), quilldown::ConvertError>(())
 ```
 
 > Native math (OMML) and SVG `<asvg>` embedding are applied during a
