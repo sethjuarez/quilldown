@@ -63,6 +63,25 @@ pub fn body_spacing() -> LineSpacing {
         .after(BODY_AFTER)
 }
 
+/// Minimum line height (twips, `312` = 15.6pt) roughly matching the body's 1.08 leading at the
+/// 12pt default. Used with an `atLeast` rule so a line reads the same as [`body_spacing`] for
+/// plain text but *grows* to fit taller inline content instead of shearing it.
+#[cfg(feature = "math-render")]
+const BODY_LINE_MIN: i32 = 312;
+
+/// Body spacing for paragraphs that carry a tall inline image (e.g. a typeset `$...$` equation).
+/// Word's default *multiple* leading (1.08) sizes each line from the font metrics alone and clips
+/// inline graphics taller than that box; an `atLeast` rule instead keeps the same visual leading
+/// for text but expands the line to the image's full height, so fractions and superscripts aren't
+/// sheared off.
+#[cfg(feature = "math-render")]
+pub fn inline_media_spacing() -> LineSpacing {
+    LineSpacing::new()
+        .line(BODY_LINE_MIN)
+        .line_rule(LineSpacingType::AtLeast)
+        .after(BODY_AFTER)
+}
+
 /// Heading spacing: the shared body leading, a style-specific gap *before* (so headings don't
 /// crowd the preceding block), and a small uniform gap after.
 fn heading_spacing(before: u32) -> LineSpacing {

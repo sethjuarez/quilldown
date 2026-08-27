@@ -469,6 +469,13 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
                 if ctx.quote_depth == 0 && is_display_math_paragraph(child) {
                     p = p.align(AlignmentType::Center);
                 }
+                // Any paragraph carrying a typeset equation grows its line to the image height
+                // (`atLeast`) so Word's 1.08 *multiple* leading doesn't shear tall fractions or
+                // superscripts off inline math.
+                #[cfg(feature = "math-render")]
+                if ctx.quote_depth == 0 && paragraph_has_math(child) {
+                    p = p.line_spacing(styles::inline_media_spacing());
+                }
                 for r in runs {
                     p = add_inline(p, r);
                 }
@@ -918,6 +925,15 @@ fn is_display_math_paragraph<'a>(para: &'a AstNode<'a>) -> bool {
         }
     }
     saw_display_math
+}
+
+/// True if a paragraph contains any math node. Such a paragraph embeds a typeset equation image,
+/// which is often taller than a line of text; the caller uses [`styles::inline_media_spacing`] so
+/// Word grows the line to fit the image instead of clipping it.
+#[cfg(feature = "math-render")]
+fn paragraph_has_math<'a>(para: &'a AstNode<'a>) -> bool {
+    para.descendants()
+        .any(|n| matches!(&n.data.borrow().value, NodeValue::Math(_)))
 }
 
 /// Render an inline or display math node.
