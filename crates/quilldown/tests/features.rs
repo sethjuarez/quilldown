@@ -1267,3 +1267,104 @@ fn documents_without_front_matter_keep_default_core_props() {
         "no title element should be added when there is no front matter\n{core}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fidelity #7 — raw inline HTML (safe subset)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn html_sub_and_sup_become_native_vert_align() {
+    let (docx, _stats) = convert("Water is H<sub>2</sub>O and mc<sup>2</sup>.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="subscript" />"#),
+        "<sub> should emit native subscript vertAlign\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:vertAlign w:val="superscript" />"#),
+        "<sup> should emit native superscript vertAlign\n{xml}"
+    );
+    assert!(
+        !xml.contains("&lt;sub&gt;") && !xml.contains("<sub>"),
+        "the <sub> tag text itself must not leak into the body\n{xml}"
+    );
+}
+
+#[test]
+fn html_mark_underline_and_break_map_to_native_runs() {
+    let (docx, _stats) = convert(
+        "This is <mark>highlighted</mark> and <u>underlined</u>.\n\nLine one<br>line two.\n",
+    );
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("<w:highlight"),
+        "<mark> should emit a native highlight run\n{xml}"
+    );
+    assert!(
+        xml.contains("<w:u "),
+        "<u> should emit a native underline run\n{xml}"
+    );
+    assert!(
+        xml.contains(r#"w:type="textWrapping""#),
+        "<br> should emit a native line break\n{xml}"
+    );
+}
+
+#[test]
+fn html_b_i_del_ins_map_to_native_styles() {
+    let (docx, _stats) = convert(
+        "<b>bold</b> <strong>strong</strong> <i>ital</i> <em>emph</em> <del>gone</del> <ins>added</ins>.\n",
+    );
+    let xml = document_xml(&docx);
+    assert!(xml.contains("<w:b "), "<b>/<strong> should bold\n{xml}");
+    assert!(xml.contains("<w:i "), "<i>/<em> should italicize\n{xml}");
+    assert!(xml.contains("<w:strike "), "<del> should strike\n{xml}");
+    assert!(xml.contains("<w:u "), "<ins> should underline\n{xml}");
+}
+
+#[test]
+fn unknown_inline_html_drops_tag_keeps_text_and_counts_skip() {
+    let (docx, stats) = convert("Press <kbd>Ctrl</kbd>+<kbd>C</kbd> now.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("Ctrl") && xml.contains("now."),
+        "text inside an unsupported tag must be preserved\n{xml}"
+    );
+    assert!(
+        !xml.contains("kbd"),
+        "the unsupported <kbd> tag text must be dropped\n{xml}"
+    );
+    assert!(
+        stats.raw_html_skipped >= 2,
+        "each unsupported tag should be counted, got {}",
+        stats.raw_html_skipped
+    );
+}
+
+#[test]
+fn raw_html_block_is_skipped_not_dumped() {
+    let (docx, stats) = convert("Before.\n\n<div class=\"note\">raw block</div>\n\nAfter.\n");
+    let xml = document_xml(&docx);
+    assert!(
+        xml.contains("Before.") && xml.contains("After."),
+        "surrounding paragraphs should still render\n{xml}"
+    );
+    assert!(
+        !xml.contains("class=") && !xml.contains("<div"),
+        "raw HTML block markup must not be dumped into the body\n{xml}"
+    );
+    assert!(
+        stats.raw_html_skipped >= 1,
+        "a skipped raw HTML block should be counted, got {}",
+        stats.raw_html_skipped
+    );
+}
+
+#[test]
+fn supported_inline_html_reports_no_skips() {
+    let (_docx, stats) = convert("H<sub>2</sub>O and <mark>hi</mark> and <b>x</b>.\n");
+    assert_eq!(
+        stats.raw_html_skipped, 0,
+        "fully-supported inline HTML should not count any skips"
+    );
+}

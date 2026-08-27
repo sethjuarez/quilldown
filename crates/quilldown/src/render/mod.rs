@@ -37,6 +37,9 @@ pub struct RenderStats {
     pub images_embedded: usize,
     pub images_failed: usize,
     pub endnotes: usize,
+    /// Number of raw-HTML constructs that were skipped because they fall outside the supported
+    /// safe subset (unknown inline tags and all raw HTML blocks).
+    pub raw_html_skipped: usize,
     /// Non-fatal problems (e.g. an image that could not be embedded).
     pub warnings: Vec<String>,
 }
@@ -65,6 +68,9 @@ pub(crate) struct Inline {
     italic: bool,
     strike: bool,
     superscript: bool,
+    subscript: bool,
+    underline: bool,
+    highlight: bool,
 }
 
 impl Inline {
@@ -86,6 +92,12 @@ impl Inline {
     fn superscripted(self) -> Self {
         Inline {
             superscript: true,
+            ..self
+        }
+    }
+    fn subscripted(self) -> Self {
+        Inline {
+            subscript: true,
             ..self
         }
     }
@@ -459,6 +471,9 @@ fn render_blocks<'a>(container: &'a AstNode<'a>, ctx: &mut Ctx, out: &mut Vec<Bl
             NodeValue::FootnoteDefinition(_) => {}
             // Front matter is document metadata, not body content — mapped to core.xml instead.
             NodeValue::FrontMatter(_) => {}
+            // Raw HTML blocks fall outside the supported inline safe subset; count and skip them
+            // rather than dumping literal markup into the document body.
+            NodeValue::HtmlBlock(_) => ctx.stats.raw_html_skipped += 1,
             // Catch-all: recurse so unknown/unhandled block content is not dropped.
             _ => render_blocks(child, ctx, out),
         }
@@ -571,29 +586,35 @@ pub(crate) fn render_inlines<'a>(
     out: &mut Vec<InlineChild>,
     ctx: &mut Ctx,
 ) {
+    // Raw inline HTML tags (`<sub>`, `<b>`, ...) arrive as flat open/close siblings, so we track
+    // their nesting depth here and fold it into the Markdown style for the runs in between.
+    let mut html = HtmlInlineState::default();
     for child in container.children() {
         let value = child.data.borrow().value.clone();
+        let cur = html.apply(style);
         match value {
-            NodeValue::Text(t) => out.push(InlineChild::run(styled(style).add_text(t))),
-            NodeValue::Emph => render_inlines(child, style.italicized(), out, ctx),
-            NodeValue::Strong => render_inlines(child, style.bolded(), out, ctx),
-            NodeValue::Strikethrough => render_inlines(child, style.struck(), out, ctx),
-            NodeValue::Superscript => render_inlines(child, style.superscripted(), out, ctx),
+            NodeValue::Text(t) => out.push(InlineChild::run(styled(cur).add_text(t))),
+            NodeValue::Emph => render_inlines(child, cur.italicized(), out, ctx),
+            NodeValue::Strong => render_inlines(child, cur.bolded(), out, ctx),
+            NodeValue::Strikethrough => render_inlines(child, cur.struck(), out, ctx),
+            NodeValue::Superscript => render_inlines(child, cur.superscripted(), out, ctx),
+            NodeValue::Subscript => render_inlines(child, cur.subscripted(), out, ctx),
             NodeValue::Code(code) => out.push(InlineChild::run(mono_run(
                 &code.literal,
                 ctx.opts.theme.mono_font,
             ))),
-            NodeValue::SoftBreak => out.push(InlineChild::run(styled(style).add_text(" "))),
+            NodeValue::SoftBreak => out.push(InlineChild::run(styled(cur).add_text(" "))),
             NodeValue::LineBreak => out.push(InlineChild::run(
                 Run::new().add_break(BreakType::TextWrapping),
             )),
+            NodeValue::HtmlInline(raw) => html.consume(&raw, out, ctx),
             NodeValue::Link(link) => {
                 // Emit a native external `w:hyperlink`; docx-rs registers the relationship in
                 // document.xml.rels automatically at build time. The link text is styled
                 // blue + underlined so it reads as a link even before the relationship
                 // resolves. Anchor (in-document `#name`) links use an Anchor hyperlink.
                 let mut inner = Vec::new();
-                render_inlines(child, style, &mut inner, ctx);
+                render_inlines(child, cur, &mut inner, ctx);
                 out.push(InlineChild::Hyperlink(build_hyperlink(
                     &link.url,
                     inner,
@@ -608,9 +629,83 @@ pub(crate) fn render_inlines<'a>(
                 out.push(endnotes::reference(&fref.name, ctx));
             }
             // Catch-all: recurse so nested inline content is preserved.
-            _ => render_inlines(child, style, out, ctx),
+            _ => render_inlines(child, cur, out, ctx),
         }
     }
+}
+
+/// Open/close depth of the raw inline HTML formatting tags we support. Depths (not booleans) so
+/// nested same-tag runs like `<b>a<b>b</b>c</b>` close correctly.
+#[derive(Default)]
+struct HtmlInlineState {
+    bold: u32,
+    italic: u32,
+    underline: u32,
+    strike: u32,
+    sub: u32,
+    sup: u32,
+    mark: u32,
+}
+
+impl HtmlInlineState {
+    /// Fold the currently-open HTML tags into a base Markdown style.
+    fn apply(&self, base: Inline) -> Inline {
+        Inline {
+            bold: base.bold || self.bold > 0,
+            italic: base.italic || self.italic > 0,
+            strike: base.strike || self.strike > 0,
+            superscript: base.superscript || self.sup > 0,
+            subscript: base.subscript || self.sub > 0,
+            underline: base.underline || self.underline > 0,
+            highlight: base.highlight || self.mark > 0,
+        }
+    }
+
+    /// Interpret one raw inline HTML token, updating tag depth or emitting a break. Tokens outside
+    /// the supported subset are counted and dropped (their surrounding text still renders).
+    fn consume(&mut self, raw: &str, out: &mut Vec<InlineChild>, ctx: &mut Ctx) {
+        let Some((closing, name)) = parse_html_tag(raw) else {
+            ctx.stats.raw_html_skipped += 1;
+            return;
+        };
+        let bump = |n: &mut u32| {
+            if closing {
+                *n = n.saturating_sub(1);
+            } else {
+                *n += 1;
+            }
+        };
+        match name.as_str() {
+            "br" if !closing => out.push(InlineChild::run(
+                Run::new().add_break(BreakType::TextWrapping),
+            )),
+            "b" | "strong" => bump(&mut self.bold),
+            "i" | "em" => bump(&mut self.italic),
+            "u" | "ins" => bump(&mut self.underline),
+            "s" | "del" | "strike" => bump(&mut self.strike),
+            "sub" => bump(&mut self.sub),
+            "sup" => bump(&mut self.sup),
+            "mark" => bump(&mut self.mark),
+            _ => ctx.stats.raw_html_skipped += 1,
+        }
+    }
+}
+
+/// Parse a single raw HTML tag into `(is_closing, lowercase_name)`. Attributes and self-closing
+/// slashes are ignored. Returns `None` for anything that is not a simple element tag.
+fn parse_html_tag(raw: &str) -> Option<(bool, String)> {
+    let t = raw.trim().strip_prefix('<')?.strip_suffix('>')?;
+    let (closing, rest) = match t.strip_prefix('/') {
+        Some(r) => (true, r),
+        None => (false, t),
+    };
+    let name: String = rest
+        .trim_start()
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    (!name.is_empty()).then_some((closing, name))
 }
 
 /// Build a native hyperlink from a URL and already-rendered inline children.
@@ -653,10 +748,18 @@ fn styled(s: Inline) -> Run {
     if s.strike {
         r = r.strike();
     }
+    if s.underline {
+        r = r.underline("single");
+    }
+    if s.highlight {
+        r = r.highlight("yellow");
+    }
     if s.superscript {
         // docx-rs exposes no `Run::vert_align` builder, but `run_property` is public and
         // `RunProperty::vert_align` is — so set true OOXML superscript alignment directly.
         r.run_property = r.run_property.vert_align(VertAlignType::SuperScript);
+    } else if s.subscript {
+        r.run_property = r.run_property.vert_align(VertAlignType::SubScript);
     }
     r
 }
