@@ -1297,7 +1297,7 @@ dependencies = [
 
 [[package]]
 name = "quilldown"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "comrak",
@@ -1317,7 +1317,7 @@ dependencies = [
 
 [[package]]
 name = "quilldown-cli"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",

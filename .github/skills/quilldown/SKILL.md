@@ -79,6 +79,8 @@ let stats = conv.convert_file(Path::new("in.md"), Path::new("out.docx"))?;
 
 `Converter` methods:
 
+- `new(ConvertOptions) -> Converter` / `options() -> &ConvertOptions` — construct a
+  converter and inspect the options it was built with.
 - `convert_file(&Path, &Path) -> RenderStats` — write a `.docx`.
 - `convert_to_bytes(&str, base_dir) -> (Vec<u8>, RenderStats)` — in-memory bytes.
 - `convert_str(&str) -> Docx` / `convert_str_with_stats(...)` — a `docx_rs::Docx`.
@@ -154,3 +156,12 @@ commit without a valid `type:` prefix is silently skipped and never released.
   non-zero on missing input`. Never `Add math` or `Fixed a bug`.
 
 See [`AGENTS.md`](../../../AGENTS.md) and [`CONTRIBUTING.md`](../../../CONTRIBUTING.md).
+
+## Keeping this skill in sync (for maintainers)
+
+The **CLI options table** and the **`Converter` API list** above are guarded by a
+sync test in `crates/quilldown-cli/src/main.rs` (`mod skill_sync`). It fails
+`cargo test` — and therefore the `ci` workflow — if a flag or a public
+`Converter` method is added, removed, or renamed without updating this file. So a
+PR that changes the interface **cannot merge** until the skill is updated to
+match. If a check fails, edit this `SKILL.md`, not the test.
