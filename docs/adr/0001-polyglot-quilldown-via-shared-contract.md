@@ -1,6 +1,6 @@
 # ADR-0001: Polyglot quilldown via a shared contract, native emit adapters, and typra vectors
 
-- **Status:** Proposed
+- **Status:** Accepted (direction); some rollout details remain open
 - **Date:** 2026-09-04
 - **Deciders:** @sethjuarez
 - **Tags:** architecture, polyglot, typra, conformance
@@ -84,6 +84,24 @@ reference implementation that authors expected outputs.
 
 Adopt **Option C**. Specifically:
 
+### Resolved (2026-09-04)
+
+- **Idiomatic-native is the identity.** Each runtime is implemented with its own
+  native heavy-lifter (docx-rs, python-docx), not a binding to a shared Rust
+  engine. **Option A (bind one Rust engine everywhere) is explicitly rejected as
+  the primary mechanism** — shipping a native Rust artifact from every runtime
+  would lock future languages into that constraint and undermine the idiomatic
+  goal.
+- **Initial runtimes: Rust + Python.** Rust is the existing reference
+  implementation; Python is the first additional native runtime.
+- **Accepted cost.** Pure-native Python means the Enhanced-tier features (OMML
+  math, `<asvg>`, SEQ/REF/TOC fields) must be reimplemented in Python, including
+  Python-side raw-OOXML splicing — the same wall quilldown hits in Rust, now
+  paid per language. Core tier is reachable directly on python-docx. This cost is
+  accepted in exchange for zero cross-runtime lock-in and idiomatic packages.
+- **Rust binding is not forbidden as an *optional extra* target** (see open
+  questions), but it is never the required path for a runtime.
+
 1. **Contract in TypeSpec.** Model `ConvertRequest` (markdown + options) and
    `ConvertResult` (bytes/stats/warnings) and a single `convert` operation as
    the durable source of truth. typra emits the per-language option/result
@@ -153,29 +171,33 @@ Adopt **Option C**. Specifically:
 
 ## Rollout (proposed, not committed)
 
-1. **Prove the engine is bindable first.** Stand up a Python path (PyO3 binding
-   *or* a subprocess wrapper over the CLI) to validate demand before investing
-   in the contract. This is independent of typra.
-2. **Introduce the contract when a second runtime is real.** Lift
-   `ConvertOptions`/`RenderStats` into TypeSpec; generate the models; wire one
-   Core vector across Rust + Python to satisfy #175's "more than one runtime"
-   bar.
+1. **Build a native Python runtime, Core tier first.** Stand up an idiomatic
+   Python package (`python-docx` as the heavy-lifter) that implements the
+   `convert` operation for the Core tier (headings, lists, tables, links, code,
+   images-as-PNG). No Rust binding. This validates the native-adapter pattern and
+   gives Python users something real quickly.
+2. **Introduce the contract once the Python runtime exists.** Lift
+   `ConvertOptions`/`RenderStats` into TypeSpec; generate the models for Rust and
+   Python; wire one Core vector across both runtimes to satisfy #175's "more than
+   one runtime" bar.
 3. **Grow the vector corpus** from `examples/features/*`, tagging Core vs
-   Enhanced and adding expected-degrade vectors where a runtime cannot match
-   Rust.
-4. **Gate each binding's CI on its generated conformance tests.**
+   Enhanced and adding expected-degrade vectors where Python cannot yet match
+   Rust (e.g. math → literal LaTeX until Python-side OMML splicing lands).
+4. **Add Enhanced tier to Python incrementally**, each feature behind its own
+   vectors, accepting that some may ship as declared degrades first.
+5. **Gate each runtime's CI on its generated conformance tests.**
 
 ## Open questions
 
 - Transport for `.docx` bytes across the contract boundary (out-of-band handle
   vs. base64 field vs. path)?
-- Do we bind the Rust engine at all (Option A as an *additional* target for
-  languages that want max fidelity without their own adapter), or keep every
-  language fully native?
 - Minimum viable Core tier — which exact features are non-negotiable for a
   runtime to call itself "quilldown"?
 - typra version/compatibility pinning and where the TypeSpec contract lives
-  (this repo vs. a shared contracts repo).
+  (this repo vs. a shared contracts repo)?
+- Should an **optional** Rust binding be offered later as an extra
+  max-fidelity target for languages that don't want to build their own adapter?
+  (Not required for any runtime; decided *not* to be the primary path.)
 
 ## References
 
