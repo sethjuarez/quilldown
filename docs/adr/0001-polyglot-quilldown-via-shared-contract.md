@@ -14,6 +14,13 @@ high-fidelity, native Word `.docx`. The conversion is almost entirely
 `docx-rs` cannot emit natively — OMML math, the `<asvg>` vector layer, table
 headers, SEQ/REF/TOC fields, and proofing language.
 
+Framed as a compiler, that pipeline is unremarkable: Markdown is the *source*,
+`comrak` is the *front-end*, the AST walk is a *lowering* into an intermediate
+representation, and the docx construction + splice pass is an *emitter*
+(back-end) that produces the `.docx` *artifact*. Naming it this way is what makes
+the polyglot problem tractable — the shared, language-neutral thing is the IR +
+options, and each runtime is a back-end over it.
+
 We want quilldown available from other language ecosystems (Python first, then
 potentially TypeScript, C#, Go, …). Two motivations pull in different
 directions:
@@ -102,6 +109,63 @@ Adopt **Option C**. Specifically:
 - **Rust binding is not forbidden as an *optional extra* target** (see open
   questions), but it is never the required path for a runtime.
 
+### Pipeline as a compiler
+
+| Compiler stage | quilldown |
+|---|---|
+| Source | GFM Markdown |
+| Front-end / parse | `comrak` → Markdown AST |
+| **Lowering** | AST → portable document **IR** |
+| Back-end / **emitter** | IR → `.docx` (docx-rs + OOXML splice pass) |
+| Object file / **artifact** | the `.docx` bytes |
+| Diagnostics | `RenderStats` + warnings |
+| Target legalization | native feature if supported, else graceful degrade |
+
+The IR is the shared, language-neutral surface; every runtime is a back-end over
+it. This **resolves the byte-transport question**: the `.docx` is the emitted
+*artifact*. A compiler never models its object file as a field inside the IR
+contract — the back-end writes it. So `ConvertResult` carries diagnostics
+(`stats` + warnings) and the bytes are produced/written per runtime (`Vec<u8>` /
+file / stream in Rust; `bytes` / `save(path)` / file-like in Python). Base64 or
+any wire encoding is reserved for a genuine process or network boundary, never
+the in-process contract.
+
+**Where the IR is shared is a fork (not yet locked):**
+
+- *Schema-only* (leaning): each runtime has its own front-end and lowers to its
+  own IR instance; the IR is a **contract**, and vectors enforce that the
+  independent lowerings agree. Maximally idiomatic, zero coupling.
+- *Shared front-end*: lower once in Rust, serialize the IR, and each language
+  writes only an emitter. More DRY, but re-couples every runtime to Rust's
+  lowering (a data-level coupling, not a native-binary binding). Since the
+  fidelity work lives entirely in the emitter, this saves only the easy half.
+
+### Compositionality and conformance: three levels of vectors
+
+Emit over the IR is a **structural fold**: a node's XML depends only on the node
+and its children's already-correct XML. Where that holds — nearly all of Core
+tier — proving each node in isolation gives the whole tree by induction. Where
+docx breaks it are the **non-local** features: `rId`/relationship allocation,
+`numbering.xml` ids, `SEQ`/`REF` bookmark namespaces, and the post-pack splice
+pass. Those depend on whole-document state, so per-node tests cannot see them.
+
+Conformance therefore has three layers, and every runtime must satisfy all three:
+
+| Level | Proves | Kind |
+|---|---|---|
+| **Node vectors** | IR node → XML fragment | golden, local |
+| **Composition vectors** | small nested IR → XML | golden, local fold |
+| **Invariant vectors** | whole document holds global properties | **property / verifier** |
+
+Invariant vectors are **relational, not literal** (ids/bookmarks vary run to
+run): assert that every referenced `rId` is defined and unique, every `REF`
+targets an existing bookmark, `[Content_Types].xml` covers every part, and every
+`numId` resolves. This is the exact analog of a linker + IR verifier — per-node
+codegen being correct does not make the linked package valid; rels/numbering/
+bookmarks are the symbol table and the ZIP is the link step. It also bounds the
+Enhanced-tier work to a small, enumerable set of invariants a new runtime must
+prove, on top of broad-but-mechanical node emit.
+
 1. **Contract in TypeSpec.** Model `ConvertRequest` (markdown + options) and
    `ConvertResult` (bytes/stats/warnings) and a single `convert` operation as
    the durable source of truth. typra emits the per-language option/result
@@ -129,7 +193,9 @@ Adopt **Option C**. Specifically:
 2. **Fixtures become vectors.** Each `examples/features/*.md` file is promoted to
    a vector: input Markdown + expected assertions on the emitted OOXML. The Rust
    engine authors the expected output; typra projects the vector into each
-   language's test runner (pytest / vitest / cargo test).
+   language's test runner (pytest / vitest / cargo test). Full-document fixtures
+   seed the composition and invariant levels; hand-authored node fixtures seed
+   the node level.
 
    Example (from `examples/features/math.md`): input `$E = mc^2$` →
    Core-tier runtimes must emit *something*; Enhanced-tier runtimes must emit a
@@ -166,31 +232,39 @@ Adopt **Option C**. Specifically:
   runtime exists.
 
 **Neutral**
-- docx bytes are large and binary; the contract carries `stats`/warnings while
-  the bytes are produced/transported per target rather than modeled as a field.
+- Byte transport is settled by the compiler framing: the `.docx` is the emitted
+  *artifact*, produced/written per runtime; the contract models diagnostics
+  (`stats`/warnings), not the bytes.
 
 ## Rollout (proposed, not committed)
 
-1. **Build a native Python runtime, Core tier first.** Stand up an idiomatic
+1. **Extract a portable IR in Rust (reference).** Decouple `render::*` from its
+   docx-rs flavor so lowering (AST → IR) and emit (IR → docx) become separable
+   stages. This is the seam every other runtime plugs into, and it unlocks
+   stage-separated node/composition testing in the existing engine.
+2. **Build a native Python runtime, Core tier first.** Stand up an idiomatic
    Python package (`python-docx` as the heavy-lifter) that implements the
    `convert` operation for the Core tier (headings, lists, tables, links, code,
    images-as-PNG). No Rust binding. This validates the native-adapter pattern and
    gives Python users something real quickly.
-2. **Introduce the contract once the Python runtime exists.** Lift
+3. **Introduce the contract once the Python runtime exists.** Lift
    `ConvertOptions`/`RenderStats` into TypeSpec; generate the models for Rust and
    Python; wire one Core vector across both runtimes to satisfy #175's "more than
    one runtime" bar.
-3. **Grow the vector corpus** from `examples/features/*`, tagging Core vs
-   Enhanced and adding expected-degrade vectors where Python cannot yet match
-   Rust (e.g. math → literal LaTeX until Python-side OMML splicing lands).
-4. **Add Enhanced tier to Python incrementally**, each feature behind its own
-   vectors, accepting that some may ship as declared degrades first.
-5. **Gate each runtime's CI on its generated conformance tests.**
+4. **Grow the vector corpus across all three levels** from `examples/features/*`,
+   tagging Core vs Enhanced and adding expected-degrade vectors where Python
+   cannot yet match Rust (e.g. math → literal LaTeX until Python-side OMML
+   splicing lands).
+5. **Add Enhanced tier to Python incrementally**, each feature behind its own
+   node/composition/invariant vectors, accepting that some may ship as declared
+   degrades first.
+6. **Gate each runtime's CI on its generated conformance tests.**
 
 ## Open questions
 
-- Transport for `.docx` bytes across the contract boundary (out-of-band handle
-  vs. base64 field vs. path)?
+- **IR sharing model:** schema-only (each runtime lowers itself, vectors enforce
+  agreement) vs. shared front-end (lower once in Rust, serialize the IR, emit per
+  language)? Leaning schema-only; lock before Python emit stabilizes.
 - Minimum viable Core tier — which exact features are non-negotiable for a
   runtime to call itself "quilldown"?
 - typra version/compatibility pinning and where the TypeSpec contract lives
