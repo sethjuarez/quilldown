@@ -1306,6 +1306,8 @@ dependencies = [
  "latex2mathml",
  "resvg",
  "roxmltree 0.20.0",
+ "serde",
+ "serde_json",
  "syntect",
  "tempfile",
  "thiserror",

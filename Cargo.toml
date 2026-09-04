@@ -38,6 +38,9 @@ latex2mathml = "0.2"
 roxmltree = "0.20"
 # Decoding `data:` image URLs (always available; deterministic, no network).
 base64 = "0.22"
+# Serializable IR shapes (portable document IR). Derive-only; keeps the IR a plain
+# data contract that can later back a TypeSpec/typra model surface.
+serde = { version = "1", features = ["derive"] }
 # Opt-in pure-Rust HTTP client for fetching remote images. Only compiled when the
 # `remote-images` feature is enabled, so the default build stays lean and reproducible.
 ureq = "2"
