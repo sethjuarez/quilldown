@@ -1,6 +1,6 @@
 # ADR-0001: Polyglot quilldown via a shared contract, native emit adapters, and typra vectors
 
-- **Status:** Accepted; IR-sharing model + bootstrapping sequence locked (2026-09-08)
+- **Status:** Accepted; IR-sharing model + bootstrapping sequence locked; contract is schema + verb shapes, `@sample` guards shapes / `@vector` guards behaviors (2026-09-08)
 - **Date:** 2026-09-04 (updated 2026-09-08)
 - **Deciders:** @sethjuarez
 - **Tags:** architecture, polyglot, typra, conformance
@@ -38,8 +38,10 @@ A relevant capability exists: **typra** (`typra.dev`) turns TypeSpec model
 contracts into per-runtime model surfaces, generated tests, and reviewable
 metadata. It is deliberately **emitter-only** — it generates model/protocol
 surfaces and tests, but product-specific behavior and adapters stay
-hand-authored. typra also has **vectors** (`@vector`, sethjuarez/typra #171, and
-conformance-test emission #175, both closed/implemented): operation-level
+hand-authored. typra generates two kinds of guarantee: `@sample` supplies
+example data so generated **shape tests** prove a runtime loads/saves each model
+identically, and **vectors** (`@vector`, sethjuarez/typra #171, and
+conformance-test emission #175, both closed/implemented) attach operation-level
 behavior expectations (input → expected result, plus expected-error cases)
 captured in a language-neutral vector IR and **projected into executable
 conformance tests in each runtime target**. Acceptance criteria for #175
@@ -138,8 +140,9 @@ each language write only an emitter) is **rejected**: it re-couples every runtim
 to Rust's lowering at runtime — a data-level binding that contradicts the
 idiomatic-native identity — and, because all fidelity work lives in the emitter,
 it would save only the easy half. typra is the mechanism: it generates the
-per-runtime **model** surface for the IR shapes and the **conformance tests**
-from `@vector`s; `lower` and `emit` stay hand-authored per runtime (typra is
+per-runtime **model** surface for the IR shapes (with `@sample` **shape tests**)
+and the callable `lower`/`emit` seams (with `@vector` **behavior tests**);
+the bodies of `lower` and `emit` stay hand-authored per runtime (typra is
 emitter-only).
 
 ### Repository layout and the freeze / back-generate loop (resolved 2026-09-08)
@@ -207,32 +210,60 @@ bookmarks are the symbol table and the ZIP is the link step. It also bounds the
 Enhanced-tier work to a small, enumerable set of invariants a new runtime must
 prove, on top of broad-but-mechanical node emit.
 
-1. **Contract in TypeSpec.** Model `ConvertRequest` (markdown + options) and
-   `ConvertResult` (bytes/stats/warnings) and a single `convert` operation as
-   the durable source of truth. typra emits the per-language option/result
-   models.
+1. **Contract in TypeSpec: schema + verb shapes.** The contract is two things,
+   and each gets its own guarantee mechanism:
+
+   - **Schema (shapes)** — the IR models (`Document`, `Block`, `Inline`, …) plus
+     `ConvertOptions`/`RenderStats`. `@sample` supplies canonical example data,
+     so typra generates **shape tests**: every runtime must load/save each sample
+     identically (round-trip, discriminator dispatch, wire names). This forces
+     structural parity before any behavior is considered.
+   - **Verbs (behaviors)** — a TypeSpec `interface` exposing the *compiler verbs*
+     `lower` (Markdown → IR) and `emit` (IR → artifact + stats), not one opaque
+     `convert`. `@vector` attaches callable behavior expectations to each verb,
+     so typra generates **behavior tests** per operation. Splitting the verbs
+     makes `lower` and `emit` independently conformant: a `lower` vector pins
+     md → IR, an `emit` vector pins IR → OOXML, and `convert` is just their
+     composition.
 
    ```typespec
-   model ConvertRequest {
-     markdown: string;
-     options?: ConvertOptions;   // theme, toc, pageNumbers, captions, margins, …
-   }
+   // --- Schema: shapes guaranteed by @sample -------------------------------
+   @discriminator("kind")
+   model Block {}
+   model Heading extends Block { kind: "heading"; level: uint8; content: Inline[]; }
+   // … Paragraph, CodeBlock, BlockQuote, List, Table, ThematicBreak
 
-   model ConvertResult {
-     // docx bytes are transported out-of-band per target; result carries stats.
-     stats: RenderStats;         // headings, tables, mathSpans, warnings, …
-   }
+   @sample(QuillSamples.HeadingDoc)   // { blocks: [ { kind: "heading", … } ] }
+   model Document { blocks: Block[]; }
 
-   interface Convert {
-     @vector(QuillVectors.HeadingsBasic)   // @tier(Core)
-     @vector(QuillVectors.MathToOMML)      // @tier(Enhanced)
+   model ConvertOptions { /* theme, toc, pageNumbers, captions, margins, … */ }
+   model RenderStats { /* headings, tables, mathSpans, warnings, … */ }
+
+   // --- Verbs: behaviors guaranteed by @vector -----------------------------
+   interface Quilldown {
+     // Markdown -> IR. Vectors assert the lowered Document shape.
+     @vector(QuillVectors.HeadingsLower)          // @tier(Core)
+     lower(markdown: string, options?: ConvertOptions): Document;
+
+     // IR -> artifact (+ stats). Bytes are out-of-band; vectors assert on the
+     // emitted OOXML and on RenderStats. Enhanced verbs may degrade.
+     @vector(QuillVectors.HeadingsEmit)           // @tier(Core)
+     @vector(QuillVectors.MathToOMML)             // @tier(Enhanced)
      @vector(QuillVectors.UnsupportedLatexDegrades) // expected-degrade
-     convert(request: ConvertRequest): ConvertResult;
+     emit(doc: Document, options?: ConvertOptions): RenderStats;
    }
    ```
 
-2. **Fixtures become vectors.** Each `examples/features/*.md` file is promoted to
-   a vector: input Markdown + expected assertions on the emitted OOXML. The Rust
+   typra generates the models (with `@sample` shape tests) and the callable
+   `lower`/`emit` seams (with `@vector` behavior tests) into each runtime; the
+   bodies of `lower`/`emit` stay hand-authored (typra is emitter-only). The
+   `.docx` bytes remain the emitted *artifact*, transported per runtime — the
+   contract models the shapes and diagnostics, not the bytes.
+
+2. **Fixtures become samples and vectors.** Each `examples/features/*.md` file
+   feeds both axes: its lowered `Document` becomes an `@sample` (shape parity,
+   round-trip), and input Markdown + expected OOXML assertions become `lower`/
+   `emit` vectors (behavior parity). The Rust
    engine authors the expected output; typra projects the vector into each
    language's test runner (pytest / vitest / cargo test). Full-document fixtures
    seed the composition and invariant levels; hand-authored node fixtures seed
