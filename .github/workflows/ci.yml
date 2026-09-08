@@ -27,3 +27,15 @@ jobs:
         run: cargo test --workspace
       - name: clippy
         run: cargo clippy --workspace --all-targets
+
+  # Python runtime conformance. Runs the typra-generated shape tests plus the
+  # hand-authored lower/emit vectors against the shared contract, keeping the
+  # Python runtime honest to the same spec the Rust runtime is frozen against.
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: conformance (pytest)
+        working-directory: runtimes/python
+        run: uv run pytest -q
