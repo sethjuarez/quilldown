@@ -737,6 +737,136 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "superscript-lower",
+    stage: "callable",
+    input: #{ markdown: "area r^2^ end\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "area r",
+              kind: "text"
+            },
+            #{
+              data: "2",
+              kind: "text"
+            },
+            #{
+              data: " end",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "superscript_in_strong-lower",
+    stage: "callable",
+    input: #{ markdown: "A **bold x^2^** term\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "A ",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "bold x",
+                  kind: "text"
+                },
+                #{
+                  data: "2",
+                  kind: "text"
+                }
+              ],
+              kind: "strong"
+            },
+            #{
+              data: " term",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "superscript_emphasis-lower",
+    stage: "callable",
+    input: #{ markdown: "x^*y*^\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "x",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "y",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "superscript_image_alt-lower",
+    stage: "callable",
+    input: #{ markdown: "![a^b^](u.png)\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "a^b^",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "superscript_link_label-lower",
+    stage: "callable",
+    input: #{ markdown: "[note^2^](http://example.com)\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              content: #[
+                #{
+                  data: "note^2^",
+                  kind: "text"
+                }
+              ],
+              href: "http://example.com",
+              kind: "link"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "footnote_ref-lower",
     stage: "callable",
     input: #{ markdown: "text[^1] end\n\n[^1]: note\n" },

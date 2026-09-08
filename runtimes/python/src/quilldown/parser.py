@@ -12,6 +12,7 @@ import re
 from markdown_it import MarkdownIt
 from markdown_it.common.utils import isWhiteSpace
 from markdown_it.rules_inline import StateInline
+from markdown_it.rules_inline.state_inline import Delimiter
 from markdown_it.tree import SyntaxTreeNode
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.footnote import footnote_plugin
@@ -164,6 +165,84 @@ _MD = (
 # comrak's inline-math delimiter rule differs from every dollarmath option combo;
 # swap in a faithful rule (its block rule and config are still used).
 _MD.inline.ruler.at("math_inline", _math_inline_comrak)
+
+
+def _superscript_tokenize(state: StateInline, silent: bool) -> bool:
+    """comrak superscript (`^...^`): a `^` delimiter run parsed with the shared
+    emphasis machinery. Pushing native markdown-it delimiters lets balance_pairs
+    reproduce comrak's `process_emphasis` (flanking + the mod-3 rule) exactly;
+    the pair is flattened to its inner content downstream, matching `ir::lower`.
+    comrak refuses `^` as a delimiter `within_brackets`: inside a link label
+    `state.linkLevel` reproduces that flag exactly, so bail there and let the
+    caret stay literal (`[note^2^](url)` -> literal "note^2^"). Image alt text
+    is re-parsed in a fresh inline state (linkLevel 0) where the caret does form
+    a `sup`; `_text_of` restores the literal carets for that always-in-brackets
+    context. A bare unresolved `[a^b^]` at paragraph level is a documented
+    narrow exclusion (same class as the autolink-in-brackets exclusion).
+
+    comrak's left-flanking test carries a superscript bypass: a `^` run may open
+    even when the following character is punctuation (`!`/`*`/backtick/`~`), so
+    `x^*y*^` nests emphasis inside the span. markdown-it's `scanDelims` lacks
+    that bypass, so recompute `can_open` here as "the next character exists and
+    is not whitespace"; the closing flag keeps `scanDelims`' standard result.
+    """
+    if silent:
+        return False
+    if state.src[state.pos] != "^":
+        return False
+    if state.linkLevel > 0:
+        return False
+    scanned = state.scanDelims(state.pos, True)
+    after = state.pos + scanned.length
+    can_open = after < len(state.src) and not state.src[after].isspace()
+    for _ in range(scanned.length):
+        token = state.push("text", "", 0)
+        token.content = "^"
+        state.delimiters.append(
+            Delimiter(
+                marker=ord("^"),
+                length=scanned.length,
+                token=len(state.tokens) - 1,
+                end=-1,
+                open=can_open,
+                close=scanned.can_close,
+            )
+        )
+    state.pos += scanned.length
+    return True
+
+
+def _superscript_post(state: StateInline) -> None:
+    def run(delims: list[Delimiter]) -> None:
+        i = len(delims) - 1
+        while i >= 0:
+            d = delims[i]
+            if d.marker != 0x5E or d.end == -1:  # 0x5E == '^'
+                i -= 1
+                continue
+            end = delims[d.end]
+            opener = state.tokens[d.token]
+            opener.type = "sup_open"
+            opener.tag = "sup"
+            opener.nesting = 1
+            opener.markup = "^"
+            opener.content = ""
+            closer = state.tokens[end.token]
+            closer.type = "sup_close"
+            closer.tag = "sup"
+            closer.nesting = -1
+            closer.markup = "^"
+            closer.content = ""
+            i -= 1
+
+    run(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            run(meta["delimiters"])
+
+
+_MD.inline.ruler.after("emphasis", "superscript", _superscript_tokenize)
+_MD.inline.ruler2.after("emphasis", "superscript", _superscript_post)
 
 _ALIGN = {
     "text-align:left": "left",
@@ -463,6 +542,16 @@ def _inlines(
             pc = marker
             continue
 
+        if t == "sup":
+            # Superscript is not a Core inline: `ir::lower` flattens it to its
+            # inner content, dropping the wrapper. Thread the autolink cursor
+            # through the children exactly as for emphasis, but splice the inner
+            # runs directly into the output rather than wrapping them.
+            inner, wb, _ = _inlines(n.children, in_link, wb, "^")
+            out.extend(inner)
+            pc = "^"
+            continue
+
         el = _inline(n, in_link)
         wb = _update_within_brackets(n, wb)
         tc = _trailing_source_char(n)
@@ -567,5 +656,17 @@ def _inline(n, in_link: bool = False):
 
 def _text_of(node) -> str:
     """Concatenate the text of every descendant text run, mirroring the Rust
-    oracle's `text_of` (render/mod.rs)."""
-    return "".join(d.content for d in _walk(node) if d.type == "text")
+    oracle's `text_of` (render/mod.rs). Image alt is always `within_brackets`
+    in comrak, so a `^...^` there stays literal; markdown-it forms a `sup` in
+    the re-parsed alt, so restore its carets to keep `![a^b^](u)` -> "a^b^"."""
+    out: list[str] = []
+    for child in node.children:
+        if child.type == "text":
+            out.append(child.content)
+        elif child.type == "sup":
+            out.append("^")
+            out.append(_text_of(child))
+            out.append("^")
+        else:
+            out.append(_text_of(child))
+    return "".join(out)

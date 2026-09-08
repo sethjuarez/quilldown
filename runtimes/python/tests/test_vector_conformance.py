@@ -2072,7 +2072,187 @@ async def test_vector_42_quilldown_lower_paragraph_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_43_quilldown_lower_table_lower():
+async def test_vector_43_quilldown_lower_superscript_emphasis_lower():
+    vector_json = r"""
+    {
+      "name": "superscript_emphasis-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "x^*y*^\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "x",
+                "kind": "text"
+              },
+              {
+                "data": [
+                  {
+                    "data": "y",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "emphasis"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_44_quilldown_lower_superscript_image_alt_lower():
+    vector_json = r"""
+    {
+      "name": "superscript_image_alt-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "![a^b^](u.png)\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "a^b^",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_45_quilldown_lower_superscript_in_strong_lower():
+    vector_json = r"""
+    {
+      "name": "superscript_in_strong-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "A **bold x^2^** term\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "A ",
+                "kind": "text"
+              },
+              {
+                "data": [
+                  {
+                    "data": "bold x",
+                    "kind": "text"
+                  },
+                  {
+                    "data": "2",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "strong"
+              },
+              {
+                "data": " term",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_46_quilldown_lower_superscript_link_label_lower():
+    vector_json = r"""
+    {
+      "name": "superscript_link_label-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "[note^2^](http://example.com)\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "data": "note^2^",
+                    "kind": "text"
+                  }
+                ],
+                "href": "http://example.com",
+                "kind": "link"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_47_quilldown_lower_superscript_lower():
+    vector_json = r"""
+    {
+      "name": "superscript-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "area r^2^ end\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "area r",
+                "kind": "text"
+              },
+              {
+                "data": "2",
+                "kind": "text"
+              },
+              {
+                "data": " end",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_48_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -2160,7 +2340,7 @@ async def test_vector_43_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_44_quilldown_lower_task_list_lower():
+async def test_vector_49_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -2216,7 +2396,7 @@ async def test_vector_44_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_45_quilldown_lower_thematic_break_lower():
+async def test_vector_50_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",
