@@ -1394,8 +1394,166 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "cross_marker_flanking_skip-lower",
+    stage: "callable",
+    input: #{
+      markdown: "H*~2~*O\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "H",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "2",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            },
+            #{
+              data: "O",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "cross_marker_crossing_span-lower",
+    stage: "callable",
+    input: #{
+      markdown: "This is *important ~but unfinished* subscript~ text.\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "This is ",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "important ~but unfinished",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            },
+            #{
+              data: " subscript~ text.",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "cross_marker_repair-lower",
+    stage: "callable",
+    input: #{
+      markdown: "*a ~b* c~\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: #[
+                #{
+                  data: "a ~b",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            },
+            #{
+              data: " c~",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "superscript_nested_emphasis-lower",
+    stage: "callable",
+    input: #{
+      markdown: "x^*y*^\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "x",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "y",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "cross_marker_interleaved-lower",
+    stage: "callable",
+    input: #{
+      markdown: "a*b~c*d~\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "a",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "b~c",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            },
+            #{
+              data: "d~",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
+
 
 const EmitVectors = #[
   #{

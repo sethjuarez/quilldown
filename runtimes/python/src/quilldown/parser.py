@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 from markdown_it import MarkdownIt
-from markdown_it.common.utils import isWhiteSpace
+from markdown_it.common.utils import isMdAsciiPunct, isPunctChar, isWhiteSpace
 from markdown_it.rules_inline import StateInline
 from markdown_it.rules_inline.state_inline import Delimiter
 from markdown_it.tree import SyntaxTreeNode
@@ -167,6 +167,122 @@ _MD = (
 _MD.inline.ruler.at("math_inline", _math_inline_comrak)
 
 
+# comrak's flanking test (parser/inlines.rs `scan_delims`/`get_before_char`)
+# differs from markdown-it's `scanDelims` in one way that matters here: when it
+# looks at the character before/after a delimiter run it *skips* the "combining"
+# emphasis bytes in `skip_char_bytes` and treats a run that resolves onto one of
+# them as a line boundary (whitespace). For the oracle's extension set only `~`
+# is such a byte (strikethrough/subscript on; highlight `=`/insert `+` off), so
+# a `~` adjacent to another marker is invisible for flanking. That is why
+# `H*~2~*O` italicises `2` (the `*` sees `2`, not the `~`) and why degenerate
+# `^ ~ ^^` marker soup stays literal. Port `scan_delims` faithfully so every
+# marker's `can_open`/`can_close` matches comrak byte for byte.
+_SKIP_FLANK = "~"  # comrak `skip_char_bytes` for the oracle config
+
+# Rust `char::is_whitespace()` (Unicode `White_Space=yes`), which comrak uses.
+# Narrower than Python `str.isspace()`, which also treats the information
+# separators U+001C-U+001F as whitespace; matching Rust exactly keeps flanking
+# faithful for those control characters (`a*\x1cb*` italicises in comrak).
+_WS_FLANK = frozenset(
+    "\t\n\x0b\x0c\r \x85\xa0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000"
+)
+
+
+def _is_ws(ch: str) -> bool:
+    return ch in _WS_FLANK
+
+
+def _is_punct(ch: str) -> bool:
+    return isMdAsciiPunct(ord(ch)) or isPunctChar(ch)
+
+
+def _before_char(src: str, pos: int) -> str:
+    """comrak `get_before_char`: skip `skip_char_bytes` before `pos`; a boundary
+    that resolves onto a skip char counts as `\\n` (whitespace)."""
+    if pos == 0:
+        return "\n"
+    j = pos - 1
+    while j > 0 and src[j] in _SKIP_FLANK:
+        j -= 1
+    ch = src[j]
+    return "\n" if ch in _SKIP_FLANK else ch
+
+
+def _after_char(src: str, endpos: int) -> str:
+    """comrak after-char scan: skip `skip_char_bytes` after a run; a boundary
+    that resolves onto a skip char (or EOF) counts as `\\n` (whitespace)."""
+    n = len(src)
+    if endpos >= n:
+        return "\n"
+    k = endpos
+    while k < n - 1 and src[k] in _SKIP_FLANK:
+        k += 1
+    ch = src[k]
+    return "\n" if ch in _SKIP_FLANK else ch
+
+
+def _comrak_flank(src: str, start: int, marker: str):
+    """Faithful port of comrak `scan_delims` for a delimiter run at ``start``.
+
+    Returns ``(numdelims, can_open, can_close)``. ``^`` (superscript) and ``~``
+    (subscript) carry comrak's left-flanking bypass, so a run may open even when
+    the following character is punctuation; ``_`` keeps the CommonMark
+    intraword restrictions.
+    """
+    n = len(src)
+    pos = start
+    while pos < n and src[pos] == marker:
+        pos += 1
+    numdelims = pos - start
+    before = _before_char(src, start)
+    after = _after_char(src, pos)
+    bws, aws = _is_ws(before), _is_ws(after)
+    bp, ap = _is_punct(before), _is_punct(after)
+    bypass = marker in ("^", "~")  # superscript/subscript left-flank bypass
+    left = numdelims > 0 and not aws and ((not ap) or bypass or bws or bp)
+    right = numdelims > 0 and not bws and ((not bp) or aws or ap)
+    if marker == "_":
+        return numdelims, left and ((not right) or bp), right and ((not left) or ap)
+    return numdelims, left, right
+
+
+def _emph_tokenize(state: StateInline, silent: bool) -> bool:
+    """`*`/`_` delimiter tokenizer with comrak-faithful flanking.
+
+    Replaces markdown-it's native ``emphasis`` tokenizer so that a marker
+    adjacent to a `~` flanks the way comrak does (skipping the `~`); the native
+    rule uses the literal neighbour and would, e.g., refuse the `*` in
+    `H*~2~*O`. Pushes one text token + one delimiter per marker character, which
+    ``_unified_emph`` then pairs across every marker at once.
+    """
+    if silent:
+        return False
+    marker = state.src[state.pos]
+    if marker not in ("*", "_"):
+        return False
+    numdelims, can_open, can_close = _comrak_flank(state.src, state.pos, marker)
+    for _ in range(numdelims):
+        token = state.push("text", "", 0)
+        token.content = marker
+        state.delimiters.append(
+            Delimiter(
+                marker=ord(marker),
+                length=numdelims,
+                token=len(state.tokens) - 1,
+                end=-1,
+                open=can_open,
+                close=can_close,
+            )
+        )
+    state.pos += numdelims
+    return True
+
+
+_MD.inline.ruler.at("emphasis", _emph_tokenize)
+
+
 def _superscript_tokenize(state: StateInline, silent: bool) -> bool:
     """comrak superscript (`^...^`): a `^` delimiter run parsed with the shared
     emphasis machinery. Pushing native markdown-it delimiters lets balance_pairs
@@ -182,9 +298,9 @@ def _superscript_tokenize(state: StateInline, silent: bool) -> bool:
 
     comrak's left-flanking test carries a superscript bypass: a `^` run may open
     even when the following character is punctuation (`!`/`*`/backtick/`~`), so
-    `x^*y*^` nests emphasis inside the span. markdown-it's `scanDelims` lacks
-    that bypass, so recompute `can_open` here as "the next character exists and
-    is not whitespace"; the closing flag keeps `scanDelims`' standard result.
+    `x^*y*^` nests emphasis inside the span; and its before/after scan skips `~`,
+    so `_comrak_flank` reproduces both. The closing flag likewise comes from the
+    faithful port rather than markdown-it's `scanDelims`.
     """
     if silent:
         return False
@@ -192,57 +308,25 @@ def _superscript_tokenize(state: StateInline, silent: bool) -> bool:
         return False
     if state.linkLevel > 0:
         return False
-    scanned = state.scanDelims(state.pos, True)
-    after = state.pos + scanned.length
-    can_open = after < len(state.src) and not state.src[after].isspace()
-    for _ in range(scanned.length):
+    numdelims, can_open, can_close = _comrak_flank(state.src, state.pos, "^")
+    for _ in range(numdelims):
         token = state.push("text", "", 0)
         token.content = "^"
         state.delimiters.append(
             Delimiter(
                 marker=ord("^"),
-                length=scanned.length,
+                length=numdelims,
                 token=len(state.tokens) - 1,
                 end=-1,
                 open=can_open,
-                close=scanned.can_close,
+                close=can_close,
             )
         )
-    state.pos += scanned.length
+    state.pos += numdelims
     return True
 
 
-def _superscript_post(state: StateInline) -> None:
-    def run(delims: list[Delimiter]) -> None:
-        i = len(delims) - 1
-        while i >= 0:
-            d = delims[i]
-            if d.marker != 0x5E or d.end == -1:  # 0x5E == '^'
-                i -= 1
-                continue
-            end = delims[d.end]
-            opener = state.tokens[d.token]
-            opener.type = "sup_open"
-            opener.tag = "sup"
-            opener.nesting = 1
-            opener.markup = "^"
-            opener.content = ""
-            closer = state.tokens[end.token]
-            closer.type = "sup_close"
-            closer.tag = "sup"
-            closer.nesting = -1
-            closer.markup = "^"
-            closer.content = ""
-            i -= 1
-
-    run(state.delimiters)
-    for meta in state.tokens_meta:
-        if meta and "delimiters" in meta:
-            run(meta["delimiters"])
-
-
 _MD.inline.ruler.after("emphasis", "superscript", _superscript_tokenize)
-_MD.inline.ruler2.after("emphasis", "superscript", _superscript_post)
 
 
 # GFM strikethrough and subscript share the `~` delimiter. markdown-it's
@@ -256,196 +340,199 @@ def _tilde_tokenize(state: StateInline, silent: bool) -> bool:
     """comrak treats `~` as an emphasis delimiter when strikethrough/subscript
     is on. A run of 1 or 2 tildes is a delimiter; a run of >=3 is literal (the
     block layer handles tilde code fences). comrak's left-flanking test carries
-    a subscript bypass -- a `~` run may open even before punctuation -- so
-    `can_open` reduces to "the next character exists and is not whitespace"
-    (`x~-1~`, `x~(i)~` form subscripts); the closing flag keeps `scanDelims`'
-    standard right-flanking result. Pushing a native delimiter (marker `~`) with
-    those flags lets `_tilde_process` pair them; both are dropped before the
-    native passes so `balance_pairs`/strikethrough post never see them.
+    a subscript bypass -- a `~` run may open even before punctuation -- and its
+    before/after scan skips adjacent `~`, both reproduced by `_comrak_flank`
+    (`x~-1~`, `x~(i)~` form subscripts). Pushing a native delimiter (marker `~`)
+    with those flags lets `_unified_emph` pair them together with `*`/`_`/`^` on
+    one interleaved stack, before the native `balance_pairs`/strikethrough
+    passes.
     """
     if silent:
         return False
     if state.src[state.pos] != "~":
         return False
-    scanned = state.scanDelims(state.pos, True)
-    length = scanned.length
+    numdelims, can_open, can_close = _comrak_flank(state.src, state.pos, "~")
     token = state.push("text", "", 0)
-    token.content = "~" * length
-    if length <= 2:
-        after = state.pos + length
-        can_open = after < len(state.src) and not state.src[after].isspace()
-        if can_open or scanned.can_close:
-            state.delimiters.append(
-                Delimiter(
-                    marker=ord("~"),
-                    length=length,
-                    token=len(state.tokens) - 1,
-                    end=-1,
-                    open=can_open,
-                    close=scanned.can_close,
-                )
+    token.content = "~" * numdelims
+    if numdelims <= 2 and (can_open or can_close):
+        state.delimiters.append(
+            Delimiter(
+                marker=ord("~"),
+                length=numdelims,
+                token=len(state.tokens) - 1,
+                end=-1,
+                open=can_open,
+                close=can_close,
             )
-    state.pos += length
+        )
+    state.pos += numdelims
     return True
 
 
-def _tilde_process(state: StateInline) -> None:
-    """Direct port of comrak `process_emphasis`/`insert_emph` for `~` only.
+class _DRun:
+    """A comrak-style delimiter run reconstructed from markdown-it delimiters.
 
-    comrak checks equal width *during* the opener search: when the nearest
-    can-open `~` delimiter has an incompatible width, `insert_emph` returns
-    `None`, which *terminates* the whole closer loop -- so `~~a~b!~d~~` stays
-    literal rather than forming an outer strikethrough. The mod-3 rule (shared
-    with `*`/`_`) and the width check are reproduced exactly. A width-1 pair is
-    marked up `~` (Subscript, flattened downstream); width-2 `~~` (Strikethrough,
-    kept); `_inlines` maps the markup. `openers_bottom` is a pure performance
-    memo and is omitted.
-
-    comrak runs *one* delimiter stack over every marker, so a `~` event mutates
-    delimiters of other bytes too: a successful pair removes the interior `*`/
-    `_`/`^` candidates (they can no longer cross the boundary), and a width
-    mismatch terminates the whole pass, stranding every later delimiter. This
-    `~`-only pass cannot reach the shared `*`/`_`/`^` list directly, so it
-    records, per delimiter list, the matched `~` spans and the token index at
-    which a mismatch terminated; `_emph_cross_fix` replays those cross-marker
-    removals against the native `*`/`_`/`^` pairing after `balance_pairs`.
+    ``*``/``_``/``^`` are tokenised one text token per marker character (native
+    emphasis + ``_superscript_tokenize``); ``~`` is a single token holding the
+    whole run (``_tilde_tokenize``). Both are normalised here to a run with an
+    available window ``[lo, hi)`` so ``_unified_emph`` can consume from either
+    end exactly as comrak truncates a delimiter's text in place (an opener keeps
+    its leftmost bytes, a closer its rightmost).
     """
-    cross: dict[int, dict] = {}
 
-    def run(delims: list[Delimiter]) -> None:
-        spans: list[tuple[int, int]] = []
-        term: int | None = None
-        recs = [d for d in delims if d.marker == 0x7E]  # 0x7E == '~'
-        n = len(recs)
-        consumed = [False] * n
+    __slots__ = ("marker", "per_char", "toks", "tok", "lo", "hi", "open", "close", "removed")
+
+    def __init__(self, marker, per_char, toks, tok, length, open_, close_):
+        self.marker = marker
+        self.per_char = per_char
+        self.toks = toks
+        self.tok = tok
+        self.lo = 0
+        self.hi = length
+        self.open = open_
+        self.close = close_
+        self.removed = False
+
+    @property
+    def length(self) -> int:
+        return self.hi - self.lo
+
+    def take_opener(self, tokens, use, typ, tag, markup) -> None:
+        """Consume ``use`` chars from the opener's right (inner) end."""
+        if self.per_char:
+            top = self.hi
+            keep = self.toks[top - use]  # leftmost consumed char carries the tag
+            for k in range(top - use, top):
+                tokens[self.toks[k]].content = ""
+            t = tokens[keep]
+            t.type, t.tag, t.nesting, t.markup, t.content = typ, tag, 1, markup, ""
+            self.hi -= use
+        else:  # '~': single token, always fully consumed (width gate)
+            t = tokens[self.tok]
+            t.type, t.tag, t.nesting, t.markup, t.content = typ, tag, 1, markup, ""
+            self.hi = self.lo
+
+    def take_closer(self, tokens, use, typ, tag, markup) -> None:
+        """Consume ``use`` chars from the closer's left (inner) end."""
+        if self.per_char:
+            base = self.lo
+            keep = self.toks[base + use - 1]  # rightmost consumed char carries the tag
+            for k in range(base, base + use):
+                tokens[self.toks[k]].content = ""
+            t = tokens[keep]
+            t.type, t.tag, t.nesting, t.markup, t.content = typ, tag, -1, markup, ""
+            self.lo += use
+        else:  # '~'
+            t = tokens[self.tok]
+            t.type, t.tag, t.nesting, t.markup, t.content = typ, tag, -1, markup, ""
+            self.lo = self.hi
+
+
+def _emph_kind(marker: int, use: int):
+    """comrak ``insert_emph`` node-kind selection for the oracle's extension set
+    (strikethrough + subscript + superscript on; underline/spoiler/highlight/
+    insert off). Returns ``(open_type, close_type, tag, markup)``."""
+    if marker == 0x7E:  # '~'
+        return ("s_open", "s_close", "s", "~" if use == 1 else "~~")
+    if marker == 0x5E:  # '^'
+        return ("sup_open", "sup_close", "sup", "^" * use)
+    ch = chr(marker)  # '*' or '_'
+    if use == 1:
+        return ("em_open", "em_close", "em", ch)
+    return ("strong_open", "strong_close", "strong", ch * 2)
+
+
+def _unified_emph(state: StateInline) -> None:
+    """One interleaved delimiter pass over every emphasis marker (`* _ ~ ^`).
+
+    markdown-it runs a separate ``balance_pairs``/``emphasis``/``strikethrough``
+    pass per marker, so it cannot reproduce comrak, which runs a *single*
+    ``process_emphasis`` closer stack over all markers at once: a match removes
+    every interior delimiter of *any* marker (so crossing spans such as
+    ``*a ~b* c~`` legalize correctly), a ``~`` width mismatch *terminates* the
+    whole pass (stranding every later delimiter as literal text), and an opener
+    freed by an interior removal may re-pair with a *later* closer. This is a
+    faithful port of comrak-0.54's ``process_emphasis`` (parser/inlines.rs) and
+    ``insert_emph``; the ``openers_bottom`` array is a pure performance memo and
+    is omitted (a full downward opener search yields identical matches). Tokens
+    are rewritten to the same open/close shapes the native passes emit, then the
+    delimiter lists are cleared so the native ``balance_pairs``/``emphasis``/
+    ``strikethrough`` post-passes that follow see nothing and no-op.
+    """
+
+    def run(delims) -> None:
+        # 1. Regroup markdown-it delimiters into comrak-style runs (source order).
+        runs: list[_DRun] = []
+        i = 0
+        m = len(delims)
+        while i < m:
+            d = delims[i]
+            if d.marker == 0x7E:  # '~': one token holds the whole run
+                length = len(state.tokens[d.token].content)
+                runs.append(_DRun(d.marker, False, None, d.token, length, d.open, d.close))
+                i += 1
+            else:  # '*'/'_'/'^': one token per marker character
+                toks = [d.token]
+                j = i + 1
+                while (
+                    j < m
+                    and delims[j].marker == d.marker
+                    and delims[j].token == delims[j - 1].token + 1
+                ):
+                    toks.append(delims[j].token)
+                    j += 1
+                runs.append(_DRun(d.marker, True, toks, None, len(toks), d.open, d.close))
+                i = j
+
+        # 2. comrak process_emphasis: one closer walk, bottom (first) to top (last).
+        r = len(runs)
         ci = 0
-        while ci < n:
-            c = recs[ci]
-            if consumed[ci] or not c.close:
+        while ci < r:
+            c = runs[ci]
+            if c.removed or not c.close or c.length <= 0:
                 ci += 1
                 continue
-            cw = len(state.tokens[c.token].content)
-            opener: int | None = None
+            # Search down the stack for a matching opener of the same marker.
+            opener_idx = None
             oi = ci - 1
             while oi >= 0:
-                o = recs[oi]
-                if not consumed[oi] and o.open:
-                    ow = len(state.tokens[o.token].content)
+                o = runs[oi]
+                if not o.removed and o.open and o.marker == c.marker and o.length > 0:
+                    total = o.length + c.length
                     odd = (
                         (c.open or o.close)
-                        and (ow + cw) % 3 == 0
-                        and not (ow % 3 == 0 and cw % 3 == 0)
+                        and total % 3 == 0
+                        and not (o.length % 3 == 0 and c.length % 3 == 0)
                     )
                     if not odd:
-                        opener = oi
+                        opener_idx = oi
                         break
                 oi -= 1
-            if opener is None:
+            if opener_idx is None:
+                # No opener: move up; a closer that cannot also open is now text.
+                if not c.open:
+                    c.removed = True
                 ci += 1
                 continue
-            o = recs[opener]
-            ow = len(state.tokens[o.token].content)
-            use_delims = 2 if cw >= 2 and ow >= 2 else 1
-            if (ow - use_delims) != (cw - use_delims) or (ow - use_delims) > 0:
-                term = c.token  # insert_emph -> None terminates the closer loop
+            o = runs[opener_idx]
+            ow, cw = o.length, c.length
+            use = 2 if (cw >= 2 and ow >= 2) else 1
+            # comrak ~ width gate: strikethrough/subscript require an exact,
+            # fully-consumed width match; otherwise insert_emph returns None,
+            # terminating the entire closer loop and stranding the rest.
+            if c.marker == 0x7E and ((ow - use) != (cw - use) or (ow - use) > 0):
                 break
-            markup = "~" if use_delims == 1 else "~~"
-            ot = state.tokens[o.token]
-            ot.type, ot.tag, ot.nesting = "s_open", "s", 1
-            ot.markup, ot.content = markup, ""
-            ct = state.tokens[c.token]
-            ct.type, ct.tag, ct.nesting = "s_close", "s", -1
-            ct.markup, ct.content = markup, ""
-            spans.append((o.token, c.token))
-            for m in range(opener + 1, ci):
-                consumed[m] = True  # interior delimiters become literal text
-            consumed[opener] = True
-            consumed[ci] = True
-            ci += 1
-        delims[:] = [d for d in delims if d.marker != 0x7E]
-        cross[id(delims)] = {"spans": spans, "term": term}
+            topen, tclose, tag, markup = _emph_kind(c.marker, use)
+            o.take_opener(state.tokens, use, topen, tag, markup)
+            c.take_closer(state.tokens, use, tclose, tag, markup)
+            # Interior removal: every delimiter between the pair is now literal.
+            for k in range(opener_idx + 1, ci):
+                runs[k].removed = True
+            if c.length == 0:
+                ci += 1  # closer fully used -> advance to the next closer up
+            # else: closer keeps leftover (e.g. `***`) -> re-process same closer
 
-    run(state.delimiters)
-    for meta in state.tokens_meta:
-        if meta and "delimiters" in meta:
-            run(meta["delimiters"])
-    state.env["_tilde_cross"] = cross
-
-
-def _emph_cross_fix(state: StateInline) -> None:
-    """Replay comrak's cross-marker delimiter removals onto the native pairing.
-
-    comrak processes `*`/`_`/`~`/`^` on a single stack; markdown-it processes
-    them separately, so after `balance_pairs` a `*`/`_`/`^` pair may exist that
-    comrak would have dropped because of a `~`/`^` event. Two removals reproduce
-    comrak exactly (`_tilde_process` supplied the `~` spans and termination
-    token; surviving `^` spans are read back here):
-
-    * interior removal -- a pair that *straddles* a matched `~`/`^` span (one end
-      strictly inside, the other outside) is broken, matching comrak dropping the
-      interior candidate (`~a*b~c*` -> literal `a*b`, `c*`);
-    * termination -- once a `~` width mismatch terminates the pass at token P,
-      every pair whose closer sits at or past P is stranded (`~a~~ *b*` ->
-      literal, but `*a* ~b~~` keeps the emphasis matched before P).
-
-    An undo just clears the opener's `end` link; the marker tokens keep their
-    literal text. For inputs without `~`/`^` there are no spans and no
-    termination, so the native pairing is left untouched.
-
-    This reproduces the direction where a `~`/`^` match removes interior `*`/`_`/
-    `^` candidates. Two mixed-marker families are *not* reproduced and remain
-    documented narrow exclusions -- both need adjacent intraword runs of
-    different emphasis markers and never occur in prose. A faithful fix requires
-    replacing markdown-it's `balance_pairs`/emphasis with one interleaved pass
-    over every marker (comrak's single closer stack), which would route every
-    realistic `~`/`^`+emphasis paragraph through a hand-reimplementation of the
-    CommonMark flanking rules -- disproportionate risk to realistic content to
-    fix only pathological inputs.
-
-    1. Mirror direction -- a `*`/`_`/`^` pair whose closer falls *before* a `~`
-       closer removes the interior `~` in comrak's interleaved order, so no
-       subscript forms. The `~` pass runs before `balance_pairs` and cannot see
-       those matches yet. Verified cases: `a*b~c*d~` (comrak: em[`b~c`], `d~`),
-       `**a~b**c~` (strong[`a~b`], `c~`), `^a~b^c~` (literal `a~b`, `c~`), and
-       `~a~ *b~c*d~` after an earlier valid subscript (em[`b~c`], `d~`).
-    2. Re-pairing after undo -- when a `~`/`^` match removes an interior `*`/`^`
-       candidate, comrak may then pair the freed opener with a *later* closer.
-       Clearing `.end` only makes the straddling pair literal; it never re-runs
-       pairing. Verified: `*a~~b**c~~d**` (comrak: em[`a`, strike[`b**c`], `d`]
-       + literal `*`) and `^a~~b^^c~~d^^`.
-    """
-    cross: dict[int, dict] = state.env.get("_tilde_cross", {})
-
-    def undo_if(delims: list[Delimiter], markers: set[int], spans, term) -> None:
-        for d in delims:
-            if d.marker not in markers or d.end < 0:
-                continue
-            ot, ct = d.token, delims[d.end].token
-            drop = term is not None and ct >= term
-            if not drop:
-                for s, e in spans:
-                    if (s < ot < e) != (s < ct < e):
-                        drop = True
-                        break
-            if drop:
-                d.end = -1
-
-    def run(delims: list[Delimiter]) -> None:
-        info = cross.get(id(delims))
-        if info is None:
-            return
-        tilde_spans = info["spans"]
-        term = info["term"]
-        # 1. Strand `^` broken by the `~` spans / termination, so only the `^`
-        #    pairs comrak keeps contribute spans for the `*`/`_` pass below.
-        undo_if(delims, {0x5E}, tilde_spans, term)
-        caret_spans = [
-            (d.token, delims[d.end].token)
-            for d in delims
-            if d.marker == 0x5E and d.end >= 0
-        ]
-        # 2. Strand `*`/`_` broken by either the `~` or the surviving `^` spans.
-        undo_if(delims, {0x2A, 0x5F}, tilde_spans + caret_spans, term)
+        delims[:] = []  # consumed here; native emphasis/strikethrough passes no-op
 
     run(state.delimiters)
     for meta in state.tokens_meta:
@@ -454,8 +541,7 @@ def _emph_cross_fix(state: StateInline) -> None:
 
 
 _MD.inline.ruler.before("strikethrough", "tilde", _tilde_tokenize)
-_MD.inline.ruler2.before("balance_pairs", "tilde", _tilde_process)
-_MD.inline.ruler2.after("balance_pairs", "emph_cross_fix", _emph_cross_fix)
+_MD.inline.ruler2.before("balance_pairs", "unified_emph", _unified_emph)
 
 _ALIGN = {
     "text-align:left": "left",
