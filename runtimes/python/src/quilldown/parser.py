@@ -478,7 +478,57 @@ class _CaseInsensitiveRefs(dict):
         return super().get(self._fold(key), default)
 
 
+def _strip_front_matter(src: str, delimiter: str = "---") -> str:
+    """Drop a leading YAML front matter block exactly as comrak does.
+
+    Faithful port of comrak 0.54's ``strings::split_off_front_matter`` (enabled
+    via ``front_matter_delimiter = "---"`` in ``comrak_options_pub``). comrak
+    removes the block from the document before parsing and ``ir::lower`` drops
+    the resulting ``FrontMatter`` node, so the body must be parsed as if the
+    block were never there. Returns the body with the block removed, or the
+    original source unchanged when there is no valid front matter (opening line
+    not exactly the delimiter, or no closing delimiter line).
+    """
+    s = src[1:] if src.startswith("\ufeff") else src
+    if not s.startswith(delimiter):
+        return src
+    start = len(delimiter)
+    if s[start:].startswith("\n"):
+        start += 1
+    elif s[start:].startswith("\r\n"):
+        start += 2
+    else:
+        return src
+    rest = s[start:]
+    idx = -1
+    for pat in ("\n" + delimiter + "\r\n", "\n" + delimiter + "\n", "\n" + delimiter):
+        idx = rest.find(pat)
+        if idx != -1:
+            break
+    if idx == -1:
+        return src
+    start += idx + 1 + len(delimiter)
+    if start == len(s):
+        return ""
+    # Consume the newline ending the closing delimiter line (required), then one
+    # optional blank separator line -- comrak swallows both.
+    if s[start:].startswith("\n"):
+        start += 1
+    elif s[start:].startswith("\r\n"):
+        start += 2
+    else:
+        return src
+    if s[start:].startswith("\n"):
+        start += 1
+    elif s[start:].startswith("\r\n"):
+        start += 2
+    return s[start:]
+
+
 def markdown_to_ir(markdown: str) -> dict:
+    # comrak strips a leading `---`-delimited front matter block before parsing
+    # and ir::lower drops the node; mirror that so the body lowers identically.
+    markdown = _strip_front_matter(markdown)
     # Seed the footnote registry with a case-insensitive refs map so label
     # matching mirrors comrak (see _CaseInsensitiveRefs).
     env = {"footnotes": {"refs": _CaseInsensitiveRefs(), "list": {}}}

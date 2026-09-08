@@ -528,6 +528,80 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "front_matter-lower",
+    stage: "callable",
+    input: #{ markdown: "---\ntitle: x\n---\n\nbody\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "body",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "front_matter_before_heading-lower",
+    stage: "callable",
+    input: #{ markdown: "---\nk: v\n---\n\n# H\n\npara\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "H",
+              kind: "text"
+            }
+          ],
+          kind: "heading",
+          level: 1
+        },
+        #{
+          content: #[
+            #{
+              data: "para",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "front_matter_no_close_literal-lower",
+    stage: "callable",
+    input: #{ markdown: "---\ntitle: x\nbody\n" },
+    expected: #{
+      blocks: #[
+        #{
+          kind: "thematic_break"
+        },
+        #{
+          content: #[
+            #{
+              data: "title: x",
+              kind: "text"
+            },
+            #{
+              kind: "soft_break"
+            },
+            #{
+              data: "body",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "heading_para-lower",
     stage: "callable",
     input: #{ markdown: "# Title\n\nHello **world**.\n" },
