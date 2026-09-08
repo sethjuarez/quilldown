@@ -393,13 +393,26 @@ def _emph_cross_fix(state: StateInline) -> None:
     termination, so the native pairing is left untouched.
 
     This reproduces the direction where a `~`/`^` match removes interior `*`/`_`/
-    `^` candidates. The mirror direction -- a `*`/`_`/`^` pair whose closer falls
-    *before* a `~` closer, which in comrak's single interleaved stack removes the
-    interior `~` so no subscript forms (`a*b~c*d~`) -- is not reproduced, because
-    the `~` pass runs before `balance_pairs` and cannot see those matches yet.
-    Reproducing it would require one interleaved pass over every marker in place
-    of `balance_pairs`; the remaining case needs adjacent intraword `*`/`_` and
-    `~` runs and never occurs in prose, so it stays a documented narrow exclusion.
+    `^` candidates. Two mixed-marker families are *not* reproduced and remain
+    documented narrow exclusions -- both need adjacent intraword runs of
+    different emphasis markers and never occur in prose. A faithful fix requires
+    replacing markdown-it's `balance_pairs`/emphasis with one interleaved pass
+    over every marker (comrak's single closer stack), which would route every
+    realistic `~`/`^`+emphasis paragraph through a hand-reimplementation of the
+    CommonMark flanking rules -- disproportionate risk to realistic content to
+    fix only pathological inputs.
+
+    1. Mirror direction -- a `*`/`_`/`^` pair whose closer falls *before* a `~`
+       closer removes the interior `~` in comrak's interleaved order, so no
+       subscript forms. The `~` pass runs before `balance_pairs` and cannot see
+       those matches yet. Verified cases: `a*b~c*d~` (comrak: em[`b~c`], `d~`),
+       `**a~b**c~` (strong[`a~b`], `c~`), `^a~b^c~` (literal `a~b`, `c~`), and
+       `~a~ *b~c*d~` after an earlier valid subscript (em[`b~c`], `d~`).
+    2. Re-pairing after undo -- when a `~`/`^` match removes an interior `*`/`^`
+       candidate, comrak may then pair the freed opener with a *later* closer.
+       Clearing `.end` only makes the straddling pair literal; it never re-runs
+       pairing. Verified: `*a~~b**c~~d**` (comrak: em[`a`, strike[`b**c`], `d`]
+       + literal `*`) and `^a~~b^^c~~d^^`.
     """
     cross: dict[int, dict] = state.env.get("_tilde_cross", {})
 
