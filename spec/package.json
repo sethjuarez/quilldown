@@ -1,0 +1,14 @@
+{
+  "name": "quilldown-spec",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TypeSpec contract for quilldown: IR shapes, lower/emit seams, and the @vector conformance corpus. typra generates the per-runtime model surface and conformance tests from here.",
+  "tspMain": "quilldown.tsp",
+  "scripts": {
+    "generate": "tsp compile ./quilldown.tsp --config ./tspconfig.yaml"
+  },
+  "dependencies": {
+    "@typespec/compiler": "1.15.0",
+    "@typra/emitter": "2.1.7"
+  }
+}
