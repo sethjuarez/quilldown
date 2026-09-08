@@ -834,6 +834,46 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "subscript_interior_star-lower",
+    stage: "callable",
+    input: #{ markdown: "~a*b~c*\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "a*b",
+              kind: "text"
+            },
+            #{
+              data: "c*",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "subscript_termination_emphasis-lower",
+    stage: "callable",
+    input: #{ markdown: "~a~~ *b*\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "~a~~ *b*",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "superscript-lower",
     stage: "callable",
     input: #{ markdown: "area r^2^ end\n" },

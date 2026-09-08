@@ -2113,7 +2113,39 @@ async def test_vector_43_quilldown_lower_subscript_in_strikethrough_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_44_quilldown_lower_subscript_mismatch_literal_lower():
+async def test_vector_44_quilldown_lower_subscript_interior_star_lower():
+    vector_json = r"""
+    {
+      "name": "subscript_interior_star-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "~a*b~c*\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "a*b",
+                "kind": "text"
+              },
+              {
+                "data": "c*",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_45_quilldown_lower_subscript_mismatch_literal_lower():
     vector_json = r"""
     {
       "name": "subscript_mismatch_literal-lower",
@@ -2141,7 +2173,7 @@ async def test_vector_44_quilldown_lower_subscript_mismatch_literal_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_45_quilldown_lower_subscript_punct_bypass_lower():
+async def test_vector_46_quilldown_lower_subscript_punct_bypass_lower():
     vector_json = r"""
     {
       "name": "subscript_punct_bypass-lower",
@@ -2173,7 +2205,35 @@ async def test_vector_45_quilldown_lower_subscript_punct_bypass_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_46_quilldown_lower_subscript_lower():
+async def test_vector_47_quilldown_lower_subscript_termination_emphasis_lower():
+    vector_json = r"""
+    {
+      "name": "subscript_termination_emphasis-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "~a~~ *b*\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "~a~~ *b*",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_48_quilldown_lower_subscript_lower():
     vector_json = r"""
     {
       "name": "subscript-lower",
@@ -2209,7 +2269,7 @@ async def test_vector_46_quilldown_lower_subscript_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_47_quilldown_lower_superscript_emphasis_lower():
+async def test_vector_49_quilldown_lower_superscript_emphasis_lower():
     vector_json = r"""
     {
       "name": "superscript_emphasis-lower",
@@ -2246,7 +2306,7 @@ async def test_vector_47_quilldown_lower_superscript_emphasis_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_48_quilldown_lower_superscript_image_alt_lower():
+async def test_vector_50_quilldown_lower_superscript_image_alt_lower():
     vector_json = r"""
     {
       "name": "superscript_image_alt-lower",
@@ -2274,7 +2334,7 @@ async def test_vector_48_quilldown_lower_superscript_image_alt_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_49_quilldown_lower_superscript_in_strong_lower():
+async def test_vector_51_quilldown_lower_superscript_in_strong_lower():
     vector_json = r"""
     {
       "name": "superscript_in_strong-lower",
@@ -2319,7 +2379,7 @@ async def test_vector_49_quilldown_lower_superscript_in_strong_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_50_quilldown_lower_superscript_link_label_lower():
+async def test_vector_52_quilldown_lower_superscript_link_label_lower():
     vector_json = r"""
     {
       "name": "superscript_link_label-lower",
@@ -2353,7 +2413,7 @@ async def test_vector_50_quilldown_lower_superscript_link_label_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_51_quilldown_lower_superscript_lower():
+async def test_vector_53_quilldown_lower_superscript_lower():
     vector_json = r"""
     {
       "name": "superscript-lower",
@@ -2389,7 +2449,7 @@ async def test_vector_51_quilldown_lower_superscript_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_52_quilldown_lower_table_lower():
+async def test_vector_54_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -2477,7 +2537,7 @@ async def test_vector_52_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_53_quilldown_lower_task_list_lower():
+async def test_vector_55_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -2533,7 +2593,7 @@ async def test_vector_53_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_54_quilldown_lower_thematic_break_lower():
+async def test_vector_56_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",

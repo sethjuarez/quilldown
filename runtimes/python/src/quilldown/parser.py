@@ -299,13 +299,22 @@ def _tilde_process(state: StateInline) -> None:
     with `*`/`_`) and the width check are reproduced exactly. A width-1 pair is
     marked up `~` (Subscript, flattened downstream); width-2 `~~` (Strikethrough,
     kept); `_inlines` maps the markup. `openers_bottom` is a pure performance
-    memo and is omitted. The one residual divergence -- a width-mismatch
-    termination that also strands a *different*-byte delimiter above it in the
-    stack (comrak's unified pass would drop it too) -- is a documented narrow
-    exclusion.
+    memo and is omitted.
+
+    comrak runs *one* delimiter stack over every marker, so a `~` event mutates
+    delimiters of other bytes too: a successful pair removes the interior `*`/
+    `_`/`^` candidates (they can no longer cross the boundary), and a width
+    mismatch terminates the whole pass, stranding every later delimiter. This
+    `~`-only pass cannot reach the shared `*`/`_`/`^` list directly, so it
+    records, per delimiter list, the matched `~` spans and the token index at
+    which a mismatch terminated; `_emph_cross_fix` replays those cross-marker
+    removals against the native `*`/`_`/`^` pairing after `balance_pairs`.
     """
+    cross: dict[int, dict] = {}
 
     def run(delims: list[Delimiter]) -> None:
+        spans: list[tuple[int, int]] = []
+        term: int | None = None
         recs = [d for d in delims if d.marker == 0x7E]  # 0x7E == '~'
         n = len(recs)
         consumed = [False] * n
@@ -338,7 +347,8 @@ def _tilde_process(state: StateInline) -> None:
             ow = len(state.tokens[o.token].content)
             use_delims = 2 if cw >= 2 and ow >= 2 else 1
             if (ow - use_delims) != (cw - use_delims) or (ow - use_delims) > 0:
-                break  # insert_emph -> None terminates the closer loop
+                term = c.token  # insert_emph -> None terminates the closer loop
+                break
             markup = "~" if use_delims == 1 else "~~"
             ot = state.tokens[o.token]
             ot.type, ot.tag, ot.nesting = "s_open", "s", 1
@@ -346,12 +356,83 @@ def _tilde_process(state: StateInline) -> None:
             ct = state.tokens[c.token]
             ct.type, ct.tag, ct.nesting = "s_close", "s", -1
             ct.markup, ct.content = markup, ""
+            spans.append((o.token, c.token))
             for m in range(opener + 1, ci):
                 consumed[m] = True  # interior delimiters become literal text
             consumed[opener] = True
             consumed[ci] = True
             ci += 1
         delims[:] = [d for d in delims if d.marker != 0x7E]
+        cross[id(delims)] = {"spans": spans, "term": term}
+
+    run(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            run(meta["delimiters"])
+    state.env["_tilde_cross"] = cross
+
+
+def _emph_cross_fix(state: StateInline) -> None:
+    """Replay comrak's cross-marker delimiter removals onto the native pairing.
+
+    comrak processes `*`/`_`/`~`/`^` on a single stack; markdown-it processes
+    them separately, so after `balance_pairs` a `*`/`_`/`^` pair may exist that
+    comrak would have dropped because of a `~`/`^` event. Two removals reproduce
+    comrak exactly (`_tilde_process` supplied the `~` spans and termination
+    token; surviving `^` spans are read back here):
+
+    * interior removal -- a pair that *straddles* a matched `~`/`^` span (one end
+      strictly inside, the other outside) is broken, matching comrak dropping the
+      interior candidate (`~a*b~c*` -> literal `a*b`, `c*`);
+    * termination -- once a `~` width mismatch terminates the pass at token P,
+      every pair whose closer sits at or past P is stranded (`~a~~ *b*` ->
+      literal, but `*a* ~b~~` keeps the emphasis matched before P).
+
+    An undo just clears the opener's `end` link; the marker tokens keep their
+    literal text. For inputs without `~`/`^` there are no spans and no
+    termination, so the native pairing is left untouched.
+
+    This reproduces the direction where a `~`/`^` match removes interior `*`/`_`/
+    `^` candidates. The mirror direction -- a `*`/`_`/`^` pair whose closer falls
+    *before* a `~` closer, which in comrak's single interleaved stack removes the
+    interior `~` so no subscript forms (`a*b~c*d~`) -- is not reproduced, because
+    the `~` pass runs before `balance_pairs` and cannot see those matches yet.
+    Reproducing it would require one interleaved pass over every marker in place
+    of `balance_pairs`; the remaining case needs adjacent intraword `*`/`_` and
+    `~` runs and never occurs in prose, so it stays a documented narrow exclusion.
+    """
+    cross: dict[int, dict] = state.env.get("_tilde_cross", {})
+
+    def undo_if(delims: list[Delimiter], markers: set[int], spans, term) -> None:
+        for d in delims:
+            if d.marker not in markers or d.end < 0:
+                continue
+            ot, ct = d.token, delims[d.end].token
+            drop = term is not None and ct >= term
+            if not drop:
+                for s, e in spans:
+                    if (s < ot < e) != (s < ct < e):
+                        drop = True
+                        break
+            if drop:
+                d.end = -1
+
+    def run(delims: list[Delimiter]) -> None:
+        info = cross.get(id(delims))
+        if info is None:
+            return
+        tilde_spans = info["spans"]
+        term = info["term"]
+        # 1. Strand `^` broken by the `~` spans / termination, so only the `^`
+        #    pairs comrak keeps contribute spans for the `*`/`_` pass below.
+        undo_if(delims, {0x5E}, tilde_spans, term)
+        caret_spans = [
+            (d.token, delims[d.end].token)
+            for d in delims
+            if d.marker == 0x5E and d.end >= 0
+        ]
+        # 2. Strand `*`/`_` broken by either the `~` or the surviving `^` spans.
+        undo_if(delims, {0x2A, 0x5F}, tilde_spans + caret_spans, term)
 
     run(state.delimiters)
     for meta in state.tokens_meta:
@@ -361,6 +442,7 @@ def _tilde_process(state: StateInline) -> None:
 
 _MD.inline.ruler.before("strikethrough", "tilde", _tilde_tokenize)
 _MD.inline.ruler2.before("balance_pairs", "tilde", _tilde_process)
+_MD.inline.ruler2.after("balance_pairs", "emph_cross_fix", _emph_cross_fix)
 
 _ALIGN = {
     "text-align:left": "left",
