@@ -8,15 +8,95 @@ dicts in the spec's wire shape; the runtime wraps them with the generated
 from __future__ import annotations
 
 from markdown_it import MarkdownIt
+from markdown_it.common.utils import isWhiteSpace
+from markdown_it.rules_inline import StateInline
 from markdown_it.tree import SyntaxTreeNode
+from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
+
+
+def _dollar_escaped(src: str, pos: int) -> bool:
+    """True when the `$` at `pos` is escaped by an odd run of backslashes."""
+    n = 0
+    i = pos - 1
+    while i >= 0 and src[i] == "\\":
+        n += 1
+        i -= 1
+    return n % 2 == 1
+
+
+def _math_inline_comrak(state: StateInline, silent: bool) -> bool:
+    """comrak-compatible inline math (`$...$` / `$$...$$`).
+
+    dollarmath's options cannot express comrak's exact delimiter rule: comrak
+    rejects a candidate when a digit immediately follows the closing `$`
+    (so `x$a$2`, `USD$5$00` stay literal) yet still accepts a digit immediately
+    before the opening `$` (so `1$a$x` is math). This rule encodes that,
+    replacing dollarmath's registered `math_inline` rule.
+    """
+    src = state.src
+    n = len(src)
+    pos = state.pos
+    if src[pos] != "$" or _dollar_escaped(src, pos):
+        return False
+
+    is_double = pos + 1 < n and src[pos + 1] == "$"
+    open_end = pos + (2 if is_double else 1)
+    # No whitespace immediately after a single opening `$` (comrak permits it
+    # inside inline `$$...$$`, e.g. a leading newline in a labelled equation).
+    if open_end >= n or (not is_double and isWhiteSpace(ord(src[open_end]))):
+        return False
+
+    scan = open_end
+    while True:
+        idx = src.find("$", scan)
+        if idx == -1:
+            return False
+        if _dollar_escaped(src, idx):
+            scan = idx + 1
+            continue
+        if is_double and not (idx + 1 < n and src[idx + 1] == "$"):
+            scan = idx + 1
+            continue
+        close = idx
+        break
+
+    content = src[open_end:close]
+    # Non-empty, and no whitespace before a single closing `$`.
+    if not content or (not is_double and isWhiteSpace(ord(src[close - 1]))):
+        return False
+
+    after = close + (2 if is_double else 1)
+    # comrak: a digit immediately after the closing delimiter voids the math.
+    if after < n and src[after].isdigit():
+        return False
+
+    if not silent:
+        token = state.push(
+            "math_inline_double" if is_double else "math_inline", "math", 0
+        )
+        token.content = content
+        token.markup = "$$" if is_double else "$"
+    state.pos = after
+    return True
+
 
 _MD = (
     MarkdownIt("commonmark")
     .enable("table")
     .enable("strikethrough")
     .use(tasklists_plugin)
+    .use(
+        dollarmath_plugin,
+        allow_labels=False,
+        allow_space=False,
+        allow_blank_lines=False,
+        double_inline=True,
+    )
 )
+# comrak's inline-math delimiter rule differs from every dollarmath option combo;
+# swap in a faithful rule (its block rule and config are still used).
+_MD.inline.ruler.at("math_inline", _math_inline_comrak)
 
 _ALIGN = {
     "text-align:left": "left",
@@ -62,6 +142,11 @@ def _block(n):
         return _table(n)
     if t == "hr":
         return {"kind": "thematic_break"}
+    if t == "math_block":
+        # Display math is legalized to a paragraph carrying its literal content,
+        # matching the Rust oracle (comrak surfaces block math as a paragraph
+        # whose text is the delimiter-stripped literal, newlines preserved).
+        return {"kind": "paragraph", "content": [{"kind": "text", "data": n.content}]}
     return None
 
 
@@ -194,6 +279,12 @@ def _inline(n):
         # only its alt text as a single Text run (matches `text_of` over the
         # image's descendants in ir/lower.rs).
         return {"kind": "text", "data": _text_of(n)}
+    if t == "math_inline":
+        # Inline `$...$`: comrak folds an internal newline to a single space.
+        return {"kind": "text", "data": n.content.replace("\n", " ")}
+    if t == "math_inline_double":
+        # Inline `$$...$$`: comrak preserves the literal content verbatim.
+        return {"kind": "text", "data": n.content}
     # Task-list checkbox tokens are consumed by _task_state; drop here.
     if t in ("checkbox_input", "html_inline"):
         return None
