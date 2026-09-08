@@ -2,7 +2,7 @@
 # Cargo workspace: a reusable library crate plus a thin CLI.
 [workspace]
 resolver = "2"
-members = ["crates/quilldown", "crates/quilldown-cli"]
+members = ["runtimes/rust/quilldown", "runtimes/rust/quilldown-cli"]
 
 [workspace.package]
 version = "1.0.0" # x-release-please-version

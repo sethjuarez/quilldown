@@ -211,7 +211,7 @@ mod skill_sync {
     use clap::CommandFactory;
     use std::collections::BTreeSet;
 
-    const SKILL: &str = include_str!("../../../.github/skills/quilldown/SKILL.md");
+    const SKILL: &str = include_str!("../../../../.github/skills/quilldown/SKILL.md");
     const LIB_RS: &str = include_str!("../../quilldown/src/lib.rs");
 
     /// Every `--long` flag clap actually exposes, minus the auto help/version.

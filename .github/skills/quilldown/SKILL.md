@@ -20,8 +20,8 @@ enabled via flags. Prefer the simplest change that preserves that feel.
 
 Workspace layout:
 
-- `crates/quilldown` — the conversion library (`quilldown`).
-- `crates/quilldown-cli` — the `quilldown` command-line binary.
+- `runtimes/rust/quilldown` — the conversion library (`quilldown`).
+- `runtimes/rust/quilldown-cli` — the `quilldown` command-line binary.
 - `examples/features/*.md` — one canonical sample per feature (source of truth
   for manual verification; render these when validating a change).
 - `README.md`, `ROADMAP.md` — user docs and planned work.
@@ -103,7 +103,7 @@ Because OMML runs carry no explicit color, Word renders equations in the theme
 text color, so they recolor correctly in **dark mode** — the key reason math is
 native rather than rasterized. Unsupported LaTeX degrades to literal source text
 and emits a single warning (it never fails the conversion). Implementation lives
-in `crates/quilldown/src/render/omml.rs` (LaTeX→OMML) and `mathsplice.rs` (the
+in `runtimes/rust/quilldown/src/render/omml.rs` (LaTeX→OMML) and `mathsplice.rs` (the
 splice). There is no math feature flag — it is always enabled.
 
 ## Verifying output
@@ -113,7 +113,7 @@ splice). There is no math feature flag — it is always enabled.
 2. **Inspect the OOXML** when you need to confirm structure (e.g. that math is a
    real `<m:oMath>`, a hyperlink is a real `w:hyperlink`, a TOC is a live field):
    unzip the `.docx` and read `word/document.xml`.
-3. **Run the tests** — `crates/quilldown/tests/features.rs` has one section per
+3. **Run the tests** — `runtimes/rust/quilldown/tests/features.rs` has one section per
    feature and asserts on the generated OOXML.
 
 ## Validation gate (run before committing)
@@ -160,7 +160,7 @@ See [`AGENTS.md`](../../../AGENTS.md) and [`CONTRIBUTING.md`](../../../CONTRIBUT
 ## Keeping this skill in sync (for maintainers)
 
 The **CLI options table** and the **`Converter` API list** above are guarded by a
-sync test in `crates/quilldown-cli/src/main.rs` (`mod skill_sync`). It fails
+sync test in `runtimes/rust/quilldown-cli/src/main.rs` (`mod skill_sync`). It fails
 `cargo test` — and therefore the `ci` workflow — if a flag or a public
 `Converter` method is added, removed, or renamed without updating this file. So a
 PR that changes the interface **cannot merge** until the skill is updated to

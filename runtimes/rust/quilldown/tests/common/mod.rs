@@ -16,6 +16,7 @@ pub fn features_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
+        .join("..")
         .join("examples")
         .join("features")
 }

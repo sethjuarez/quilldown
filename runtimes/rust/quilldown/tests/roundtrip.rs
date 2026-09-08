@@ -118,6 +118,7 @@ fn sample_document_converts_and_embeds_svg() {
     let examples_dir = std::path::Path::new(manifest_dir)
         .join("..")
         .join("..")
+        .join("..")
         .join("examples");
     let sample = examples_dir.join("sample.md");
     let markdown = std::fs::read_to_string(&sample).expect("examples/sample.md should be readable");
