@@ -961,6 +961,72 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "alert_note_unwrap-lower",
+    stage: "callable",
+    input: #{ markdown: "> [!NOTE]\n> This is a note.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "This is a note.",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "alert_title_dropped-lower",
+    stage: "callable",
+    input: #{ markdown: "> [!TIP] a title here\n> body text\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "body text",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "alert_unknown_kept-lower",
+    stage: "callable",
+    input: #{ markdown: "> [!UNKNOWN]\n> body\n" },
+    expected: #{
+      blocks: #[
+        #{
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "[!UNKNOWN]",
+                  kind: "text"
+                },
+                #{
+                  kind: "soft_break"
+                },
+                #{
+                  data: "body",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ],
+          kind: "block_quote"
+        }
+      ]
+    }
   }
 ];
 

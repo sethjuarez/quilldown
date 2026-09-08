@@ -7,6 +7,8 @@ dicts in the spec's wire shape; the runtime wraps them with the generated
 """
 from __future__ import annotations
 
+import re
+
 from markdown_it import MarkdownIt
 from markdown_it.common.utils import isWhiteSpace
 from markdown_it.rules_inline import StateInline
@@ -140,6 +142,11 @@ def markdown_to_ir(markdown: str) -> dict:
     # Seed the footnote registry with a case-insensitive refs map so label
     # matching mirrors comrak (see _CaseInsensitiveRefs).
     env = {"footnotes": {"refs": _CaseInsensitiveRefs(), "list": {}}}
+    # Stash the normalized source lines so alert detection can inspect the exact
+    # `>`/space run before a `[!TYPE]` marker (markdown-it trims that whitespace
+    # out of the tokenized content, but comrak's scanner is whitespace-exact).
+    global _SRC_LINES
+    _SRC_LINES = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     tokens = _MD.parse(markdown, env)
     root = SyntaxTreeNode(tokens)
     return {"blocks": _blocks(root.children)}
@@ -148,10 +155,80 @@ def markdown_to_ir(markdown: str) -> dict:
 def _blocks(nodes) -> list:
     out = []
     for n in nodes:
+        if n.type == "blockquote":
+            alert = _alert_body(n)
+            if alert is not None:
+                out.extend(alert)
+                continue
         b = _block(n)
         if b is not None:
             out.append(b)
     return out
+
+
+# GFM alert markers comrak recognises with the `alerts` extension. Single-quoted
+# re2c literals make comrak's scanner case-insensitive over ASCII only, and (with
+# the multiline block-quote extension off) only a single `>` fence is accepted.
+# comrak requires exactly `> ` (one space) before the marker; markdown-it trims
+# that whitespace, so detection combines two checks: the anchored inline check
+# fixes the marker's *position* (line start), and the raw-source check enforces
+# the exact `> ` run (rejecting `>[!TYPE]`, `>  [!TYPE]`, tabs, and a marker that
+# merely appears later inside ordinary quote text). ``re.ASCII`` keeps folding
+# ASCII-only so `[!TİP]` (U+0130) does not masquerade as `[!TIP]`.
+_SRC_LINES: list[str] = []
+_ALERT_RE = re.compile(r"^\[!(note|tip|important|warning|caution)\]", re.IGNORECASE | re.ASCII)
+_ALERT_LINE_RE = re.compile(
+    r"> \[!(note|tip|important|warning|caution)\]", re.IGNORECASE | re.ASCII
+)
+
+
+def _alert_body(bq):
+    """If `bq` is a GFM alert, return its unwrapped body blocks; else ``None``.
+
+    comrak turns `> [!TYPE] ...` into an ``Alert`` node whose body is the
+    remaining quoted content -- the `[!TYPE]` marker line (and any title after
+    it) are consumed. ``ir::lower`` has no ``Alert`` arm, so its generic block
+    fallback recurses into the alert, promoting the body to the parent level.
+    markdown-it has no alert extension and keeps a plain ``block_quote`` whose
+    first paragraph opens with the literal `[!TYPE]`; we detect that and
+    reproduce comrak's unwrap-and-drop-marker legalization.
+    """
+    kids = list(bq.children)
+    if not kids or kids[0].type != "paragraph":
+        return None
+    inline = next((c for c in kids[0].children if c.type == "inline"), None)
+    if inline is None:
+        return None
+    # Position check: the marker must open the first inline line (the trimmed
+    # tokenized content), so a marker buried later in quote text is not an alert.
+    first_line = (inline.content or "").split("\n", 1)[0]
+    if not _ALERT_RE.match(first_line):
+        return None
+    # Whitespace-exactness check: the raw source line must carry exactly `> `
+    # (one space) before the marker, which markdown-it's trimming hides.
+    if not bq.map:
+        return None
+    line = _SRC_LINES[bq.map[0]] if 0 <= bq.map[0] < len(_SRC_LINES) else ""
+    if not _ALERT_LINE_RE.search(line):
+        return None
+
+    body: list = []
+    # Drop the marker line: inline tokens up to and including the first line
+    # break. Lower the remainder with a fresh autolink cursor, mirroring comrak
+    # parsing the alert body as its own inline container.
+    rest = []
+    seen_break = False
+    for tok in inline.children:
+        if not seen_break:
+            if tok.type in ("softbreak", "hardbreak"):
+                seen_break = True
+            continue
+        rest.append(tok)
+    if seen_break and rest:
+        body.append({"kind": "paragraph", "content": _inlines(rest)[0]})
+    # Sibling blocks after the marker paragraph are promoted unchanged.
+    body.extend(_blocks(kids[1:]))
+    return body
 
 
 def _block(n):
