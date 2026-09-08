@@ -927,7 +927,267 @@ async def test_vector_13_quilldown_lower_anchor_link_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_14_quilldown_lower_blockquote_lower():
+async def test_vector_14_quilldown_lower_autolink_bracket_suppressed_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_bracket_suppressed-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "[**x** https://example.com]\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "[",
+                "kind": "text"
+              },
+              {
+                "data": [
+                  {
+                    "data": "x",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "strong"
+              },
+              {
+                "data": " https://example.com]",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_15_quilldown_lower_autolink_domain_reject_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_domain_reject-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "http://a.b_c.com\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "http://a.b_c.com",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_16_quilldown_lower_autolink_email_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_email-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "Mail a.b+tag@example.co.uk.\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "Mail ",
+                "kind": "text"
+              },
+              {
+                "content": [
+                  {
+                    "data": "a.b+tag@example.co.uk",
+                    "kind": "text"
+                  }
+                ],
+                "href": "mailto:a.b+tag@example.co.uk",
+                "kind": "link"
+              },
+              {
+                "data": ".",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_17_quilldown_lower_autolink_footnote_preceder_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_footnote_preceder-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "*x*[^1]www.y.com\n\n[^1]: note\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": [
+                  {
+                    "data": "x",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "emphasis"
+              },
+              {
+                "data": "www.y.com",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_18_quilldown_lower_autolink_url_parens_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_url_parens-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "Visit https://example.com/a_(b).\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "Visit ",
+                "kind": "text"
+              },
+              {
+                "content": [
+                  {
+                    "data": "https://example.com/a_(b)",
+                    "kind": "text"
+                  }
+                ],
+                "href": "https://example.com/a_(b)",
+                "kind": "link"
+              },
+              {
+                "data": ".",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_19_quilldown_lower_autolink_www_preceder_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_www_preceder-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "`x`www.example.com\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "x",
+                "kind": "code"
+              },
+              {
+                "data": "www.example.com",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_20_quilldown_lower_autolink_www_lower():
+    vector_json = r"""
+    {
+      "name": "autolink_www-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "See www.example.com/path\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "See ",
+                "kind": "text"
+              },
+              {
+                "content": [
+                  {
+                    "data": "www.example.com/path",
+                    "kind": "text"
+                  }
+                ],
+                "href": "http://www.example.com/path",
+                "kind": "link"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_21_quilldown_lower_blockquote_lower():
     vector_json = r"""
     {
       "name": "blockquote-lower",
@@ -969,7 +1229,7 @@ async def test_vector_14_quilldown_lower_blockquote_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_15_quilldown_lower_bullet_list_lower():
+async def test_vector_22_quilldown_lower_bullet_list_lower():
     vector_json = r"""
     {
       "name": "bullet_list-lower",
@@ -1023,7 +1283,7 @@ async def test_vector_15_quilldown_lower_bullet_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_16_quilldown_lower_code_block_lower():
+async def test_vector_23_quilldown_lower_code_block_lower():
     vector_json = r"""
     {
       "name": "code_block-lower",
@@ -1047,7 +1307,7 @@ async def test_vector_16_quilldown_lower_code_block_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_17_quilldown_lower_display_math_lower():
+async def test_vector_24_quilldown_lower_display_math_lower():
     vector_json = r"""
     {
       "name": "display_math-lower",
@@ -1093,7 +1353,7 @@ async def test_vector_17_quilldown_lower_display_math_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_18_quilldown_lower_external_link_lower():
+async def test_vector_25_quilldown_lower_external_link_lower():
     vector_json = r"""
     {
       "name": "external_link-lower",
@@ -1135,7 +1395,7 @@ async def test_vector_18_quilldown_lower_external_link_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_19_quilldown_lower_footnote_case_fold_lower():
+async def test_vector_26_quilldown_lower_footnote_case_fold_lower():
     vector_json = r"""
     {
       "name": "footnote_case_fold-lower",
@@ -1167,7 +1427,7 @@ async def test_vector_19_quilldown_lower_footnote_case_fold_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_20_quilldown_lower_footnote_inline_lower():
+async def test_vector_27_quilldown_lower_footnote_inline_lower():
     vector_json = r"""
     {
       "name": "footnote_inline-lower",
@@ -1195,7 +1455,7 @@ async def test_vector_20_quilldown_lower_footnote_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_21_quilldown_lower_footnote_ref_lower():
+async def test_vector_28_quilldown_lower_footnote_ref_lower():
     vector_json = r"""
     {
       "name": "footnote_ref-lower",
@@ -1227,7 +1487,7 @@ async def test_vector_21_quilldown_lower_footnote_ref_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_22_quilldown_lower_heading_para_lower():
+async def test_vector_29_quilldown_lower_heading_para_lower():
     vector_json = r"""
     {
       "name": "heading_para-lower",
@@ -1278,7 +1538,7 @@ async def test_vector_22_quilldown_lower_heading_para_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_23_quilldown_lower_headings_lower():
+async def test_vector_30_quilldown_lower_headings_lower():
     vector_json = r"""
     {
       "name": "headings-lower",
@@ -1327,7 +1587,7 @@ async def test_vector_23_quilldown_lower_headings_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_24_quilldown_lower_image_alt_lower():
+async def test_vector_31_quilldown_lower_image_alt_lower():
     vector_json = r"""
     {
       "name": "image_alt-lower",
@@ -1363,7 +1623,7 @@ async def test_vector_24_quilldown_lower_image_alt_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_25_quilldown_lower_inline_math_lower():
+async def test_vector_32_quilldown_lower_inline_math_lower():
     vector_json = r"""
     {
       "name": "inline_math-lower",
@@ -1399,7 +1659,7 @@ async def test_vector_25_quilldown_lower_inline_math_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_26_quilldown_lower_math_currency_lower():
+async def test_vector_33_quilldown_lower_math_currency_lower():
     vector_json = r"""
     {
       "name": "math_currency-lower",
@@ -1427,7 +1687,7 @@ async def test_vector_26_quilldown_lower_math_currency_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_27_quilldown_lower_math_digit_after_close_lower():
+async def test_vector_34_quilldown_lower_math_digit_after_close_lower():
     vector_json = r"""
     {
       "name": "math_digit_after_close-lower",
@@ -1455,7 +1715,7 @@ async def test_vector_27_quilldown_lower_math_digit_after_close_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_28_quilldown_lower_math_space_boundary_lower():
+async def test_vector_35_quilldown_lower_math_space_boundary_lower():
     vector_json = r"""
     {
       "name": "math_space_boundary-lower",
@@ -1483,7 +1743,7 @@ async def test_vector_28_quilldown_lower_math_space_boundary_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_29_quilldown_lower_ordered_list_lower():
+async def test_vector_36_quilldown_lower_ordered_list_lower():
     vector_json = r"""
     {
       "name": "ordered_list-lower",
@@ -1551,7 +1811,7 @@ async def test_vector_29_quilldown_lower_ordered_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_30_quilldown_lower_ordered_start_lower():
+async def test_vector_37_quilldown_lower_ordered_start_lower():
     vector_json = r"""
     {
       "name": "ordered_start-lower",
@@ -1605,7 +1865,7 @@ async def test_vector_30_quilldown_lower_ordered_start_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_31_quilldown_lower_paragraph_inline_lower():
+async def test_vector_38_quilldown_lower_paragraph_inline_lower():
     vector_json = r"""
     {
       "name": "paragraph_inline-lower",
@@ -1680,7 +1940,7 @@ async def test_vector_31_quilldown_lower_paragraph_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_32_quilldown_lower_table_lower():
+async def test_vector_39_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -1768,7 +2028,7 @@ async def test_vector_32_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_33_quilldown_lower_task_list_lower():
+async def test_vector_40_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -1824,7 +2084,7 @@ async def test_vector_33_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_34_quilldown_lower_thematic_break_lower():
+async def test_vector_41_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",

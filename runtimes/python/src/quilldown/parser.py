@@ -15,6 +15,8 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
 
+from .autolink import autolink_text
+
 
 def _dollar_escaped(src: str, pos: int) -> bool:
     """True when the `$` at `pos` is escaped by an odd run of backslashes."""
@@ -275,38 +277,130 @@ def _cell_align(cell_node) -> str:
 def _inline_children(block_node) -> list:
     for child in block_node.children:
         if child.type == "inline":
-            return _inlines(child.children)
+            return _inlines(child.children)[0]
     return []
 
 
-def _inlines(nodes) -> list:
-    out = []
+# Inline formatting containers whose delimiter run (`**`/`*`/`_`/`~~`) is part of
+# the raw source, so comrak's autolink cursor sees an open `[` or a preceder
+# character crossing their boundary in both directions.
+_EMPHASIS_KINDS = {"strong": "strong", "em": "emphasis", "s": "strikethrough"}
+
+
+def _inlines(
+    nodes,
+    in_link: bool = False,
+    within_brackets: bool = False,
+    prev_char: str | None = None,
+) -> tuple[list, bool, str | None]:
+    """Lower a sibling inline sequence, threading comrak's autolink cursor state.
+
+    comrak recognises url/www autolinks over the raw source cursor, gated by a
+    parser-level `within_brackets` flag and the preceding source character.
+    markdown-it hands us a per-node inline AST, so we thread that same state
+    across siblings *and* recursively into and out of emphasis containers: an
+    open `[` and the trailing source character both cross formatting boundaries.
+    Returns the lowered list plus the bracket flag and preceding character on
+    exit, so a parent traversal can resume where a child left off.
+    """
+    out: list = []
+    wb = within_brackets
+    pc = prev_char
     for n in nodes:
-        el = _inline(n)
-        if el is not None:
+        t = n.type
+
+        if not in_link and t == "text" and n.content != "":
+            dicts, wb = autolink_text(n.content, wb, pc)
+            out.extend(dicts)
+            pc = n.content[-1]
+            continue
+
+        if t in _EMPHASIS_KINDS:
+            # The delimiter run is the source character bounding the children on
+            # both sides, so seed and resume the preceder with it; the bracket
+            # flag flows through the children and back out to later siblings.
+            marker = _trailing_source_char(n)
+            inner, wb, _ = _inlines(n.children, in_link, wb, marker)
+            out.append({"kind": _EMPHASIS_KINDS[t], "data": inner})
+            pc = marker
+            continue
+
+        el = _inline(n, in_link)
+        wb = _update_within_brackets(n, wb)
+        tc = _trailing_source_char(n)
+        if tc is not None:
+            pc = tc
+
+        if el is None:
+            continue
+        if isinstance(el, list):
+            out.extend(el)
+        else:
             out.append(el)
-    return out
+    return out, wb, pc
 
 
-def _inline(n):
+def _update_within_brackets(n, within_brackets: bool) -> bool:
+    """Advance comrak's `within_brackets` flag past a non-emphasis inline node. A
+    formed link, image or footnote reference consumes its own `[`/`]` and leaves
+    the flag cleared; every other leaf construct is bracket-neutral. (Literal
+    `[`/`]` toggles happen inside text runs, handled by `autolink_text`; emphasis
+    containers thread the flag through their children in `_inlines`.)"""
+    if n.type in ("link", "image", "footnote_ref"):
+        return False
+    return within_brackets
+
+
+def _trailing_source_char(n) -> str | None:
+    """The raw source character that ends inline node `n`, used to seed the
+    `www.` preceder check for the next run. Mirrors what comrak's source cursor
+    would see just before the following character."""
+    t = n.type
+    if t == "text":
+        return n.content[-1] if n.content else None
+    if t == "code_inline":
+        return "`"
+    if t in ("strong", "em"):
+        return n.markup[-1] if n.markup else "*"
+    if t == "s":
+        return n.markup[-1] if n.markup else "~"
+    if t in ("link", "image"):
+        return ")"
+    if t == "footnote_ref":
+        # A footnote reference is dropped from the IR, but its raw source is
+        # `[^n]`, so the following run's preceder is the closing `]`.
+        return "]"
+    if t in ("softbreak", "hardbreak"):
+        return "\n"
+    if t in ("math_inline", "math_inline_double"):
+        return "$"
+    if t == "html_inline":
+        return n.content[-1] if n.content else None
+    return None
+
+
+def _inline(n, in_link: bool = False):
     t = n.type
     if t == "text":
         if n.content == "":
             return None
+        # Autolinking of ordinary text is handled in `_inlines`, which threads
+        # comrak's cross-node bracket/preceder state. Text inside a link (its
+        # `within_brackets` guard) is never autolinked, so emit it verbatim.
         return {"kind": "text", "data": n.content}
     if t == "strong":
-        return {"kind": "strong", "data": _inlines(n.children)}
+        return {"kind": "strong", "data": _inlines(n.children, in_link)[0]}
     if t == "em":
-        return {"kind": "emphasis", "data": _inlines(n.children)}
+        return {"kind": "emphasis", "data": _inlines(n.children, in_link)[0]}
     if t == "s":
-        return {"kind": "strikethrough", "data": _inlines(n.children)}
+        return {"kind": "strikethrough", "data": _inlines(n.children, in_link)[0]}
     if t == "code_inline":
         return {"kind": "code", "data": n.content}
     if t == "link":
         return {
             "kind": "link",
             "href": n.attrs.get("href", ""),
-            "content": _inlines(n.children),
+            "content": _inlines(n.children, in_link=True)[0],
         }
     if t == "softbreak":
         return {"kind": "soft_break"}

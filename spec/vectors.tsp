@@ -771,6 +771,196 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "autolink_url_parens-lower",
+    stage: "callable",
+    input: #{ markdown: "Visit https://example.com/a_(b).\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "Visit ",
+              kind: "text"
+            },
+            #{
+              content: #[
+                #{
+                  data: "https://example.com/a_(b)",
+                  kind: "text"
+                }
+              ],
+              href: "https://example.com/a_(b)",
+              kind: "link"
+            },
+            #{
+              data: ".",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_www-lower",
+    stage: "callable",
+    input: #{ markdown: "See www.example.com/path\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "See ",
+              kind: "text"
+            },
+            #{
+              content: #[
+                #{
+                  data: "www.example.com/path",
+                  kind: "text"
+                }
+              ],
+              href: "http://www.example.com/path",
+              kind: "link"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_email-lower",
+    stage: "callable",
+    input: #{ markdown: "Mail a.b+tag@example.co.uk.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "Mail ",
+              kind: "text"
+            },
+            #{
+              content: #[
+                #{
+                  data: "a.b+tag@example.co.uk",
+                  kind: "text"
+                }
+              ],
+              href: "mailto:a.b+tag@example.co.uk",
+              kind: "link"
+            },
+            #{
+              data: ".",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_domain_reject-lower",
+    stage: "callable",
+    input: #{ markdown: "http://a.b_c.com\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "http://a.b_c.com",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_bracket_suppressed-lower",
+    stage: "callable",
+    input: #{ markdown: "[**x** https://example.com]\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "[",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "x",
+                  kind: "text"
+                }
+              ],
+              kind: "strong"
+            },
+            #{
+              data: " https://example.com]",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_www_preceder-lower",
+    stage: "callable",
+    input: #{ markdown: "`x`www.example.com\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "x",
+              kind: "code"
+            },
+            #{
+              data: "www.example.com",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "autolink_footnote_preceder-lower",
+    stage: "callable",
+    input: #{ markdown: "*x*[^1]www.y.com\n\n[^1]: note\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: #[
+                #{
+                  data: "x",
+                  kind: "text"
+                }
+              ],
+              kind: "emphasis"
+            },
+            #{
+              data: "www.y.com",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
 
