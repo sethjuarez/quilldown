@@ -737,6 +737,103 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "subscript-lower",
+    stage: "callable",
+    input: #{ markdown: "H~2~O\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "H",
+              kind: "text"
+            },
+            #{
+              data: "2",
+              kind: "text"
+            },
+            #{
+              data: "O",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "subscript_in_strikethrough-lower",
+    stage: "callable",
+    input: #{ markdown: "~~H~2~O~~\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: #[
+                #{
+                  data: "H",
+                  kind: "text"
+                },
+                #{
+                  data: "2",
+                  kind: "text"
+                },
+                #{
+                  data: "O",
+                  kind: "text"
+                }
+              ],
+              kind: "strikethrough"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "subscript_mismatch_literal-lower",
+    stage: "callable",
+    input: #{ markdown: "~~a~b!~d~~\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "~~a~b!~d~~",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "subscript_punct_bypass-lower",
+    stage: "callable",
+    input: #{ markdown: "x~-1~\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "x",
+              kind: "text"
+            },
+            #{
+              data: "-1",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "superscript-lower",
     stage: "callable",
     input: #{ markdown: "area r^2^ end\n" },

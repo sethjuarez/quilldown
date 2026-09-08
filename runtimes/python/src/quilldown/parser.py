@@ -149,7 +149,7 @@ def _math_inline_comrak(state: StateInline, silent: bool) -> bool:
 
 
 _MD = (
-    MarkdownIt("commonmark")
+    MarkdownIt("commonmark", {"strikethrough_single_tilde": True})
     .enable("table")
     .enable("strikethrough")
     .use(tasklists_plugin)
@@ -243,6 +243,124 @@ def _superscript_post(state: StateInline) -> None:
 
 _MD.inline.ruler.after("emphasis", "superscript", _superscript_tokenize)
 _MD.inline.ruler2.after("emphasis", "superscript", _superscript_post)
+
+
+# GFM strikethrough and subscript share the `~` delimiter. markdown-it's
+# `balance_pairs` matches `~` runs by marker alone and only rejects a width
+# mismatch afterwards, so it cannot reproduce comrak's `~` semantics: it pairs
+# an outer `~~...~~` even when an interior single `~` should have terminated the
+# match. Rather than fight the native machinery, tokenize `~` runs ourselves and
+# pair them here with a direct port of comrak `process_emphasis`/`insert_emph`
+# restricted to `~`, before `balance_pairs` runs.
+def _tilde_tokenize(state: StateInline, silent: bool) -> bool:
+    """comrak treats `~` as an emphasis delimiter when strikethrough/subscript
+    is on. A run of 1 or 2 tildes is a delimiter; a run of >=3 is literal (the
+    block layer handles tilde code fences). comrak's left-flanking test carries
+    a subscript bypass -- a `~` run may open even before punctuation -- so
+    `can_open` reduces to "the next character exists and is not whitespace"
+    (`x~-1~`, `x~(i)~` form subscripts); the closing flag keeps `scanDelims`'
+    standard right-flanking result. Pushing a native delimiter (marker `~`) with
+    those flags lets `_tilde_process` pair them; both are dropped before the
+    native passes so `balance_pairs`/strikethrough post never see them.
+    """
+    if silent:
+        return False
+    if state.src[state.pos] != "~":
+        return False
+    scanned = state.scanDelims(state.pos, True)
+    length = scanned.length
+    token = state.push("text", "", 0)
+    token.content = "~" * length
+    if length <= 2:
+        after = state.pos + length
+        can_open = after < len(state.src) and not state.src[after].isspace()
+        if can_open or scanned.can_close:
+            state.delimiters.append(
+                Delimiter(
+                    marker=ord("~"),
+                    length=length,
+                    token=len(state.tokens) - 1,
+                    end=-1,
+                    open=can_open,
+                    close=scanned.can_close,
+                )
+            )
+    state.pos += length
+    return True
+
+
+def _tilde_process(state: StateInline) -> None:
+    """Direct port of comrak `process_emphasis`/`insert_emph` for `~` only.
+
+    comrak checks equal width *during* the opener search: when the nearest
+    can-open `~` delimiter has an incompatible width, `insert_emph` returns
+    `None`, which *terminates* the whole closer loop -- so `~~a~b!~d~~` stays
+    literal rather than forming an outer strikethrough. The mod-3 rule (shared
+    with `*`/`_`) and the width check are reproduced exactly. A width-1 pair is
+    marked up `~` (Subscript, flattened downstream); width-2 `~~` (Strikethrough,
+    kept); `_inlines` maps the markup. `openers_bottom` is a pure performance
+    memo and is omitted. The one residual divergence -- a width-mismatch
+    termination that also strands a *different*-byte delimiter above it in the
+    stack (comrak's unified pass would drop it too) -- is a documented narrow
+    exclusion.
+    """
+
+    def run(delims: list[Delimiter]) -> None:
+        recs = [d for d in delims if d.marker == 0x7E]  # 0x7E == '~'
+        n = len(recs)
+        consumed = [False] * n
+        ci = 0
+        while ci < n:
+            c = recs[ci]
+            if consumed[ci] or not c.close:
+                ci += 1
+                continue
+            cw = len(state.tokens[c.token].content)
+            opener: int | None = None
+            oi = ci - 1
+            while oi >= 0:
+                o = recs[oi]
+                if not consumed[oi] and o.open:
+                    ow = len(state.tokens[o.token].content)
+                    odd = (
+                        (c.open or o.close)
+                        and (ow + cw) % 3 == 0
+                        and not (ow % 3 == 0 and cw % 3 == 0)
+                    )
+                    if not odd:
+                        opener = oi
+                        break
+                oi -= 1
+            if opener is None:
+                ci += 1
+                continue
+            o = recs[opener]
+            ow = len(state.tokens[o.token].content)
+            use_delims = 2 if cw >= 2 and ow >= 2 else 1
+            if (ow - use_delims) != (cw - use_delims) or (ow - use_delims) > 0:
+                break  # insert_emph -> None terminates the closer loop
+            markup = "~" if use_delims == 1 else "~~"
+            ot = state.tokens[o.token]
+            ot.type, ot.tag, ot.nesting = "s_open", "s", 1
+            ot.markup, ot.content = markup, ""
+            ct = state.tokens[c.token]
+            ct.type, ct.tag, ct.nesting = "s_close", "s", -1
+            ct.markup, ct.content = markup, ""
+            for m in range(opener + 1, ci):
+                consumed[m] = True  # interior delimiters become literal text
+            consumed[opener] = True
+            consumed[ci] = True
+            ci += 1
+        delims[:] = [d for d in delims if d.marker != 0x7E]
+
+    run(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            run(meta["delimiters"])
+
+
+_MD.inline.ruler.before("strikethrough", "tilde", _tilde_tokenize)
+_MD.inline.ruler2.before("balance_pairs", "tilde", _tilde_process)
 
 _ALIGN = {
     "text-align:left": "left",
@@ -498,10 +616,12 @@ def _inline_children(block_node) -> list:
     return []
 
 
-# Inline formatting containers whose delimiter run (`**`/`*`/`_`/`~~`) is part of
+# Inline formatting containers whose delimiter run (`**`/`*`/`_`) is part of
 # the raw source, so comrak's autolink cursor sees an open `[` or a preceder
-# character crossing their boundary in both directions.
-_EMPHASIS_KINDS = {"strong": "strong", "em": "emphasis", "s": "strikethrough"}
+# character crossing their boundary in both directions. Strikethrough/subscript
+# (`~`) are handled separately in `_inlines` because a single-tilde pair lowers
+# to Subscript (flattened) while a double-tilde pair stays Strikethrough.
+_EMPHASIS_KINDS = {"strong": "strong", "em": "emphasis"}
 
 
 def _inlines(
@@ -530,6 +650,22 @@ def _inlines(
             dicts, wb = autolink_text(n.content, wb, pc)
             out.extend(dicts)
             pc = n.content[-1]
+            continue
+
+        if t == "s":
+            # markdown-it (single-tilde mode) emits an `s` node for BOTH `~x~`
+            # and `~~x~~`. comrak maps a single-tilde pair to Subscript and a
+            # double to Strikethrough (a run of >=3 tildes is literal, or a
+            # tilde code fence at block level). `ir::lower` flattens Subscript
+            # to its inner content and keeps Strikethrough, so branch on the
+            # delimiter width; thread the autolink cursor either way.
+            marker = _trailing_source_char(n)
+            inner, wb, _ = _inlines(n.children, in_link, wb, marker)
+            if n.markup == "~":
+                out.extend(inner)
+            else:
+                out.append({"kind": "strikethrough", "data": inner})
+            pc = marker
             continue
 
         if t in _EMPHASIS_KINDS:
@@ -620,7 +756,11 @@ def _inline(n, in_link: bool = False):
     if t == "em":
         return {"kind": "emphasis", "data": _inlines(n.children, in_link)[0]}
     if t == "s":
-        return {"kind": "strikethrough", "data": _inlines(n.children, in_link)[0]}
+        inner = _inlines(n.children, in_link)[0]
+        # Single-tilde -> Subscript (flatten to inner); double-tilde -> keep.
+        if n.markup == "~":
+            return inner
+        return {"kind": "strikethrough", "data": inner}
     if t == "code_inline":
         return {"kind": "code", "data": n.content}
     if t == "link":
