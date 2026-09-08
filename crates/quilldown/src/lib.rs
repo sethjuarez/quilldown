@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 use docx_rs::Docx;
 
+pub mod ir;
 mod render;
 mod styles;
 

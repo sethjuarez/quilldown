@@ -182,7 +182,7 @@ impl<'a> Ctx<'a> {
 
 /// Slugify heading text the way GitHub does: lowercase, drop characters that are not
 /// alphanumeric / space / hyphen, then replace runs of spaces with single hyphens.
-fn slugify(text: &str) -> String {
+pub(crate) fn slugify(text: &str) -> String {
     let mut s = String::with_capacity(text.len());
     for c in text.chars() {
         if c.is_alphanumeric() {
@@ -428,6 +428,12 @@ fn table_of_contents_title() -> Paragraph {
 
 /// Build comrak options with the GFM extensions the test documents rely on.
 fn comrak_options() -> Options<'static> {
+    comrak_options_pub()
+}
+
+/// `comrak` options, exposed so the portable IR lowering parses Markdown identically to the
+/// direct renderer (same GFM extension set), keeping the two paths fidelity-comparable.
+pub(crate) fn comrak_options_pub() -> Options<'static> {
     let mut o = Options::default();
     o.extension.table = true;
     o.extension.strikethrough = true;
