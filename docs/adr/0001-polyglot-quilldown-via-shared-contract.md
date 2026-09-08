@@ -1,7 +1,7 @@
 # ADR-0001: Polyglot quilldown via a shared contract, native emit adapters, and typra vectors
 
-- **Status:** Accepted (direction); some rollout details remain open
-- **Date:** 2026-09-04
+- **Status:** Accepted; IR-sharing model + bootstrapping sequence locked (2026-09-08)
+- **Date:** 2026-09-04 (updated 2026-09-08)
 - **Deciders:** @sethjuarez
 - **Tags:** architecture, polyglot, typra, conformance
 
@@ -130,15 +130,56 @@ file / stream in Rust; `bytes` / `save(path)` / file-like in Python). Base64 or
 any wire encoding is reserved for a genuine process or network boundary, never
 the in-process contract.
 
-**Where the IR is shared is a fork (not yet locked):**
+**Where the IR is shared — resolved (2026-09-08): schema-only.** Each runtime
+owns *both* its front-end (lowering) and its emitter; the IR is a **contract**,
+and vectors enforce that the independent lowerings and emitters agree. The
+*shared front-end* alternative (lower once in Rust, serialize the IR, and have
+each language write only an emitter) is **rejected**: it re-couples every runtime
+to Rust's lowering at runtime — a data-level binding that contradicts the
+idiomatic-native identity — and, because all fidelity work lives in the emitter,
+it would save only the easy half. typra is the mechanism: it generates the
+per-runtime **model** surface for the IR shapes and the **conformance tests**
+from `@vector`s; `lower` and `emit` stay hand-authored per runtime (typra is
+emitter-only).
 
-- *Schema-only* (leaning): each runtime has its own front-end and lowers to its
-  own IR instance; the IR is a **contract**, and vectors enforce that the
-  independent lowerings agree. Maximally idiomatic, zero coupling.
-- *Shared front-end*: lower once in Rust, serialize the IR, and each language
-  writes only an emitter. More DRY, but re-couples every runtime to Rust's
-  lowering (a data-level coupling, not a native-binary binding). Since the
-  fidelity work lives entirely in the emitter, this saves only the easy half.
+### Repository layout and the freeze / back-generate loop (resolved 2026-09-08)
+
+The project becomes a **monorepo**:
+
+- `spec/` — the TypeSpec contract (IR shapes, the `lower`/`emit` seams, and the
+  `@vector` corpus). Single source of truth; typra generates from here.
+- `runtimes/rust/` and `runtimes/python/` — the two initial native runtimes,
+  each owning its lowering + emitter and consuming typra-generated models/tests.
+
+**Minimum viable Core tier is defined by construction: it is exactly what the
+Rust runtime implements today.** Its existing test suite (the `features.rs`
+OOXML assertions, `roundtrip.rs`, the unit tests, and the new `ir_fidelity.rs`)
+is the **normative conformance oracle** — a runtime "is quilldown at Core tier"
+iff it satisfies the vectors derived from that behavior. This avoids inventing a
+floor: the reference implementation *is* the floor.
+
+Bootstrapping runs in one direction first, to de-risk the spec before it governs
+the mature runtime:
+
+1. **Freeze Rust as canonical.** The current Rust implementation + tests are the
+   reference behavior; they do not change while the spec is bootstrapped.
+2. **Author the spec from frozen Rust.** Derive `spec/` (IR shapes, seams,
+   vectors) from the frozen runtime, using the experimental `ir` module
+   (`crates/quilldown/src/ir/`) as the concrete shape reference.
+3. **Generate + green Python.** typra generates the Python IR model + conformance
+   tests; hand-author Python `lower`/`emit` (python-docx) until the generated
+   vectors pass against the oracle. This proves the spec describes real,
+   independently-reachable behavior — not just Rust's internals.
+4. **Back-generate Rust.** Only once Python is green, regenerate Rust's IR model
+   surface *from the spec* and swap it in for the hand-written `ir::model`. The
+   frozen Rust test suite passing across that swap proves the spec is faithful to
+   the very runtime it was derived from, and promotes `spec/` to the source of
+   truth for **both** runtimes.
+
+The asymmetry is deliberate: bootstrapping the spec against a *new* runtime
+(Python) surfaces hidden Rust-isms in the contract that back-generating into Rust
+alone would mask; back-generating Rust last closes the loop with the strongest
+possible regression oracle (the existing test suite).
 
 ### Compositionality and conformance: three levels of vectors
 
@@ -236,42 +277,42 @@ prove, on top of broad-but-mechanical node emit.
   *artifact*, produced/written per runtime; the contract models diagnostics
   (`stats`/warnings), not the bytes.
 
-## Rollout (proposed, not committed)
+## Rollout (proposed)
 
-1. **Extract a portable IR in Rust (reference).** Decouple `render::*` from its
-   docx-rs flavor so lowering (AST → IR) and emit (IR → docx) become separable
-   stages. This is the seam every other runtime plugs into, and it unlocks
-   stage-separated node/composition testing in the existing engine.
-2. **Build a native Python runtime, Core tier first.** Stand up an idiomatic
-   Python package (`python-docx` as the heavy-lifter) that implements the
-   `convert` operation for the Core tier (headings, lists, tables, links, code,
-   images-as-PNG). No Rust binding. This validates the native-adapter pattern and
-   gives Python users something real quickly.
-3. **Introduce the contract once the Python runtime exists.** Lift
-   `ConvertOptions`/`RenderStats` into TypeSpec; generate the models for Rust and
-   Python; wire one Core vector across both runtimes to satisfy #175's "more than
-   one runtime" bar.
-4. **Grow the vector corpus across all three levels** from `examples/features/*`,
-   tagging Core vs Enhanced and adding expected-degrade vectors where Python
-   cannot yet match Rust (e.g. math → literal LaTeX until Python-side OMML
-   splicing lands).
-5. **Add Enhanced tier to Python incrementally**, each feature behind its own
-   node/composition/invariant vectors, accepting that some may ship as declared
-   degrades first.
-6. **Gate each runtime's CI on its generated conformance tests.**
+1. **[done] Portable IR PoC in Rust.** An experimental, parallel `ir` module
+   (`crates/quilldown/src/ir/`: `model` shapes, `lower`, `emit`) validated the
+   compiler seam at the node/composition/invariant levels against the existing
+   OOXML oracle, without touching the shipping renderer. This is the concrete
+   shape the spec is derived from.
+2. **Restructure into a monorepo** — `spec/` + `runtimes/{rust,python}` — moving
+   the existing crate under `runtimes/rust/` (mechanical; a dedicated change so
+   the move is reviewable in isolation).
+3. **Freeze Rust; author `spec/` in TypeSpec** from the frozen runtime: the IR
+   models, the `lower`/`emit` seams, and the first Core vectors promoted from
+   `examples/features/*.md`.
+4. **Generate + green the Python runtime.** typra emits the Python model +
+   conformance tests; hand-author `lower`/`emit` on python-docx until Core
+   vectors pass against the oracle, with expected-degrade vectors where Python
+   cannot yet match Rust (e.g. math → literal LaTeX).
+5. **Back-generate Rust's IR model from `spec/`** and swap it in for the
+   hand-written `ir::model`; the frozen test suite is the regression oracle.
+   `spec/` becomes the source of truth for both runtimes.
+6. **Grow the vector corpus** across all three levels and **gate each runtime's
+   CI** on its generated conformance tests.
 
 ## Open questions
 
-- **IR sharing model:** schema-only (each runtime lowers itself, vectors enforce
-  agreement) vs. shared front-end (lower once in Rust, serialize the IR, emit per
-  language)? Leaning schema-only; lock before Python emit stabilizes.
-- Minimum viable Core tier — which exact features are non-negotiable for a
-  runtime to call itself "quilldown"?
-- typra version/compatibility pinning and where the TypeSpec contract lives
-  (this repo vs. a shared contracts repo)?
-- Should an **optional** Rust binding be offered later as an extra
-  max-fidelity target for languages that don't want to build their own adapter?
-  (Not required for any runtime; decided *not* to be the primary path.)
+- typra version/compatibility pinning: which `@typespec/compiler` +
+  `@typra/emitter` versions to pin, and how the `typra-verify` baseline-review
+  step runs in CI. (Contract *location* is now resolved: in-repo `spec/`, one
+  monorepo — not a separate contracts repo.)
+- **Emit-vector assertion mechanism:** golden OOXML fragments vs. structural
+  assertions, and how much of `tests/common`'s OOXML helpers become shared vector
+  predicates vs. stay per-runtime. This is the main unknown for authoring the
+  first real `emit` vectors.
+- Should an **optional** Rust binding be offered later as an extra max-fidelity
+  target for languages that don't want to build their own adapter? (Not required
+  for any runtime; decided *not* to be the primary path.)
 
 ## References
 
