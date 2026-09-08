@@ -711,6 +711,32 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "math_code-lower",
+    stage: "callable",
+    input: #{ markdown: "Euler is $`e^{i\\pi}+1=0`$ done.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "Euler is ",
+              kind: "text"
+            },
+            #{
+              data: "e^{i\\pi}+1=0",
+              kind: "text"
+            },
+            #{
+              data: " done.",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "footnote_ref-lower",
     stage: "callable",
     input: #{ markdown: "text[^1] end\n\n[^1]: note\n" },

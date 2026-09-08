@@ -1755,7 +1755,43 @@ async def test_vector_35_quilldown_lower_inline_math_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_36_quilldown_lower_math_currency_lower():
+async def test_vector_36_quilldown_lower_math_code_lower():
+    vector_json = r"""
+    {
+      "name": "math_code-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "Euler is $`e^{i\\pi}+1=0`$ done.\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "Euler is ",
+                "kind": "text"
+              },
+              {
+                "data": "e^{i\\pi}+1=0",
+                "kind": "text"
+              },
+              {
+                "data": " done.",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_37_quilldown_lower_math_currency_lower():
     vector_json = r"""
     {
       "name": "math_currency-lower",
@@ -1783,7 +1819,7 @@ async def test_vector_36_quilldown_lower_math_currency_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_37_quilldown_lower_math_digit_after_close_lower():
+async def test_vector_38_quilldown_lower_math_digit_after_close_lower():
     vector_json = r"""
     {
       "name": "math_digit_after_close-lower",
@@ -1811,7 +1847,7 @@ async def test_vector_37_quilldown_lower_math_digit_after_close_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_38_quilldown_lower_math_space_boundary_lower():
+async def test_vector_39_quilldown_lower_math_space_boundary_lower():
     vector_json = r"""
     {
       "name": "math_space_boundary-lower",
@@ -1839,7 +1875,7 @@ async def test_vector_38_quilldown_lower_math_space_boundary_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_39_quilldown_lower_ordered_list_lower():
+async def test_vector_40_quilldown_lower_ordered_list_lower():
     vector_json = r"""
     {
       "name": "ordered_list-lower",
@@ -1907,7 +1943,7 @@ async def test_vector_39_quilldown_lower_ordered_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_40_quilldown_lower_ordered_start_lower():
+async def test_vector_41_quilldown_lower_ordered_start_lower():
     vector_json = r"""
     {
       "name": "ordered_start-lower",
@@ -1961,7 +1997,7 @@ async def test_vector_40_quilldown_lower_ordered_start_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_41_quilldown_lower_paragraph_inline_lower():
+async def test_vector_42_quilldown_lower_paragraph_inline_lower():
     vector_json = r"""
     {
       "name": "paragraph_inline-lower",
@@ -2036,7 +2072,7 @@ async def test_vector_41_quilldown_lower_paragraph_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_42_quilldown_lower_table_lower():
+async def test_vector_43_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -2124,7 +2160,7 @@ async def test_vector_42_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_43_quilldown_lower_task_list_lower():
+async def test_vector_44_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -2180,7 +2216,7 @@ async def test_vector_43_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_44_quilldown_lower_thematic_break_lower():
+async def test_vector_45_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",

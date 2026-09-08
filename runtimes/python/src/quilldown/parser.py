@@ -30,6 +30,42 @@ def _dollar_escaped(src: str, pos: int) -> bool:
     return n % 2 == 1
 
 
+def _normalize_code(v: str) -> str:
+    """Port of comrak `strings::normalize_code` (CommonMark code-span rules).
+
+    Line endings become single spaces; if the result begins and ends with a
+    space and is not entirely spaces, one space is stripped from each end.
+    """
+    n = len(v)
+    parts: list[str] = []
+    offset = 0
+    i = 0
+    contains_nonspace = False
+    while i < n:
+        c = v[i]
+        if c == "\r":
+            if i + 1 == n or v[i + 1] != "\n":
+                parts.append(v[offset:i])
+                parts.append(" ")
+                offset = i + 1
+        elif c == "\n":
+            parts.append(v[offset:i])
+            parts.append(" ")
+            offset = i + 1
+        elif c != " ":
+            contains_nonspace = True
+        i += 1
+    if offset == 0:
+        if contains_nonspace and n >= 2 and v[0] == " " and v[n - 1] == " ":
+            return v[1 : n - 1]
+        return v
+    parts.append(v[offset:i])
+    r = "".join(parts)
+    if contains_nonspace and len(r) >= 2 and r[0] == " " and r[-1] == " ":
+        r = r[1:-1]
+    return r
+
+
 def _math_inline_comrak(state: StateInline, silent: bool) -> bool:
     """comrak-compatible inline math (`$...$` / `$$...$$`).
 
@@ -46,6 +82,31 @@ def _math_inline_comrak(state: StateInline, silent: bool) -> bool:
         return False
 
     is_double = pos + 1 < n and src[pos + 1] == "$"
+
+    # comrak `math_code`: a single `$` immediately followed by a backtick opens
+    # a code-math span closed by `` `$ `` (fence length 2). comrak scans to the
+    # first `$` whose preceding byte is a backtick, normalizes the literal like
+    # a code span, and produces a Math node -- which `ir::lower` legalizes to
+    # text. On failure comrak emits a literal `$` and lets the code-span rule
+    # handle the backtick, which is exactly what returning False here does.
+    if not is_double and pos + 1 < n and src[pos + 1] == "`":
+        j = pos + 2
+        while j < n:
+            k = src.find("$", j)
+            if k == -1:
+                break
+            if src[k - 1] == "`":
+                if (k + 1) - pos >= 5:
+                    if not silent:
+                        token = state.push("math_inline", "math", 0)
+                        token.content = _normalize_code(src[pos + 2 : k - 1])
+                        token.markup = "$`"
+                    state.pos = k + 1
+                    return True
+                break
+            j = k + 1
+        return False
+
     open_end = pos + (2 if is_double else 1)
     # No whitespace immediately after a single opening `$` (comrak permits it
     # inside inline `$$...$$`, e.g. a leading newline in a labelled equation).
