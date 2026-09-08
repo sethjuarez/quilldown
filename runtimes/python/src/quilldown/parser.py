@@ -12,6 +12,7 @@ from markdown_it.common.utils import isWhiteSpace
 from markdown_it.rules_inline import StateInline
 from markdown_it.tree import SyntaxTreeNode
 from mdit_py_plugins.dollarmath import dollarmath_plugin
+from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
 
 
@@ -86,6 +87,7 @@ _MD = (
     .enable("table")
     .enable("strikethrough")
     .use(tasklists_plugin)
+    .use(footnote_plugin, inline=False)
     .use(
         dollarmath_plugin,
         allow_labels=False,
@@ -105,8 +107,38 @@ _ALIGN = {
 }
 
 
+class _CaseInsensitiveRefs(dict):
+    """Footnote-label registry with case-insensitive keys.
+
+    comrak matches footnote labels case-insensitively (`[^A]` resolves
+    `[^a]: ...`), but ``mdit_py_plugins`` keys its ``refs`` map by the verbatim
+    ``:label``. Folding the label into the key on every access makes the plugin
+    resolve references the way comrak does, so mismatched-case footnotes are
+    legalized away instead of surviving as literal text.
+    """
+
+    @staticmethod
+    def _fold(key):
+        return key.lower() if isinstance(key, str) else key
+
+    def __setitem__(self, key, value):
+        super().__setitem__(self._fold(key), value)
+
+    def __getitem__(self, key):
+        return super().__getitem__(self._fold(key))
+
+    def __contains__(self, key):
+        return super().__contains__(self._fold(key))
+
+    def get(self, key, default=None):
+        return super().get(self._fold(key), default)
+
+
 def markdown_to_ir(markdown: str) -> dict:
-    tokens = _MD.parse(markdown)
+    # Seed the footnote registry with a case-insensitive refs map so label
+    # matching mirrors comrak (see _CaseInsensitiveRefs).
+    env = {"footnotes": {"refs": _CaseInsensitiveRefs(), "list": {}}}
+    tokens = _MD.parse(markdown, env)
     root = SyntaxTreeNode(tokens)
     return {"blocks": _blocks(root.children)}
 
@@ -142,6 +174,12 @@ def _block(n):
         return _table(n)
     if t == "hr":
         return {"kind": "thematic_break"}
+    if t == "footnote_block":
+        # comrak carries the footnote extension and ir/lower drops every
+        # footnote definition; dropping the block here (rather than via the
+        # generic unknown-block fallback) documents that legalization and keeps
+        # a future recursive fallback from resurrecting definition text.
+        return None
     if t == "math_block":
         # Display math is legalized to a paragraph carrying its literal content,
         # matching the Rust oracle (comrak surfaces block math as a paragraph
@@ -285,8 +323,12 @@ def _inline(n):
     if t == "math_inline_double":
         # Inline `$$...$$`: comrak preserves the literal content verbatim.
         return {"kind": "text", "data": n.content}
-    # Task-list checkbox tokens are consumed by _task_state; drop here.
-    if t in ("checkbox_input", "html_inline"):
+    # Task-list checkbox tokens are consumed by _task_state; drop here. Footnote
+    # references are legalized away: comrak carries the footnote extension and
+    # ir/lower drops both the reference (a childless FootnoteReference leaf) and
+    # the definition block, so a `[^1]` with a matching definition contributes
+    # nothing to the Core IR.
+    if t in ("checkbox_input", "html_inline", "footnote_ref"):
         return None
     return None
 

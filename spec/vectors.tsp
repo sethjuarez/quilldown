@@ -709,6 +709,68 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "footnote_ref-lower",
+    stage: "callable",
+    input: #{ markdown: "text[^1] end\n\n[^1]: note\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "text",
+              kind: "text"
+            },
+            #{
+              data: " end",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "footnote_inline-lower",
+    stage: "callable",
+    input: #{ markdown: "text^[inline note] end\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "text^[inline note] end",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "footnote_case_fold-lower",
+    stage: "callable",
+    input: #{ markdown: "text[^A] end\n\n[^a]: note\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "text",
+              kind: "text"
+            },
+            #{
+              data: " end",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
 
