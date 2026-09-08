@@ -189,7 +189,18 @@ def _inline(n):
         return {"kind": "soft_break"}
     if t == "hardbreak":
         return {"kind": "hard_break"}
+    if t == "image":
+        # Legalize like the Rust oracle: an image is not a Core inline, so keep
+        # only its alt text as a single Text run (matches `text_of` over the
+        # image's descendants in ir/lower.rs).
+        return {"kind": "text", "data": _text_of(n)}
     # Task-list checkbox tokens are consumed by _task_state; drop here.
     if t in ("checkbox_input", "html_inline"):
         return None
     return None
+
+
+def _text_of(node) -> str:
+    """Concatenate the text of every descendant text run, mirroring the Rust
+    oracle's `text_of` (render/mod.rs)."""
+    return "".join(d.content for d in _walk(node) if d.type == "text")

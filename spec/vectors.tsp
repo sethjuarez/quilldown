@@ -567,6 +567,32 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "image_alt-lower",
+    stage: "callable",
+    input: #{ markdown: "See ![a cat](cat.png) here.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "See ",
+              kind: "text"
+            },
+            #{
+              data: "a cat",
+              kind: "text"
+            },
+            #{
+              data: " here.",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
 

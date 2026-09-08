@@ -1189,7 +1189,43 @@ async def test_vector_19_quilldown_lower_headings_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_20_quilldown_lower_ordered_list_lower():
+async def test_vector_20_quilldown_lower_image_alt_lower():
+    vector_json = r"""
+    {
+      "name": "image_alt-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "See ![a cat](cat.png) here.\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "content": [
+              {
+                "data": "See ",
+                "kind": "text"
+              },
+              {
+                "data": "a cat",
+                "kind": "text"
+              },
+              {
+                "data": " here.",
+                "kind": "text"
+              }
+            ],
+            "kind": "paragraph"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_21_quilldown_lower_ordered_list_lower():
     vector_json = r"""
     {
       "name": "ordered_list-lower",
@@ -1257,7 +1293,7 @@ async def test_vector_20_quilldown_lower_ordered_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_21_quilldown_lower_ordered_start_lower():
+async def test_vector_22_quilldown_lower_ordered_start_lower():
     vector_json = r"""
     {
       "name": "ordered_start-lower",
@@ -1311,7 +1347,7 @@ async def test_vector_21_quilldown_lower_ordered_start_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_22_quilldown_lower_paragraph_inline_lower():
+async def test_vector_23_quilldown_lower_paragraph_inline_lower():
     vector_json = r"""
     {
       "name": "paragraph_inline-lower",
@@ -1386,7 +1422,7 @@ async def test_vector_22_quilldown_lower_paragraph_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_23_quilldown_lower_table_lower():
+async def test_vector_24_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -1474,7 +1510,7 @@ async def test_vector_23_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_24_quilldown_lower_task_list_lower():
+async def test_vector_25_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -1530,7 +1566,7 @@ async def test_vector_24_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_25_quilldown_lower_thematic_break_lower():
+async def test_vector_26_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",
