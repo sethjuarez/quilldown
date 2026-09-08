@@ -60,7 +60,9 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
         NodeValue::BlockQuote => out.push(Block::BlockQuote {
             blocks: lower_blocks(node),
         }),
-        NodeValue::List(list) => out.push(Block::List(lower_list(node, list.list_type, list.start))),
+        NodeValue::List(list) => {
+            out.push(Block::List(lower_list(node, list.list_type, list.start)))
+        }
         NodeValue::Table(t) => out.push(Block::Table(lower_table(node, &t.alignments))),
         NodeValue::ThematicBreak => out.push(Block::ThematicBreak),
         // Front matter is document metadata, not body content; raw HTML blocks fall outside the

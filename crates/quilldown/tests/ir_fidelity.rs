@@ -31,7 +31,8 @@ fn ir_docx(markdown: &str) -> Vec<u8> {
 
 /// Read one entry out of a `.docx` zip as a UTF-8 string.
 fn entry(docx: &[u8], name: &str) -> Option<String> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
     let mut file = archive.by_name(name).ok()?;
     let mut s = String::new();
     file.read_to_string(&mut s).expect("entry should be UTF-8");
@@ -66,7 +67,10 @@ fn external_link_lands_as_hyperlink_with_relationship() {
     let bytes = ir_docx("See the [manual](https://example.com/guide).\n");
     let xml = document_xml(&bytes);
     let rels = document_rels(&bytes);
-    assert!(xml.contains("w:hyperlink"), "link must be a native hyperlink");
+    assert!(
+        xml.contains("w:hyperlink"),
+        "link must be a native hyperlink"
+    );
     assert!(
         rels.contains("https://example.com/guide"),
         "external target must be registered as a relationship"
@@ -76,7 +80,9 @@ fn external_link_lands_as_hyperlink_with_relationship() {
 #[test]
 fn anchor_link_targets_a_matching_bookmark() {
     // Invariant: an in-document link's anchor must equal a heading bookmark name.
-    let xml = document_xml(&ir_docx("# Getting Started\n\nJump to [start](#getting-started).\n"));
+    let xml = document_xml(&ir_docx(
+        "# Getting Started\n\nJump to [start](#getting-started).\n",
+    ));
     assert!(
         xml.contains("w:anchor=\"getting-started\""),
         "anchor link must reference the slug"
@@ -90,11 +96,20 @@ fn anchor_link_targets_a_matching_bookmark() {
 #[test]
 fn lists_carry_numbering_and_bullets() {
     let ordered = document_xml(&ir_docx("1. alpha\n2. beta\n3. gamma\n"));
-    assert!(ordered.contains("w:numPr"), "ordered items need numbering props");
-    assert!(ordered.contains("w:numId"), "ordered items reference a numbering id");
+    assert!(
+        ordered.contains("w:numPr"),
+        "ordered items need numbering props"
+    );
+    assert!(
+        ordered.contains("w:numId"),
+        "ordered items reference a numbering id"
+    );
 
     let bullet = document_xml(&ir_docx("- alpha\n- beta\n"));
-    assert!(bullet.contains("w:numPr"), "bullet items need numbering props");
+    assert!(
+        bullet.contains("w:numPr"),
+        "bullet items need numbering props"
+    );
 }
 
 #[test]
@@ -108,7 +123,10 @@ fn tables_emit_rows_cells_and_header_shading() {
         "header + two body rows expected"
     );
     assert!(xml.contains("D9D9D9"), "header row must be shaded");
-    assert!(xml.contains("right"), "right-aligned column must set alignment");
+    assert!(
+        xml.contains("right"),
+        "right-aligned column must set alignment"
+    );
 }
 
 #[test]
@@ -116,7 +134,10 @@ fn code_block_is_monospace_and_shaded() {
     let xml = document_xml(&ir_docx("```rust\nfn main() {}\n```\n"));
     assert!(xml.contains("fn main() {}"), "code text must survive");
     // The shaded cell wrapper is how the direct renderer draws code backgrounds.
-    assert!(xml.contains("w:tbl"), "code block renders inside a shaded table cell");
+    assert!(
+        xml.contains("w:tbl"),
+        "code block renders inside a shaded table cell"
+    );
 }
 
 #[test]
@@ -148,7 +169,10 @@ fn every_referenced_relationship_is_defined() {
             rest = &rest[end..];
         }
     }
-    assert!(!referenced.is_empty(), "the sample should reference relationships");
+    assert!(
+        !referenced.is_empty(),
+        "the sample should reference relationships"
+    );
     for rid in referenced {
         assert!(
             rels.contains(&format!("Id=\"{rid}\"")),

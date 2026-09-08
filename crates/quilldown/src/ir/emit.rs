@@ -229,9 +229,12 @@ fn emit_list(
             match block {
                 Block::Paragraph { content } => {
                     let mut p = if marker_used {
-                        Paragraph::new()
-                            .line_spacing(styles::tight_after())
-                            .indent(Some(continuation_indent), None, None, None)
+                        Paragraph::new().line_spacing(styles::tight_after()).indent(
+                            Some(continuation_indent),
+                            None,
+                            None,
+                            None,
+                        )
                     } else if let Some(checked) = item.task {
                         let glyph = if checked {
                             styles::TASK_CHECKED
@@ -300,7 +303,12 @@ fn emit_table(table: &IrTable, opts: &ConvertOptions) -> Table {
 
 /// Emit one table row. Header cells are bold and shaded; body cells inherit body style. GFM
 /// cells are inline-only, so each cell is a single aligned paragraph of styled runs.
-fn emit_table_row(cells: &[Vec<Inline>], align: &[Align], is_header: bool, theme: &Theme) -> TableRow {
+fn emit_table_row(
+    cells: &[Vec<Inline>],
+    align: &[Align],
+    is_header: bool,
+    theme: &Theme,
+) -> TableRow {
     let mut tcs = Vec::new();
     for (col, cell) in cells.iter().enumerate() {
         let mut para = Paragraph::new().line_spacing(styles::tight_after());
@@ -327,11 +335,37 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
     for inline in content {
         p = match inline {
             Inline::Text(t) => p.add_run(style.apply(Run::new()).add_text(t)),
-            Inline::Strong(c) => emit_inlines(p, c, Style { bold: true, ..style }, theme),
-            Inline::Emphasis(c) => emit_inlines(p, c, Style { italic: true, ..style }, theme),
-            Inline::Strikethrough(c) => emit_inlines(p, c, Style { strike: true, ..style }, theme),
+            Inline::Strong(c) => emit_inlines(
+                p,
+                c,
+                Style {
+                    bold: true,
+                    ..style
+                },
+                theme,
+            ),
+            Inline::Emphasis(c) => emit_inlines(
+                p,
+                c,
+                Style {
+                    italic: true,
+                    ..style
+                },
+                theme,
+            ),
+            Inline::Strikethrough(c) => emit_inlines(
+                p,
+                c,
+                Style {
+                    strike: true,
+                    ..style
+                },
+                theme,
+            ),
             Inline::Code(c) => p.add_run(mono_run(c, theme.mono_font)),
-            Inline::Link { href, content } => p.add_hyperlink(build_link(href, content, style, theme)),
+            Inline::Link { href, content } => {
+                p.add_hyperlink(build_link(href, content, style, theme))
+            }
             Inline::SoftBreak => p.add_run(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => p.add_run(Run::new().add_break(BreakType::TextWrapping)),
         };
@@ -362,9 +396,33 @@ fn collect_runs(content: &[Inline], style: Style, theme: &Theme, out: &mut Vec<R
     for inline in content {
         match inline {
             Inline::Text(t) => out.push(style.apply(Run::new()).add_text(t)),
-            Inline::Strong(c) => collect_runs(c, Style { bold: true, ..style }, theme, out),
-            Inline::Emphasis(c) => collect_runs(c, Style { italic: true, ..style }, theme, out),
-            Inline::Strikethrough(c) => collect_runs(c, Style { strike: true, ..style }, theme, out),
+            Inline::Strong(c) => collect_runs(
+                c,
+                Style {
+                    bold: true,
+                    ..style
+                },
+                theme,
+                out,
+            ),
+            Inline::Emphasis(c) => collect_runs(
+                c,
+                Style {
+                    italic: true,
+                    ..style
+                },
+                theme,
+                out,
+            ),
+            Inline::Strikethrough(c) => collect_runs(
+                c,
+                Style {
+                    strike: true,
+                    ..style
+                },
+                theme,
+                out,
+            ),
             Inline::Code(c) => out.push(mono_run(c, theme.mono_font)),
             Inline::Link { content, .. } => collect_runs(content, style, theme, out),
             Inline::SoftBreak => out.push(style.apply(Run::new()).add_text(" ")),
@@ -404,7 +462,12 @@ fn quote_indent(p: Paragraph, depth: usize) -> Paragraph {
     if depth == 0 {
         p
     } else {
-        p.indent(Some(styles::QUOTE_INDENT_DXA * depth as i32), None, None, None)
+        p.indent(
+            Some(styles::QUOTE_INDENT_DXA * depth as i32),
+            None,
+            None,
+            None,
+        )
     }
 }
 
@@ -475,8 +538,7 @@ mod tests {
         let docx = emit(doc, &ConvertOptions::default()).expect("emit should succeed");
         let mut buf = Cursor::new(Vec::new());
         docx.build().pack(&mut buf).expect("pack should succeed");
-        let mut archive =
-            zip::ZipArchive::new(Cursor::new(buf.into_inner())).expect("valid zip");
+        let mut archive = zip::ZipArchive::new(Cursor::new(buf.into_inner())).expect("valid zip");
         let mut s = String::new();
         std::io::Read::read_to_string(
             &mut archive.by_name("word/document.xml").expect("document.xml"),
@@ -491,7 +553,10 @@ mod tests {
     #[test]
     fn heading_emits_style_and_bookmark() {
         let xml = document_xml(&lower("# Hello World\n"));
-        assert!(xml.contains("Heading1"), "heading must use the Heading1 style");
+        assert!(
+            xml.contains("Heading1"),
+            "heading must use the Heading1 style"
+        );
         assert!(
             xml.contains("w:bookmarkStart") && xml.contains("hello-world"),
             "heading must be bookmarked with its GitHub slug"
@@ -502,9 +567,15 @@ mod tests {
     fn external_link_emits_native_hyperlink() {
         let doc = lower("[docs](https://example.com)\n");
         let xml = document_xml(&doc);
-        assert!(xml.contains("w:hyperlink"), "link must be a native hyperlink");
+        assert!(
+            xml.contains("w:hyperlink"),
+            "link must be a native hyperlink"
+        );
         // docx-rs materializes the external target as a relationship id on the hyperlink.
-        assert!(xml.contains("r:id"), "external hyperlink must reference a relationship");
+        assert!(
+            xml.contains("r:id"),
+            "external hyperlink must reference a relationship"
+        );
     }
 
     #[test]
@@ -521,7 +592,10 @@ mod tests {
     fn ordered_list_emits_numbering() {
         let doc = lower("1. one\n2. two\n");
         let xml = document_xml(&doc);
-        assert!(xml.contains("w:numPr"), "ordered list items must carry numbering");
+        assert!(
+            xml.contains("w:numPr"),
+            "ordered list items must carry numbering"
+        );
     }
 
     // --- COMPOSITION-level operations: nested shapes fold correctly ----------------------------
@@ -531,7 +605,10 @@ mod tests {
         // A link inside strong inside a paragraph: the hyperlink survives and its text is bold.
         let doc = lower("A **bold [link](https://ex.com)** here.\n");
         let xml = document_xml(&doc);
-        assert!(xml.contains("w:hyperlink"), "nested link must still be a hyperlink");
+        assert!(
+            xml.contains("w:hyperlink"),
+            "nested link must still be a hyperlink"
+        );
         assert!(xml.contains("<w:b "), "text inside strong must be bold");
     }
 
@@ -544,7 +621,10 @@ mod tests {
             xml.contains(styles::TABLE_HEADER_FILL),
             "header row must be shaded"
         );
-        assert!(xml.contains("w:jc") && xml.contains("right"), "column alignment must land");
+        assert!(
+            xml.contains("w:jc") && xml.contains("right"),
+            "column alignment must land"
+        );
     }
 
     #[test]
@@ -563,6 +643,9 @@ mod tests {
         let doc = lower("1. a\n2. b\n\ntext\n\n1. c\n2. d\n");
         let xml = document_xml(&doc);
         let num_refs = xml.matches("w:numId").count();
-        assert!(num_refs >= 2, "each ordered list must reference its numbering");
+        assert!(
+            num_refs >= 2,
+            "each ordered list must reference its numbering"
+        );
     }
 }
