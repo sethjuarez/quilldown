@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.1.0...quilldown-python-v0.1.1) (2026-09-09)
+
+
+### Documentation
+
+* **python:** tighten the runtime README ([a6a24d8](https://github.com/sethjuarez/quilldown/commit/a6a24d80ceb5570291287e337d43dbb9076dfc06))
+* **python:** tighten the runtime README ([e575ec8](https://github.com/sethjuarez/quilldown/commit/e575ec839764125657b580527a2a13e5fcdb1b5d))
+
 ## 0.1.0 (2026-09-09)
 
 
