@@ -168,7 +168,7 @@ the mature runtime:
    reference behavior; they do not change while the spec is bootstrapped.
 2. **Author the spec from frozen Rust.** Derive `spec/` (IR shapes, seams,
    vectors) from the frozen runtime, using the experimental `ir` module
-   (`crates/quilldown/src/ir/`) as the concrete shape reference.
+   (`runtimes/rust/quilldown/src/ir/`) as the concrete shape reference.
 3. **Generate + green Python.** typra generates the Python IR model + conformance
    tests; hand-author Python `lower`/`emit` (python-docx) until the generated
    vectors pass against the oracle. This proves the spec describes real,
@@ -311,7 +311,7 @@ prove, on top of broad-but-mechanical node emit.
 ## Rollout (proposed)
 
 1. **[done] Portable IR PoC in Rust.** An experimental, parallel `ir` module
-   (`crates/quilldown/src/ir/`: `model` shapes, `lower`, `emit`) validated the
+   (`runtimes/rust/quilldown/src/ir/`: `model` shapes, `lower`, `emit`) validated the
    compiler seam at the node/composition/invariant levels against the existing
    OOXML oracle, without touching the shipping renderer. This is the concrete
    shape the spec is derived from.
@@ -352,5 +352,5 @@ prove, on top of broad-but-mechanical node emit.
 - typra #175 — Emit callable conformance tests from vectors (closed)
 - quilldown skill-sync CI gate — PR #8 (the in-repo precedent for
   contract-enforced-in-CI)
-- Fidelity/splice rationale — `crates/quilldown/src/render/mod.rs`,
-  `crates/quilldown/src/render/mathsplice.rs`, `omml.rs`, `asvg.rs`
+- Fidelity/splice rationale — `runtimes/rust/quilldown/src/render/mod.rs`,
+  `runtimes/rust/quilldown/src/render/mathsplice.rs`, `omml.rs`, `asvg.rs`
