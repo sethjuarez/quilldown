@@ -3,17 +3,14 @@
   "include-component-in-tag": true,
   "separate-pull-requests": true,
   "packages": {
-    ".": {
+    "runtimes/rust": {
       "release-type": "simple",
       "package-name": "quilldown",
       "component": "quilldown",
-      "exclude-paths": [
-        "runtimes/python"
-      ],
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "Cargo.toml",
-        "runtimes/rust/quilldown-cli/Cargo.toml"
+        "/Cargo.toml",
+        "/runtimes/rust/quilldown-cli/Cargo.toml"
       ]
     },
     "runtimes/python": {
