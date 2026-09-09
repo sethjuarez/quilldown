@@ -2317,5 +2317,155 @@ const EmitVectors = #[
       thematicBreaks: 0,
       warnings: #[]
     }
+  },
+  #{
+    name: "link_in_heading-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            content: #[
+              #{
+                kind: "text",
+                data: "see "
+              },
+              #{
+                kind: "link",
+                href: "#a",
+                content: #[
+                  #{
+                    kind: "text",
+                    data: "x"
+                  }
+                ]
+              }
+            ],
+            kind: "heading",
+            level: 2
+          }
+        ]
+      }
+    },
+    expected: #{
+      headings: 1,
+      paragraphs: 0,
+      codeBlocks: 0,
+      blockQuotes: 0,
+      lists: 0,
+      listItems: 0,
+      tables: 0,
+      links: 1,
+      thematicBreaks: 0,
+      warnings: #[]
+    }
+  },
+  #{
+    name: "link_in_table_cells-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "table",
+            align: #[
+              "left"
+            ],
+            head: #{
+              cells: #[
+                #{
+                  content: #[
+                    #{
+                      kind: "link",
+                      href: "#h",
+                      content: #[
+                        #{
+                          kind: "text",
+                          data: "H"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            rows: #[
+              #{
+                cells: #[
+                  #{
+                    content: #[
+                      #{
+                        kind: "link",
+                        href: "#r",
+                        content: #[
+                          #{
+                            kind: "text",
+                            data: "R"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      headings: 0,
+      paragraphs: 0,
+      codeBlocks: 0,
+      blockQuotes: 0,
+      lists: 0,
+      listItems: 0,
+      tables: 1,
+      links: 2,
+      thematicBreaks: 0,
+      warnings: #[]
+    }
+  },
+  #{
+    name: "link_nested_in_strong-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            content: #[
+              #{
+                kind: "strong",
+                data: #[
+                  #{
+                    kind: "link",
+                    href: "#a",
+                    content: #[
+                      #{
+                        kind: "text",
+                        data: "y"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            kind: "paragraph"
+          }
+        ]
+      }
+    },
+    expected: #{
+      headings: 0,
+      paragraphs: 1,
+      codeBlocks: 0,
+      blockQuotes: 0,
+      lists: 0,
+      listItems: 0,
+      tables: 0,
+      links: 1,
+      thematicBreaks: 0,
+      warnings: #[]
+    }
   }
 ];
