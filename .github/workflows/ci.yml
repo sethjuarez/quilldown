@@ -39,3 +39,22 @@ jobs:
       - name: conformance (pytest)
         working-directory: runtimes/python
         run: uv run pytest -q
+
+  # L2 document parity: render each Markdown input with BOTH the Rust reference
+  # CLI (the golden source) and the Python runtime, normalize both with the one
+  # shared normalizer, and assert the Word-level views match. Needs the Rust CLI
+  # at test time, so this job builds it and points the harness at the binary.
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v5
+      - name: build quilldown CLI (parity oracle)
+        run: cargo build --release -p quilldown-cli
+      - name: document parity (pytest)
+        working-directory: runtimes/python
+        env:
+          QUILLDOWN_CLI: ${{ github.workspace }}/target/release/quilldown
+        run: uv run pytest tests/test_doc_parity.py -q
