@@ -1,6 +1,6 @@
 [project]
 name = "quilldown"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python runtime for the Quilldown shared contract (Markdown -> IR -> DOCX)."
 requires-python = ">=3.10"
 dependencies = [
