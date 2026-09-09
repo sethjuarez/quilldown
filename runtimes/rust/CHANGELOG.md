@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.0.0...quilldown-v1.1.0) (2026-09-09)
+
+
+### Features
+
+* author spec/*.tsp and green Python runtime (ADR-0001 steps 4-5) ([4863232](https://github.com/sethjuarez/quilldown/commit/4863232e4939b04029ad45cff89aa6db55515102))
+
+
+### Bug Fixes
+
+* **spec:** project lower_oracle output into spec wire shape ([a36c4cc](https://github.com/sethjuarez/quilldown/commit/a36c4ccdc151adf7c98922505145927211a14e0e))
+
 ## [1.0.0](https://github.com/sethjuarez/quilldown/compare/v0.2.0...v1.0.0) (2026-08-27)
 
 
