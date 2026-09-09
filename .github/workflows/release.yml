@@ -14,19 +14,19 @@ permissions:
   pull-requests: write
 
 jobs:
-  # 1. Maintain one release PR PER RUNTIME (separate-pull-requests). The Rust
-  #    runtime is the root component (path `.`, `quilldown-v<x>` tags, bare
-  #    release_created/tag_name outputs, and it excludes runtimes/python so the
-  #    Python runtime's commits stay out of its changelog); the Python runtime
-  #    lives at runtimes/python (component `quilldown-python`,
-  #    `quilldown-python-v<x>` tags, `<path>--`-prefixed outputs). Merging a
-  #    runtime's release PR creates that runtime's GitHub Release + tag and flips
-  #    its own release_created flag.
+  # 1. Maintain one release PR PER RUNTIME (separate-pull-requests), each scoped
+  #    to its own runtime folder so a runtime's changelog only reflects commits
+  #    that touch its directory. The Rust runtime lives at runtimes/rust
+  #    (component `quilldown`, `quilldown-v<x>` tags); the Python runtime at
+  #    runtimes/python (component `quilldown-python`, `quilldown-python-v<x>`
+  #    tags). Both are non-root packages, so release-please emits
+  #    `<path>--`-prefixed outputs. Merging a runtime's release PR creates that
+  #    runtime's GitHub Release + tag and flips its own release_created flag.
   release-please:
     runs-on: ubuntu-latest
     outputs:
-      rust_release_created: ${{ steps.release.outputs.release_created }}
-      rust_tag_name: ${{ steps.release.outputs.tag_name }}
+      rust_release_created: ${{ steps.release.outputs['runtimes/rust--release_created'] }}
+      rust_tag_name: ${{ steps.release.outputs['runtimes/rust--tag_name'] }}
       python_release_created: ${{ steps.release.outputs['runtimes/python--release_created'] }}
       python_tag_name: ${{ steps.release.outputs['runtimes/python--tag_name'] }}
     steps:
