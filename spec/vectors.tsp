@@ -1551,6 +1551,60 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  #{
+    name: "hard_break_spaces-lower",
+    stage: "callable",
+    input: #{
+      markdown: "line one  \nline two\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "line one",
+              kind: "text"
+            },
+            #{
+              kind: "hard_break"
+            },
+            #{
+              data: "line two",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "hard_break_backslash-lower",
+    stage: "callable",
+    input: #{
+      markdown: "line one\\\nline two\n"
+    },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "line one",
+              kind: "text"
+            },
+            #{
+              kind: "hard_break"
+            },
+            #{
+              data: "line two",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
 
