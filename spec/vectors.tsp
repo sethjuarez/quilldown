@@ -1605,6 +1605,85 @@ const LowerVectors = #[
         }
       ]
     }
+  },
+  // --- Enhanced-tier graceful-degrade lower vectors (ADR-0001) ---
+  // Enhanced-source Markdown is legalized to Core IR before the IR
+  // boundary, identically in Rust and Python. `expected` values are the
+  // real Rust `lower_oracle` output: a declared graceful degrade is a
+  // passing result.
+  // fenced ```math block: kept as a Core code_block (language=math); native OMML is an Enhanced post-IR splice, outside the IR contract
+  #{
+    name: "fenced_math_code_block-lower",
+    stage: "callable",
+    input: #{ markdown: "```math\nx^2 + y^2\n```\n" },
+    expected: #{
+      blocks: #[
+        #{
+          code: "x^2 + y^2\n",
+          kind: "code_block",
+          language: "math"
+        }
+      ]
+    }
+  },
+  // raw inline HTML (<span>): tags stripped, inner text preserved as Core text runs
+  #{
+    name: "raw_inline_html-lower",
+    stage: "callable",
+    input: #{ markdown: "before <span class=\"x\">mid</span> after\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "before ",
+              kind: "text"
+            },
+            #{
+              data: "mid",
+              kind: "text"
+            },
+            #{
+              data: " after",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  // raw HTML block (<div>): dropped entirely, yielding an empty document
+  #{
+    name: "raw_html_block-lower",
+    stage: "callable",
+    input: #{ markdown: "<div class=\"note\">\n  hi\n</div>\n" },
+    expected: #{
+      blocks: #[]
+    }
+  },
+  // raw inline <br>: stripped and text split into runs (NOT a hard_break, unlike Markdown hard breaks)
+  #{
+    name: "raw_html_br-lower",
+    stage: "callable",
+    input: #{ markdown: "line one<br>line two\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "line one",
+              kind: "text"
+            },
+            #{
+              data: "line two",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
   }
 ];
 
