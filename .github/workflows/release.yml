@@ -15,8 +15,10 @@ permissions:
 
 jobs:
   # 1. Maintain one release PR PER RUNTIME (separate-pull-requests). The Rust
-  #    runtime is the root component (path `.`, bare `v<x>` tags, bare outputs);
-  #    the Python runtime lives at runtimes/python (component `quilldown-python`,
+  #    runtime is the root component (path `.`, `quilldown-v<x>` tags, bare
+  #    release_created/tag_name outputs, and it excludes runtimes/python so the
+  #    Python runtime's commits stay out of its changelog); the Python runtime
+  #    lives at runtimes/python (component `quilldown-python`,
   #    `quilldown-python-v<x>` tags, `<path>--`-prefixed outputs). Merging a
   #    runtime's release PR creates that runtime's GitHub Release + tag and flips
   #    its own release_created flag.

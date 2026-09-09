@@ -6,7 +6,10 @@
     ".": {
       "release-type": "simple",
       "package-name": "quilldown",
-      "component": "",
+      "component": "quilldown",
+      "exclude-paths": [
+        "runtimes/python"
+      ],
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         "Cargo.toml",
