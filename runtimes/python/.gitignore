@@ -1,0 +1,10 @@
+# typra emit metadata (regenerated from ../../spec by `npm run generate`)
+.typra-generated/
+json-ast/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+uv.lock

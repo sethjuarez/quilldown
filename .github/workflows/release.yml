@@ -14,13 +14,19 @@ permissions:
   pull-requests: write
 
 jobs:
-  # 1. Maintain the release PR (version bump + CHANGELOG). When that PR is
-  #    merged, this creates the GitHub Release + tag and sets release_created.
+  # 1. Maintain one release PR PER RUNTIME (separate-pull-requests). The Rust
+  #    runtime is the root component (path `.`, bare `v<x>` tags, bare outputs);
+  #    the Python runtime lives at runtimes/python (component `quilldown-python`,
+  #    `quilldown-python-v<x>` tags, `<path>--`-prefixed outputs). Merging a
+  #    runtime's release PR creates that runtime's GitHub Release + tag and flips
+  #    its own release_created flag.
   release-please:
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      rust_release_created: ${{ steps.release.outputs.release_created }}
+      rust_tag_name: ${{ steps.release.outputs.tag_name }}
+      python_release_created: ${{ steps.release.outputs['runtimes/python--release_created'] }}
+      python_tag_name: ${{ steps.release.outputs['runtimes/python--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -29,15 +35,15 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # 2. Publish the library, then the CLI, to crates.io.
+  # 2. Rust runtime: publish the library, then the CLI, to crates.io.
   publish-crates:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.rust_release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.rust_tag_name }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish quilldown (library) then quilldown-cli
         env:
@@ -49,10 +55,11 @@ jobs:
           cargo publish -p quilldown
           cargo publish -p quilldown-cli
 
-  # 3. Build cross-platform binaries and attach them to the GitHub Release.
+  # 3. Rust runtime: build cross-platform binaries and attach them to the Rust
+  #    GitHub Release.
   upload-binaries:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.rust_release_created == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.rust_tag_name }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -77,7 +84,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.rust_tag_name }}
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
@@ -97,3 +104,28 @@ jobs:
             asset="${stage}.tar.gz"
           fi
           gh release upload "$TAG" "$asset" --clobber
+
+  # 4. Python runtime: build the sdist + wheel and attach them to the Python
+  #    GitHub Release. (Publishing to PyPI via OIDC trusted publishing is a
+  #    follow-up: add a `pypa/gh-action-pypi-publish` step guarded on the Python
+  #    release once a PyPI project / trusted publisher is configured.)
+  publish-python:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.python_release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.python_tag_name }}
+      - uses: astral-sh/setup-uv@v5
+      - name: Build sdist + wheel
+        working-directory: runtimes/python
+        run: uv build --out-dir dist
+      - name: Upload to the Python GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.python_tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" runtimes/python/dist/*.whl runtimes/python/dist/*.tar.gz --clobber

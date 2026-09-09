@@ -1,0 +1,19 @@
+emit:
+  - "@typra/emitter"
+options:
+  "@typra/emitter":
+    # Compiled from within spec/ ; the Python runtime lives one level up.
+    emitter-output-dir: "{cwd}/../runtimes/python"
+    root-object: "Quilldown.Samples"
+    root-namespace: "Quilldown"
+    deterministic-output: true
+    emit-targets:
+      # The Rust runtime stays hand-authored/frozen for now; its model surface
+      # is back-generated from this spec in a later step (see ADR-0001, the
+      # freeze/back-generate loop). Only the Python target is emitted today.
+      - type: Python
+        output-dir: "../runtimes/python/src/quilldown_spec"
+        test-dir: "../runtimes/python/tests"
+        import-path: "quilldown_spec"
+        vector-adapter-path: "vector_adapters"
+        format: false
