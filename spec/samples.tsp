@@ -172,6 +172,74 @@ const Sample_anchor_link = #{
   }
 };
 
+const Sample_image = #{
+  image: #{
+    blocks: #[
+      #{
+        content: #[
+          #{
+            data: "See ",
+            kind: "text"
+          },
+          #{
+            alt: "a cat",
+            kind: "image",
+            src: "cat.png",
+            title: "a hover"
+          },
+          #{
+            data: " done.",
+            kind: "text"
+          }
+        ],
+        kind: "paragraph"
+      }
+    ]
+  }
+};
+
+const Sample_inline_math = #{
+  inline_math: #{
+    blocks: #[
+      #{
+        content: #[
+          #{
+            data: "Mass-energy: ",
+            kind: "text"
+          },
+          #{
+            display: false,
+            kind: "math",
+            latex: "E = mc^2"
+          },
+          #{
+            data: ".",
+            kind: "text"
+          }
+        ],
+        kind: "paragraph"
+      }
+    ]
+  }
+};
+
+const Sample_display_math = #{
+  display_math: #{
+    blocks: #[
+      #{
+        content: #[
+          #{
+            display: true,
+            kind: "math",
+            latex: "\nx^2\n"
+          }
+        ],
+        kind: "paragraph"
+      }
+    ]
+  }
+};
+
 const Sample_ordered_list = #{
   ordered_list: #{
     blocks: #[

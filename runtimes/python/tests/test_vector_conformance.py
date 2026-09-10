@@ -1759,8 +1759,9 @@ async def test_vector_34_quilldown_lower_display_math_lower():
           {
             "content": [
               {
-                "data": "\na+b\n",
-                "kind": "text"
+                "display": true,
+                "kind": "math",
+                "latex": "\na+b\n"
               }
             ],
             "kind": "paragraph"
@@ -2208,8 +2209,10 @@ async def test_vector_46_quilldown_lower_image_alt_lower():
                 "kind": "text"
               },
               {
-                "data": "a cat",
-                "kind": "text"
+                "alt": "a cat",
+                "kind": "image",
+                "src": "cat.png",
+                "title": ""
               },
               {
                 "data": " here.",
@@ -2244,8 +2247,9 @@ async def test_vector_47_quilldown_lower_inline_math_lower():
                 "kind": "text"
               },
               {
-                "data": "E = mc^2",
-                "kind": "text"
+                "display": false,
+                "kind": "math",
+                "latex": "E = mc^2"
               },
               {
                 "data": " ok.",
@@ -2280,8 +2284,9 @@ async def test_vector_48_quilldown_lower_math_code_lower():
                 "kind": "text"
               },
               {
-                "data": "e^{i\\pi}+1=0",
-                "kind": "text"
+                "display": false,
+                "kind": "math",
+                "latex": "e^{i\\pi}+1=0"
               },
               {
                 "data": " done.",
@@ -2827,8 +2832,10 @@ async def test_vector_62_quilldown_lower_superscript_image_alt_lower():
           {
             "content": [
               {
-                "data": "a^b^",
-                "kind": "text"
+                "alt": "a^b^",
+                "kind": "image",
+                "src": "u.png",
+                "title": ""
               }
             ],
             "kind": "paragraph"

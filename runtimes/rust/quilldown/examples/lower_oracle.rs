@@ -119,6 +119,15 @@ enum SpecInline {
         href: String,
         content: Vec<SpecInline>,
     },
+    Math {
+        latex: String,
+        display: bool,
+    },
+    Image {
+        src: String,
+        alt: String,
+        title: String,
+    },
     SoftBreak,
     HardBreak,
 }
@@ -205,6 +214,15 @@ impl From<&Inline> for SpecInline {
             Inline::Link { href, content } => SpecInline::Link {
                 href: href.clone(),
                 content: content.iter().map(SpecInline::from).collect(),
+            },
+            Inline::Math { latex, display } => SpecInline::Math {
+                latex: latex.clone(),
+                display: *display,
+            },
+            Inline::Image { src, alt, title } => SpecInline::Image {
+                src: src.clone(),
+                alt: alt.clone(),
+                title: title.clone(),
             },
             Inline::SoftBreak => SpecInline::SoftBreak,
             Inline::HardBreak => SpecInline::HardBreak,

@@ -366,6 +366,11 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
             Inline::Link { href, content } => {
                 p.add_hyperlink(build_link(href, content, style, theme))
             }
+            // The Core emit path has no OMML/image embedding (that lives on the reference
+            // engine's byte path); render the math source and image alt as plain runs so the
+            // IR path stays lossless-to-text while carrying the structured node.
+            Inline::Math { latex, .. } => p.add_run(style.apply(Run::new()).add_text(latex)),
+            Inline::Image { alt, .. } => p.add_run(style.apply(Run::new()).add_text(alt)),
             Inline::SoftBreak => p.add_run(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => p.add_run(Run::new().add_break(BreakType::TextWrapping)),
         };
@@ -425,6 +430,8 @@ fn collect_runs(content: &[Inline], style: Style, theme: &Theme, out: &mut Vec<R
             ),
             Inline::Code(c) => out.push(mono_run(c, theme.mono_font)),
             Inline::Link { content, .. } => collect_runs(content, style, theme, out),
+            Inline::Math { latex, .. } => out.push(style.apply(Run::new()).add_text(latex)),
+            Inline::Image { alt, .. } => out.push(style.apply(Run::new()).add_text(alt)),
             Inline::SoftBreak => out.push(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => out.push(Run::new().add_break(BreakType::TextWrapping)),
         }
@@ -441,6 +448,8 @@ fn inline_text(content: &[Inline]) -> String {
                 s.push_str(&inline_text(c))
             }
             Inline::Link { content, .. } => s.push_str(&inline_text(content)),
+            Inline::Math { latex, .. } => s.push_str(latex),
+            Inline::Image { alt, .. } => s.push_str(alt),
             Inline::SoftBreak => s.push(' '),
             Inline::HardBreak => {}
         }

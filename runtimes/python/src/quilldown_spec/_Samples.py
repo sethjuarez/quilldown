@@ -26,6 +26,12 @@ class Samples:
 
     anchor_link : Document
 
+    image : Document
+
+    inline_math : Document
+
+    display_math : Document
+
     ordered_list : Document
 
     ordered_start : Document
@@ -52,6 +58,9 @@ class Samples:
     paragraph_inline: Document = field(default_factory=Document)
     external_link: Document = field(default_factory=Document)
     anchor_link: Document = field(default_factory=Document)
+    image: Document = field(default_factory=Document)
+    inline_math: Document = field(default_factory=Document)
+    display_math: Document = field(default_factory=Document)
     ordered_list: Document = field(default_factory=Document)
     ordered_start: Document = field(default_factory=Document)
     bullet_list: Document = field(default_factory=Document)

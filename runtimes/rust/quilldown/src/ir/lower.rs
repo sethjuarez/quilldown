@@ -4,8 +4,9 @@
 //! options as the direct renderer (via [`crate::render::comrak_options_pub`]) so the two paths see
 //! an identical AST, then walks that AST into the backend-neutral [`crate::ir::model`] shapes.
 //!
-//! Only the Core tier is modeled. Enhanced/inline constructs that the Core IR does not represent
-//! (math, images, footnote refs, raw inline HTML, super/subscript) are **legalized** here: their
+//! Only the Core tier is modeled, plus first-class [`Inline::Math`] and [`Inline::Image`] nodes so
+//! math and images survive lowering. The remaining Enhanced/inline constructs the Core IR does not
+//! represent (footnote refs, raw inline HTML, super/subscript) are still **legalized** here: their
 //! textual content is preserved as [`Inline::Text`] (or their formatting is flattened) rather than
 //! dropped, mirroring how the reference engine degrades unsupported input.
 
@@ -142,9 +143,17 @@ fn lower_inlines<'a>(container: &'a AstNode<'a>) -> Vec<Inline> {
             }),
             NodeValue::SoftBreak => out.push(Inline::SoftBreak),
             NodeValue::LineBreak => out.push(Inline::HardBreak),
-            // Legalize: preserve the text of leaf constructs the Core IR does not model.
-            NodeValue::Math(m) => out.push(Inline::Text(m.literal)),
-            NodeValue::Image(_) => out.push(Inline::Text(text_of(child))),
+            // Math and images are first-class IR nodes: preserve the verbatim math source (with
+            // its display flag) and the image src/alt/title rather than legalizing to text.
+            NodeValue::Math(m) => out.push(Inline::Math {
+                latex: m.literal,
+                display: m.display_math,
+            }),
+            NodeValue::Image(link) => out.push(Inline::Image {
+                src: link.url,
+                alt: text_of(child),
+                title: link.title,
+            }),
             // Formatting the Core IR does not carry (super/subscript, inline HTML) is flattened to
             // its inner content rather than dropped.
             _ => out.extend(lower_inlines(child)),
@@ -226,17 +235,34 @@ mod tests {
     }
 
     #[test]
-    fn legalizes_inline_math_to_text() {
-        // Inline math is Enhanced tier; the Core lowering must preserve its source text.
+    fn preserves_inline_math_as_node() {
+        // Inline math is a first-class IR node carrying its verbatim source and display flag.
         let doc = lower("Euler: $E = mc^2$ done.\n");
         let Block::Paragraph { content } = &doc.blocks[0] else {
             panic!("expected a paragraph");
         };
         assert!(
-            content
-                .iter()
-                .any(|i| matches!(i, Inline::Text(t) if t.contains("E = mc^2"))),
-            "unsupported inline math should degrade to its literal LaTeX text"
+            content.iter().any(|i| matches!(
+                i,
+                Inline::Math { latex, display } if latex == "E = mc^2" && !*display
+            )),
+            "inline math must lower to an Inline::Math node, not text"
+        );
+    }
+
+    #[test]
+    fn preserves_image_as_node() {
+        let doc = lower("See ![a cat](cat.png \"t\") here.\n");
+        let Block::Paragraph { content } = &doc.blocks[0] else {
+            panic!("expected a paragraph");
+        };
+        assert!(
+            content.iter().any(|i| matches!(
+                i,
+                Inline::Image { src, alt, title }
+                    if src == "cat.png" && alt == "a cat" && title == "t"
+            )),
+            "an image must lower to an Inline::Image node carrying src/alt/title"
         );
     }
 }

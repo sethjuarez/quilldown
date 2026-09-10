@@ -749,10 +749,13 @@ def _block(n):
         # a future recursive fallback from resurrecting definition text.
         return None
     if t == "math_block":
-        # Display math is legalized to a paragraph carrying its literal content,
-        # matching the Rust oracle (comrak surfaces block math as a paragraph
-        # whose text is the delimiter-stripped literal, newlines preserved).
-        return {"kind": "paragraph", "content": [{"kind": "text", "data": n.content}]}
+        # Display math (`$$…$$` on its own lines): comrak surfaces it as a
+        # paragraph whose sole child is a display Math node carrying the
+        # delimiter-stripped literal (newlines preserved).
+        return {
+            "kind": "paragraph",
+            "content": [{"kind": "math", "latex": n.content, "display": True}],
+        }
     return None
 
 
@@ -1005,16 +1008,27 @@ def _inline(n, in_link: bool = False):
     if t == "hardbreak":
         return {"kind": "hard_break"}
     if t == "image":
-        # Legalize like the Rust oracle: an image is not a Core inline, so keep
-        # only its alt text as a single Text run (matches `text_of` over the
-        # image's descendants in ir/lower.rs).
-        return {"kind": "text", "data": _text_of(n)}
+        # A first-class inline: keep the source URL, the flattened alt text
+        # (matches `text_of` over the image's descendants in ir/lower.rs), and
+        # the possibly-empty hover title.
+        return {
+            "kind": "image",
+            "src": n.attrs.get("src", ""),
+            "alt": _text_of(n),
+            "title": n.attrs.get("title", ""),
+        }
     if t == "math_inline":
-        # Inline `$...$`: comrak folds an internal newline to a single space.
-        return {"kind": "text", "data": n.content.replace("\n", " ")}
+        # Inline `$…$` (and code-math `` $`…`$ ``): comrak folds an internal
+        # newline to a single space. Not display math.
+        return {
+            "kind": "math",
+            "latex": n.content.replace("\n", " "),
+            "display": False,
+        }
     if t == "math_inline_double":
-        # Inline `$$...$$`: comrak preserves the literal content verbatim.
-        return {"kind": "text", "data": n.content}
+        # Inline `$$…$$`: comrak preserves the literal verbatim and marks it
+        # display math.
+        return {"kind": "math", "latex": n.content, "display": True}
     # Task-list checkbox tokens are consumed by _task_state; drop here. Footnote
     # references are legalized away: comrak carries the footnote extension and
     # ir/lower drops both the reference (a childless FootnoteReference leaf) and

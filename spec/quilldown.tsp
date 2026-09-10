@@ -50,6 +50,24 @@ model LinkInline extends Inline {
   content: Inline[];
 }
 
+// Math is a first-class inline: it carries its verbatim (LaTeX) source and a `display` flag
+// (`true` for `$$…$$`, `false` for inline `$…$` / `` $`…`$ ``). Previously legalized to text; the
+// reference engine renders it as native OMML on its byte path, so the contract preserves it here.
+model MathInline extends Inline {
+  kind: "math";
+  latex: string;
+  display: boolean;
+}
+
+// An image inline: the source URL, the flattened alt text, and the (possibly empty) hover title.
+// Previously legalized to its alt text; kept structured so src/title survive lowering.
+model ImageInline extends Inline {
+  kind: "image";
+  src: string;
+  alt: string;
+  title: string;
+}
+
 model SoftBreakInline extends Inline {
   kind: "soft_break";
 }
@@ -180,6 +198,9 @@ model Samples {
   @sample(Sample_paragraph_inline) paragraph_inline: Document;
   @sample(Sample_external_link) external_link: Document;
   @sample(Sample_anchor_link) anchor_link: Document;
+  @sample(Sample_image) image: Document;
+  @sample(Sample_inline_math) inline_math: Document;
+  @sample(Sample_display_math) display_math: Document;
   @sample(Sample_ordered_list) ordered_list: Document;
   @sample(Sample_ordered_start) ordered_start: Document;
   @sample(Sample_bullet_list) bullet_list: Document;
