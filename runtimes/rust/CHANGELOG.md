@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.1.0...quilldown-v1.2.0) (2026-09-10)
+
+
+### Features
+
+* **python:** drive L2 document parity with the Rust reference engine ([6647b7a](https://github.com/sethjuarez/quilldown/commit/6647b7a2483b580fd5d2edf970f869d565fcc28d))
+* **rust:** preserve math and images in Core IR lowering ([06b5505](https://github.com/sethjuarez/quilldown/commit/06b550596a4d9e7206e4bed1575e39b67b38abc9))
+
 ## [1.1.0](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.0.0...quilldown-v1.1.0) (2026-09-09)
 
 
