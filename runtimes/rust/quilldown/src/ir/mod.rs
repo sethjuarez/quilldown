@@ -15,11 +15,13 @@
 //!
 //! Scope is the Core tier (headings, paragraphs, lists, tables, code, quotes, inline formatting,
 //! links). Enhanced features (native OMML math, `<asvg>` vector layers, SEQ/REF fields) are out
-//! of scope and are legalized to Core shapes during lowering.
+//! of scope for this Core emit path; math and images are preserved in IR but emitted here as
+//! text fallbacks rather than native OMML or embedded images.
 
 pub mod emit;
 pub mod lower;
 pub mod model;
+pub mod spec_wire;
 
 pub use emit::emit;
 pub use lower::lower;

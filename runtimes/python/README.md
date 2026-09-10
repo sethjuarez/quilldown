@@ -9,8 +9,13 @@ It ships its own lowering (Markdown → IR, via `markdown-it-py`) and emitter
 conformance vectors, keeping it differentially faithful to the Rust reference
 engine.
 
+The wheel is pure Python and contains no Rust binary or Rust delegation layer.
+DOCX rendering uses the optional `python-docx` dependency, whose dependency tree
+includes `lxml`.
+
 ## Develop
 
 ```sh
 uv run pytest -q   # conformance + vector suite
+uv build --out-dir dist
 ```

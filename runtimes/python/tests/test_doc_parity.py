@@ -73,8 +73,13 @@ CASES = {
     ),
     "unordered_list": "- first\n- second\n- third\n",
     "ordered_list": "1. one\n2. two\n3. three\n",
+    "ordered_start": "3. first\n4. second\n",
+    "task_list": "- [x] done\n- [ ] todo\n",
     "table": "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n",
+    "table_align": "| A | B |\n|:--|--:|\n| 1 | 2 |\n",
     "blockquote": "> a quote\n",
+    "anchor_link": "# Getting Started\n\nJump to [start](#getting-started).\n",
+    "thematic_break": "before\n\n---\n\nafter\n",
     "combined": (
         "# Heading One\n\n"
         "A paragraph with **bold**, *italic*, `code`, and ~~strike~~ "

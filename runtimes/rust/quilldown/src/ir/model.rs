@@ -4,10 +4,10 @@
 //! language-neutral intermediate representation a lowering produces and an emitter consumes. They
 //! derive [`serde`] so the same shapes can back a serialized interchange or a generated model
 //! surface later (see ADR-0001). Everything here is *Core tier*; a handful of Enhanced features
-//! (native OMML math, images) are represented faithfully in the IR — [`Inline::Math`] and
-//! [`Inline::Image`] preserve their source so the contract no longer discards them — while the
-//! remaining Enhanced-only constructs (`<asvg>` vector layers, SEQ/REF fields) are still out of
-//! scope for this slice and degrade to [`Inline::Text`] during lowering.
+//! (native OMML math, images, footnote references, subscript) are represented faithfully in the
+//! IR so the contract no longer discards them, while the remaining Enhanced-only constructs
+//! (`<asvg>` vector layers, SEQ/REF fields) are still out of scope for this slice and degrade to
+//! [`Inline::Text`] during lowering.
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Document {
     pub blocks: Vec<Block>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub footnotes: Vec<FootnoteDefinition>,
 }
 
 /// A block-level element.
@@ -76,6 +78,13 @@ pub struct Table {
     pub rows: Vec<Vec<Vec<Inline>>>,
 }
 
+/// A named footnote definition. References appear inline as [`Inline::FootnoteReference`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FootnoteDefinition {
+    pub label: String,
+    pub blocks: Vec<Block>,
+}
+
 /// An inline (run-level) element.
 ///
 /// Adjacently tagged (`{"kind": ..., "data": ...}`) rather than internally tagged, because
@@ -92,6 +101,8 @@ pub enum Inline {
     Emphasis(Vec<Inline>),
     /// Struck-through content.
     Strikethrough(Vec<Inline>),
+    /// Subscript content (`~...~`).
+    Subscript(Vec<Inline>),
     /// Inline code span.
     Code(String),
     /// A hyperlink. `href` beginning with `#` is an in-document anchor; anything else is external.
@@ -109,6 +120,8 @@ pub enum Inline {
         alt: String,
         title: String,
     },
+    /// A reference to a document-level footnote definition.
+    FootnoteReference { label: String },
     /// A soft line break (rendered as a space).
     SoftBreak,
     /// A hard line break (`\` or two trailing spaces).
@@ -161,6 +174,7 @@ mod tests {
                     }],
                 }),
             ],
+            footnotes: vec![],
         };
         let json = serde_json::to_string(&doc).expect("serialize");
         let back: Document = serde_json::from_str(&json).expect("deserialize");

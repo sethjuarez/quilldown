@@ -20,8 +20,9 @@
 //!   registered; every anchor target has a matching heading bookmark). [`EmitState`] is the
 //!   "symbol table" that makes those invariants well-defined.
 //!
-//! Only the Core tier is emitted; Enhanced features never reach here because lowering already
-//! legalized them to Core shapes.
+//! Only the Core tier is emitted. Math and images reach this path as first-class IR nodes but are
+//! rendered as text fallbacks; native OMML, embedded images/SVG layers, and captions stay on the
+//! reference renderer's byte path.
 
 use std::collections::HashMap;
 
@@ -362,6 +363,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                 },
                 theme,
             ),
+            Inline::Subscript(c) => emit_inlines(p, c, style, theme),
             Inline::Code(c) => p.add_run(mono_run(c, theme.mono_font)),
             Inline::Link { href, content } => {
                 p.add_hyperlink(build_link(href, content, style, theme))
@@ -371,6 +373,9 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
             // IR path stays lossless-to-text while carrying the structured node.
             Inline::Math { latex, .. } => p.add_run(style.apply(Run::new()).add_text(latex)),
             Inline::Image { alt, .. } => p.add_run(style.apply(Run::new()).add_text(alt)),
+            Inline::FootnoteReference { label } => {
+                p.add_run(style.apply(Run::new()).add_text(format!("[^{label}]")))
+            }
             Inline::SoftBreak => p.add_run(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => p.add_run(Run::new().add_break(BreakType::TextWrapping)),
         };
@@ -428,10 +433,14 @@ fn collect_runs(content: &[Inline], style: Style, theme: &Theme, out: &mut Vec<R
                 theme,
                 out,
             ),
+            Inline::Subscript(c) => collect_runs(c, style, theme, out),
             Inline::Code(c) => out.push(mono_run(c, theme.mono_font)),
             Inline::Link { content, .. } => collect_runs(content, style, theme, out),
             Inline::Math { latex, .. } => out.push(style.apply(Run::new()).add_text(latex)),
             Inline::Image { alt, .. } => out.push(style.apply(Run::new()).add_text(alt)),
+            Inline::FootnoteReference { label } => {
+                out.push(style.apply(Run::new()).add_text(format!("[^{label}]")))
+            }
             Inline::SoftBreak => out.push(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => out.push(Run::new().add_break(BreakType::TextWrapping)),
         }
@@ -444,12 +453,18 @@ fn inline_text(content: &[Inline]) -> String {
     for inline in content {
         match inline {
             Inline::Text(t) | Inline::Code(t) => s.push_str(t),
-            Inline::Strong(c) | Inline::Emphasis(c) | Inline::Strikethrough(c) => {
-                s.push_str(&inline_text(c))
-            }
+            Inline::Strong(c)
+            | Inline::Emphasis(c)
+            | Inline::Strikethrough(c)
+            | Inline::Subscript(c) => s.push_str(&inline_text(c)),
             Inline::Link { content, .. } => s.push_str(&inline_text(content)),
             Inline::Math { latex, .. } => s.push_str(latex),
             Inline::Image { alt, .. } => s.push_str(alt),
+            Inline::FootnoteReference { label } => {
+                s.push_str("[^");
+                s.push_str(label);
+                s.push(']');
+            }
             Inline::SoftBreak => s.push(' '),
             Inline::HardBreak => {}
         }

@@ -17,16 +17,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spec/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: generate TypeSpec vector corpus
+        working-directory: spec
+        run: |
+          npm ci
+          npm run generate
       - name: rustfmt
         run: cargo fmt --all --check
       - name: test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
       - name: clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets --locked
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - name: locked MSRV check
+        run: cargo check --locked -p quilldown --lib
 
   # Python runtime conformance. Runs the typra-generated shape tests plus the
   # hand-authored lower/emit vectors against the shared contract, keeping the
@@ -35,10 +54,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spec/package-lock.json
       - uses: astral-sh/setup-uv@v5
+      - name: generate TypeSpec outputs
+        working-directory: spec
+        run: |
+          npm ci
+          npm run generate
+      - name: verify generated outputs are current
+        run: git diff --exit-code -- runtimes/python spec
       - name: conformance (pytest)
         working-directory: runtimes/python
         run: uv run pytest -q
+      - name: build and smoke-test wheel
+        working-directory: runtimes/python
+        run: |
+          uv build --out-dir dist
+          uv venv .venv-wheel-test
+          uv pip install --python .venv-wheel-test/bin/python dist/*.whl "python-docx>=1.1"
+          .venv-wheel-test/bin/python -c "import io, quilldown; d=quilldown.lower('# Hi\n'); out=io.BytesIO(); quilldown.render_docx(d.save()).save(out); assert len(out.getvalue()) > 0"
 
   # L2 document parity: render each Markdown input with BOTH the Rust reference
   # CLI (the golden source) and the Python runtime, normalize both with the one

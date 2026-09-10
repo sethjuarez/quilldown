@@ -4,8 +4,9 @@ The TypeSpec contract for quilldown: the portable document **IR** shapes, the
 `lower`/`emit` compiler seams, and the `@vector` conformance corpus. Per
 [ADR-0001](../docs/adr/0001-polyglot-quilldown-via-shared-contract.md) this is
 the single source of truth from which [typra](https://typra.dev) generates the
-per-runtime model surfaces (guarded by `@sample` shape tests) and conformance
-tests (guarded by `@vector` behavior tests).
+per-runtime model surfaces and conformance tests (guarded by `@vector`
+behavior tests). The Python suite also consumes typra's emitted sample metadata
+to assert exact nonempty `@sample` fixture roundtrips.
 
 ## Layout
 
@@ -30,11 +31,30 @@ printf '# One\n\n## Two\n' | cargo run -p quilldown --example lower_oracle
 # --pretty for readable indentation while authoring.
 ```
 
-Then `npm run generate` re-emits the per-runtime model surface and conformance
-tests; implement each runtime's `lower`/`emit` until the new test is green.
+Install dependencies from the pinned package set, then regenerate:
+
+```sh
+cd spec
+npm ci
+npm run generate
+cd ..
+git diff --exit-code -- runtimes/python spec
+```
+
+`spec/package-lock.json` is committed on purpose so TypeSpec and typra's peer
+dependencies resolve the same way in clean checkouts and in CI. The CI Python
+job runs the same generation command and fails if generated runtime files drift.
+Implement each runtime's `lower`/`emit` until the generated tests are green.
+
+Literal-preserving constructs keep the source line endings that reached the
+parser. Fenced code blocks and display math carry `\r\n` in their IR payloads
+when the Markdown input used CRLF; tests must create byte-exact strings or files
+rather than relying on shell text-mode translation.
 
 The IR is deliberately **Core tier** (headings, paragraphs, lists, tables,
-code, quotes, inline formatting, links). Enhanced features (native OMML math,
-`<asvg>` vector layers, SEQ/REF fields) are legalized to Core shapes during
-lowering; extending the contract to represent them is a separate, spec-level
-step under the ADR's freeze/back-generate loop.
+code, quotes, inline formatting, links), with first-class preservation for
+math, images, footnote references/definitions, and subscript. Enhanced output
+features that are still renderer-only (`<asvg>` vector layers, SEQ/REF fields,
+native OOXML field behavior) are legalized to Core shapes during lowering;
+extending the contract to represent them is a separate, spec-level step under
+the ADR's freeze/back-generate loop.

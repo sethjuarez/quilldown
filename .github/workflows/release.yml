@@ -37,9 +37,70 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # 2. Rust runtime: publish the library, then the CLI, to crates.io.
-  publish-crates:
+  validate-rust-release:
     needs: release-please
+    if: ${{ needs.release-please.outputs.rust_release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.rust_tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spec/package-lock.json
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Generate TypeSpec vector corpus
+        working-directory: spec
+        run: |
+          npm ci
+          npm run generate
+      - name: Validate Rust release ref
+        run: |
+          cargo fmt --all --check
+          cargo check --locked
+          cargo test --workspace --locked
+          cargo clippy --workspace --all-targets --locked
+
+  validate-python-release:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.python_release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.python_tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spec/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+      - name: Validate generated spec outputs
+        working-directory: spec
+        run: |
+          npm ci
+          npm run generate
+      - name: Verify generated outputs are current
+        run: git diff --exit-code -- runtimes/python spec
+      - name: Validate Python release package
+        working-directory: runtimes/python
+        run: |
+          uv run pytest -q
+          uv build --out-dir dist
+          uv venv .venv-wheel-test
+          uv pip install --python .venv-wheel-test/bin/python dist/*.whl "python-docx>=1.1"
+          .venv-wheel-test/bin/python -c "import io, quilldown; d=quilldown.lower('# Hi\n'); out=io.BytesIO(); quilldown.render_docx(d.save()).save(out); assert len(out.getvalue()) > 0"
+
+  # 2. Rust runtime: publish the library, then the CLI, to crates.io.
+  # If either publish succeeds and a later upload fails, the immutable package
+  # version must be recovered by fixing forward with a new release.
+  publish-crates:
+    needs: [release-please, validate-rust-release]
     if: ${{ needs.release-please.outputs.rust_release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
@@ -60,7 +121,7 @@ jobs:
   # 3. Rust runtime: build cross-platform binaries and attach them to the Rust
   #    GitHub Release.
   upload-binaries:
-    needs: release-please
+    needs: [release-please, validate-rust-release]
     if: ${{ needs.release-please.outputs.rust_release_created == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -109,6 +170,8 @@ jobs:
 
   # 4. Python runtime: build the sdist + wheel, attach them to the Python GitHub
   #    Release, then publish to PyPI via OIDC trusted publishing (no API token).
+  #    If PyPI publish succeeds and a later upload fails, the immutable package
+  #    version must be recovered by fixing forward with a new release.
   #    Prerequisites (configured once, outside this repo):
   #      - a PyPI trusted publisher for project `quilldown` pointing at this
   #        repo + workflow `release.yml` + environment `pypi` (use a *pending*
@@ -118,7 +181,7 @@ jobs:
   #    write` is re-declared here for the `gh release upload` step alongside the
   #    `id-token: write` that trusted publishing requires.
   publish-python:
-    needs: release-please
+    needs: [release-please, validate-python-release]
     if: ${{ needs.release-please.outputs.python_release_created == 'true' }}
     runs-on: ubuntu-latest
     environment: pypi

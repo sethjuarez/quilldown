@@ -10,7 +10,7 @@ edition = "2021"
 license = "MIT"
 repository = "https://github.com/sethjuarez/quilldown"
 authors = ["Seth Juarez"]
-rust-version = "1.74"
+rust-version = "1.88"
 
 [workspace.dependencies]
 # Core conversion deps, shared across crates and pinned to recent stable releases.

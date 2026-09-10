@@ -24,10 +24,12 @@ from ._Inline import (
     StrongInline,
     EmphasisInline,
     StrikethroughInline,
+    SubscriptInline,
     CodeInline,
     LinkInline,
     MathInline,
     ImageInline,
+    FootnoteReferenceInline,
     SoftBreakInline,
     HardBreakInline,
 )
@@ -35,6 +37,8 @@ from ._Inline import (
 from ._TableCell import TableCell
 
 from ._TableRow import TableRow
+
+from ._FootnoteDefinition import FootnoteDefinition
 
 from ._Document import Document
 
@@ -57,9 +61,11 @@ __all__ = [
     "CodeInline",
     "MathInline",
     "ImageInline",
+    "FootnoteReferenceInline",
     "SoftBreakInline",
     "HardBreakInline",
     "LinkInline",
+    "SubscriptInline",
     "StrikethroughInline",
     "EmphasisInline",
     "StrongInline",
@@ -73,6 +79,7 @@ __all__ = [
     "ListItemBlock",
     "ListBlock",
     "BlockQuote",
+    "FootnoteDefinition",
     "Document",
     "Samples",
     "ConvertOptions",

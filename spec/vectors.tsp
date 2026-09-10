@@ -466,6 +466,20 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "code_block_crlf-lower",
+    stage: "callable",
+    input: #{ markdown: "```rust\r\nfn main() {}\r\n```\r\n" },
+    expected: #{
+      blocks: #[
+        #{
+          code: "fn main() {}\r\n",
+          kind: "code_block",
+          language: "rust"
+        }
+      ]
+    }
+  },
+  #{
     name: "blockquote-lower",
     stage: "callable",
     input: #{ markdown: "> quoted **text**\n" },
@@ -735,6 +749,25 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "display_math_crlf-lower",
+    stage: "callable",
+    input: #{ markdown: "$$\r\na+b\r\n$$\r\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              display: true,
+              kind: "math",
+              latex: "\r\na+b\r\n"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
     name: "math_currency-lower",
     stage: "callable",
     input: #{ markdown: "I paid $100 and $200 today.\n" },
@@ -828,8 +861,13 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
-              data: "2",
-              kind: "text"
+              data: #[
+                #{
+                  data: "2",
+                  kind: "text"
+                }
+              ],
+              kind: "subscript"
             },
             #{
               data: "O",
@@ -856,8 +894,13 @@ const LowerVectors = #[
                   kind: "text"
                 },
                 #{
-                  data: "2",
-                  kind: "text"
+                  data: #[
+                    #{
+                      data: "2",
+                      kind: "text"
+                    }
+                  ],
+                  kind: "subscript"
                 },
                 #{
                   data: "O",
@@ -903,8 +946,13 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
-              data: "-1",
-              kind: "text"
+              data: #[
+                #{
+                  data: "-1",
+                  kind: "text"
+                }
+              ],
+              kind: "subscript"
             }
           ],
           kind: "paragraph"
@@ -921,8 +969,13 @@ const LowerVectors = #[
         #{
           content: #[
             #{
-              data: "a*b",
-              kind: "text"
+              data: #[
+                #{
+                  data: "a*b",
+                  kind: "text"
+                }
+              ],
+              kind: "subscript"
             },
             #{
               data: "c*",
@@ -1097,11 +1150,31 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
+              label: "1",
+              kind: "footnote_reference"
+            },
+            #{
               data: " end",
               kind: "text"
             }
           ],
           kind: "paragraph"
+        }
+      ],
+      footnotes: #[
+        #{
+          label: "1",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "note",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ]
         }
       ]
     }
@@ -1137,11 +1210,31 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
+              label: "a",
+              kind: "footnote_reference"
+            },
+            #{
               data: " end",
               kind: "text"
             }
           ],
           kind: "paragraph"
+        }
+      ],
+      footnotes: #[
+        #{
+          label: "a",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "note",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ]
         }
       ]
     }
@@ -1327,11 +1420,31 @@ const LowerVectors = #[
               kind: "emphasis"
             },
             #{
+              label: "1",
+              kind: "footnote_reference"
+            },
+            #{
               data: "www.y.com",
               kind: "text"
             }
           ],
           kind: "paragraph"
+        }
+      ],
+      footnotes: #[
+        #{
+          label: "1",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "note",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ]
         }
       ]
     }
@@ -1419,8 +1532,13 @@ const LowerVectors = #[
             #{
               data: #[
                 #{
-                  data: "2",
-                  kind: "text"
+                  data: #[
+                    #{
+                      data: "2",
+                      kind: "text"
+                    }
+                  ],
+                  kind: "subscript"
                 }
               ],
               kind: "emphasis"
@@ -1602,6 +1720,162 @@ const LowerVectors = #[
             },
             #{
               kind: "hard_break"
+            },
+            #{
+              data: "line two",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "subscript-lower",
+    stage: "callable",
+    input: #{ markdown: "H~2~O\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "H",
+              kind: "text"
+            },
+            #{
+              data: #[
+                #{
+                  data: "2",
+                  kind: "text"
+                }
+              ],
+              kind: "subscript"
+            },
+            #{
+              data: "O",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "footnote-lower",
+    stage: "callable",
+    input: #{ markdown: "See this[^Note].\n\n[^note]: Foot *note*.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "See this",
+              kind: "text"
+            },
+            #{
+              label: "note",
+              kind: "footnote_reference"
+            },
+            #{
+              data: ".",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ],
+      footnotes: #[
+        #{
+          label: "note",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "Foot ",
+                  kind: "text"
+                },
+                #{
+                  data: #[
+                    #{
+                      data: "note",
+                      kind: "text"
+                    }
+                  ],
+                  kind: "emphasis"
+                },
+                #{
+                  data: ".",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  #{
+    name: "fenced_math_code_block-lower",
+    stage: "callable",
+    input: #{ markdown: "```math\nx^2 + y^2\n```\n" },
+    expected: #{
+      blocks: #[
+        #{
+          code: "x^2 + y^2\n",
+          kind: "code_block",
+          language: "math"
+        }
+      ]
+    }
+  },
+  #{
+    name: "raw_inline_html-lower",
+    stage: "callable",
+    input: #{ markdown: "before <span class=\"x\">mid</span> after\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "before ",
+              kind: "text"
+            },
+            #{
+              data: "mid",
+              kind: "text"
+            },
+            #{
+              data: " after",
+              kind: "text"
+            }
+          ],
+          kind: "paragraph"
+        }
+      ]
+    }
+  },
+  #{
+    name: "raw_html_block-lower",
+    stage: "callable",
+    input: #{ markdown: "<div class=\"note\">\n  hi\n</div>\n" },
+    expected: #{
+      blocks: #[]
+    }
+  },
+  #{
+    name: "raw_html_br-lower",
+    stage: "callable",
+    input: #{ markdown: "line one<br>line two\n" },
+    expected: #{
+      blocks: #[
+        #{
+          content: #[
+            #{
+              data: "line one",
+              kind: "text"
             },
             #{
               data: "line two",
@@ -2474,5 +2748,57 @@ const EmitVectors = #[
       thematicBreaks: 0,
       warnings: #[]
     }
+  },
+  #{
+    name: "invalid_heading_level_zero-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "heading", level: 0, content: #[] }] } },
+    expectedError: #{ message: "blocks[0].level must be between 1 and 6" }
+  },
+  #{
+    name: "invalid_top_level_list_item-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "list_item", blocks: #[] }] } },
+    expectedError: #{ message: "blocks[0] list_item is only valid inside a list" }
+  },
+  #{
+    name: "invalid_ragged_table-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "table",
+            align: #["left", "right"],
+            head: #{ cells: #[#{ content: #[] }, #{ content: #[] }] },
+            rows: #[#{ cells: #[#{ content: #[] }] }]
+          }
+        ]
+      }
+    },
+    expectedError: #{ message: "blocks[0].rows[0] has inconsistent table width" }
+  },
+  #{
+    name: "invalid_table_alignment-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "table",
+            align: #["justify"],
+            head: #{ cells: #[#{ content: #[] }] },
+            rows: #[]
+          }
+        ]
+      }
+    },
+    expectedError: #{ message: "blocks[0].align contains unsupported alignment" }
+  },
+  #{
+    name: "invalid_missing_math_payload-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "paragraph", content: #[#{ kind: "math" }] }] } },
+    expectedError: #{ message: "blocks[0].content[0] missing required field latex" }
   }
 ];

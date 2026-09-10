@@ -557,7 +557,7 @@ class _CaseInsensitiveRefs(dict):
     `[^a]: ...`), but ``mdit_py_plugins`` keys its ``refs`` map by the verbatim
     ``:label``. Folding the label into the key on every access makes the plugin
     resolve references the way comrak does, so mismatched-case footnotes are
-    legalized away instead of surviving as literal text.
+    emitted with the resolved definition label.
     """
 
     @staticmethod
@@ -634,11 +634,59 @@ def markdown_to_ir(markdown: str) -> dict:
     # Stash the normalized source lines so alert detection can inspect the exact
     # `>`/space run before a `[!TYPE]` marker (markdown-it trims that whitespace
     # out of the tokenized content, but comrak's scanner is whitespace-exact).
-    global _SRC_LINES
+    global _SRC_LINES, _SRC_LINES_RAW
+    _SRC_LINES_RAW = markdown.splitlines(keepends=True)
     _SRC_LINES = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    footnotes = _extract_footnotes(markdown)
+    global _FOOTNOTE_LABELS
+    _FOOTNOTE_LABELS = {f["label"].lower(): f["label"] for f in footnotes}
     tokens = _MD.parse(markdown, env)
     root = SyntaxTreeNode(tokens)
-    return {"blocks": _blocks(root.children)}
+    doc = {"blocks": _blocks(root.children)}
+    if footnotes:
+        doc["footnotes"] = footnotes
+    return doc
+
+
+def _extract_footnotes(markdown: str) -> list[dict]:
+    footnotes = []
+    lines = markdown.splitlines()
+    i = 0
+    while i < len(lines):
+        match = re.match(r"^[ \t]*\[\^([^\]]+)\]:[ \t]?(.*)$", lines[i])
+        if not match:
+            i += 1
+            continue
+        label, first = match.group(1), match.group(2)
+        body = [first]
+        i += 1
+        while i < len(lines):
+            if re.match(r"^[ \t]*\[\^([^\]]+)\]:", lines[i]):
+                break
+            if lines[i].startswith("    "):
+                body.append(lines[i][4:])
+                i += 1
+                continue
+            if lines[i].strip() == "":
+                body.append("")
+                i += 1
+                continue
+            break
+        footnotes.append({"label": label, "blocks": _fragment_blocks("\n".join(body).strip() + "\n")})
+    return footnotes
+
+
+def _fragment_blocks(markdown: str) -> list[dict]:
+    global _SRC_LINES, _SRC_LINES_RAW, _FOOTNOTE_LABELS
+    old_lines, old_raw, old_labels = _SRC_LINES, _SRC_LINES_RAW, _FOOTNOTE_LABELS
+    try:
+        _SRC_LINES_RAW = markdown.splitlines(keepends=True)
+        _SRC_LINES = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        _FOOTNOTE_LABELS = {}
+        tokens = _MD.parse(markdown, {"footnotes": {"refs": _CaseInsensitiveRefs(), "list": {}}})
+        return _blocks(SyntaxTreeNode(tokens).children)
+    finally:
+        _SRC_LINES, _SRC_LINES_RAW, _FOOTNOTE_LABELS = old_lines, old_raw, old_labels
 
 
 def _blocks(nodes) -> list:
@@ -665,6 +713,8 @@ def _blocks(nodes) -> list:
 # merely appears later inside ordinary quote text). ``re.ASCII`` keeps folding
 # ASCII-only so `[!TİP]` (U+0130) does not masquerade as `[!TIP]`.
 _SRC_LINES: list[str] = []
+_SRC_LINES_RAW: list[str] = []
+_FOOTNOTE_LABELS: dict[str, str] = {}
 _ALERT_RE = re.compile(r"^\[!(note|tip|important|warning|caution)\]", re.IGNORECASE | re.ASCII)
 _ALERT_LINE_RE = re.compile(
     r"> \[!(note|tip|important|warning|caution)\]", re.IGNORECASE | re.ASCII
@@ -728,7 +778,7 @@ def _block(n):
         return {"kind": "paragraph", "content": _inline_children(n)}
     if t == "fence":
         info = (n.info or "").strip()
-        block = {"kind": "code_block", "code": n.content}
+        block = {"kind": "code_block", "code": _raw_fenced_content(n) or n.content}
         if info:
             block["language"] = info.split()[0]
         return block
@@ -743,10 +793,8 @@ def _block(n):
     if t == "hr":
         return {"kind": "thematic_break"}
     if t == "footnote_block":
-        # comrak carries the footnote extension and ir/lower drops every
-        # footnote definition; dropping the block here (rather than via the
-        # generic unknown-block fallback) documents that legalization and keeps
-        # a future recursive fallback from resurrecting definition text.
+        # Definitions are emitted through the document-level `footnotes` array
+        # by _extract_footnotes, not as body blocks.
         return None
     if t == "math_block":
         # Display math (`$$…$$` on its own lines): comrak surfaces it as a
@@ -754,9 +802,31 @@ def _block(n):
         # delimiter-stripped literal (newlines preserved).
         return {
             "kind": "paragraph",
-            "content": [{"kind": "math", "latex": n.content, "display": True}],
+            "content": [
+                {"kind": "math", "latex": _raw_display_math_content(n) or n.content, "display": True}
+            ],
         }
     return None
+
+
+def _raw_fenced_content(n) -> str:
+    """Return delimiter-stripped literal content with original source newlines."""
+    if not n.map or len(n.map) < 2 or not _SRC_LINES_RAW:
+        return ""
+    start = n.map[0] + 1
+    end = max(start, n.map[1] - 1)
+    return "".join(_SRC_LINES_RAW[start:end])
+
+
+def _raw_display_math_content(n) -> str:
+    """Return display-math literal content, including the opener's line ending."""
+    if not n.map or len(n.map) < 2 or not _SRC_LINES_RAW:
+        return ""
+    open_line = _SRC_LINES_RAW[n.map[0]]
+    after_opener = open_line.split("$$", 1)[1] if "$$" in open_line else ""
+    start = n.map[0] + 1
+    end = max(start, n.map[1] - 1)
+    return after_opener + "".join(_SRC_LINES_RAW[start:end])
 
 
 def _list(n) -> dict:
@@ -896,7 +966,7 @@ def _inlines(
             marker = _trailing_source_char(n)
             inner, wb, _ = _inlines(n.children, in_link, wb, marker)
             if n.markup == "~":
-                out.extend(inner)
+                out.append({"kind": "subscript", "data": inner})
             else:
                 out.append({"kind": "strikethrough", "data": inner})
             pc = marker
@@ -964,8 +1034,8 @@ def _trailing_source_char(n) -> str | None:
     if t in ("link", "image"):
         return ")"
     if t == "footnote_ref":
-        # A footnote reference is dropped from the IR, but its raw source is
-        # `[^n]`, so the following run's preceder is the closing `]`.
+        # A footnote reference's raw source is `[^n]`, so the following run's
+        # preceder is the closing `]`.
         return "]"
     if t in ("softbreak", "hardbreak"):
         return "\n"
@@ -991,9 +1061,9 @@ def _inline(n, in_link: bool = False):
         return {"kind": "emphasis", "data": _inlines(n.children, in_link)[0]}
     if t == "s":
         inner = _inlines(n.children, in_link)[0]
-        # Single-tilde -> Subscript (flatten to inner); double-tilde -> keep.
+        # Single-tilde -> Subscript; double-tilde -> keep.
         if n.markup == "~":
-            return inner
+            return {"kind": "subscript", "data": inner}
         return {"kind": "strikethrough", "data": inner}
     if t == "code_inline":
         return {"kind": "code", "data": n.content}
@@ -1029,12 +1099,12 @@ def _inline(n, in_link: bool = False):
         # Inline `$$…$$`: comrak preserves the literal verbatim and marks it
         # display math.
         return {"kind": "math", "latex": n.content, "display": True}
-    # Task-list checkbox tokens are consumed by _task_state; drop here. Footnote
-    # references are legalized away: comrak carries the footnote extension and
-    # ir/lower drops both the reference (a childless FootnoteReference leaf) and
-    # the definition block, so a `[^1]` with a matching definition contributes
-    # nothing to the Core IR.
-    if t in ("checkbox_input", "html_inline", "footnote_ref"):
+    if t == "footnote_ref":
+        label = n.token.meta.get("label", "") if n.token is not None else ""
+        label = _FOOTNOTE_LABELS.get(label.lower(), label)
+        return {"kind": "footnote_reference", "label": label}
+    # Task-list checkbox tokens are consumed by _task_state; raw inline HTML is outside the IR.
+    if t in ("checkbox_input", "html_inline"):
         return None
     return None
 
