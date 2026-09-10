@@ -655,8 +655,10 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
-              data: "a cat",
-              kind: "text"
+              alt: "a cat",
+              kind: "image",
+              src: "cat.png",
+              title: ""
             },
             #{
               data: " here.",
@@ -681,8 +683,9 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
-              data: "E = mc^2",
-              kind: "text"
+              display: false,
+              kind: "math",
+              latex: "E = mc^2"
             },
             #{
               data: " ok.",
@@ -712,8 +715,9 @@ const LowerVectors = #[
         #{
           content: #[
             #{
-              data: "\na+b\n",
-              kind: "text"
+              display: true,
+              kind: "math",
+              latex: "\na+b\n"
             }
           ],
           kind: "paragraph"
@@ -797,8 +801,9 @@ const LowerVectors = #[
               kind: "text"
             },
             #{
-              data: "e^{i\\pi}+1=0",
-              kind: "text"
+              display: false,
+              kind: "math",
+              latex: "e^{i\\pi}+1=0"
             },
             #{
               data: " done.",
@@ -1044,8 +1049,10 @@ const LowerVectors = #[
         #{
           content: #[
             #{
-              data: "a^b^",
-              kind: "text"
+              alt: "a^b^",
+              kind: "image",
+              src: "u.png",
+              title: ""
             }
           ],
           kind: "paragraph"
