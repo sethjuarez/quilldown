@@ -3,10 +3,11 @@
 //! These types are deliberately free of any `docx-rs` (or other backend) concepts — they are the
 //! language-neutral intermediate representation a lowering produces and an emitter consumes. They
 //! derive [`serde`] so the same shapes can back a serialized interchange or a generated model
-//! surface later (see ADR-0001). Everything here is *Core tier*; Enhanced features (native OMML
-//! math, `<asvg>` vector layers, SEQ/REF fields) are intentionally out of scope for this
-//! investigatory slice and are represented, when encountered, by graceful [`Inline::Text`]
-//! degradation during lowering.
+//! surface later (see ADR-0001). Everything here is *Core tier*; a handful of Enhanced features
+//! (native OMML math, images) are represented faithfully in the IR — [`Inline::Math`] and
+//! [`Inline::Image`] preserve their source so the contract no longer discards them — while the
+//! remaining Enhanced-only constructs (`<asvg>` vector layers, SEQ/REF fields) are still out of
+//! scope for this slice and degrade to [`Inline::Text`] during lowering.
 
 use serde::{Deserialize, Serialize};
 
@@ -95,6 +96,19 @@ pub enum Inline {
     Code(String),
     /// A hyperlink. `href` beginning with `#` is an in-document anchor; anything else is external.
     Link { href: String, content: Vec<Inline> },
+    /// Inline or display math, carrying its verbatim (LaTeX) source. `display` is `true` for
+    /// `$$…$$` display math and `false` for inline `$…$` / `` $`…`$ `` spans. Previously this was
+    /// legalized to [`Inline::Text`]; it is now a first-class node so the contract preserves the
+    /// math (the reference engine renders it as native OMML on its byte path).
+    Math { latex: String, display: bool },
+    /// An image. `src` is the source URL, `alt` the flattened alternative text, `title` the
+    /// optional hover title (empty when absent). Previously legalized to the alt [`Inline::Text`];
+    /// it is now a first-class node so the source and title survive lowering.
+    Image {
+        src: String,
+        alt: String,
+        title: String,
+    },
     /// A soft line break (rendered as a space).
     SoftBreak,
     /// A hard line break (`\` or two trailing spaces).
