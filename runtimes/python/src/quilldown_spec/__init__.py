@@ -26,6 +26,8 @@ from ._Inline import (
     StrikethroughInline,
     CodeInline,
     LinkInline,
+    MathInline,
+    ImageInline,
     SoftBreakInline,
     HardBreakInline,
 )
@@ -53,6 +55,8 @@ __all__ = [
     "Inline",
     "TextInline",
     "CodeInline",
+    "MathInline",
+    "ImageInline",
     "SoftBreakInline",
     "HardBreakInline",
     "LinkInline",

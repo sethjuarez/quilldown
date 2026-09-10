@@ -76,6 +76,10 @@ class Inline(ABC):
             return CodeInline.load(data, context)
         elif discriminator_value == "link":
             return LinkInline.load(data, context)
+        elif discriminator_value == "math":
+            return MathInline.load(data, context)
+        elif discriminator_value == "image":
+            return ImageInline.load(data, context)
         elif discriminator_value == "soft_break":
             return SoftBreakInline.load(data, context)
         elif discriminator_value == "hard_break":
@@ -843,6 +847,213 @@ class LinkInline(Inline):
 
     def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
         """Convert the LinkInline instance to a JSON string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+            indent (int): Number of spaces for indentation. Defaults to 2.
+        Returns:
+            str: The JSON string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_json(self.save(context), indent)
+
+
+@dataclass
+class MathInline(Inline):
+    """
+
+    Attributes
+    ----------
+    kind : str
+
+    latex : str
+
+    display : bool
+
+    """
+
+    _shorthand_property: ClassVar[str | None] = None
+
+    kind: str = field(default="math")
+    latex: str = field(default="")
+    display: bool = field(default=False)
+
+    @staticmethod
+    def load(data: Any, context: LoadContext | None = None) -> "MathInline":
+        """Load a MathInline instance.
+        Args:
+            data (Any): The data to load the instance from.
+            context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            MathInline: The loaded MathInline instance.
+
+        """
+
+        if context is None:
+            context = LoadContext()
+        data = context.process_input(data)
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid data for MathInline: {data}")
+
+        # create new instance
+        instance = MathInline()
+
+        if data is not None and "kind" in data:
+            instance.kind = data["kind"]
+        if data is not None and "latex" in data:
+            instance.latex = data["latex"]
+        if data is not None and "display" in data:
+            instance.display = data["display"]
+        if context is not None:
+            instance = context.process_output(instance)
+        return instance
+
+    def save(self, context: SaveContext | None = None) -> dict[str, Any]:
+        """Save the MathInline instance to a dictionary.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            dict[str, Any]: The dictionary representation of this instance.
+
+        """
+        obj = self
+        if context is not None:
+            obj = context.process_object(obj)
+
+        # Start with parent class properties
+        result = super().save(context)
+
+        if obj.kind is not None:
+            result["kind"] = obj.kind
+        if obj.latex is not None:
+            result["latex"] = obj.latex
+        if obj.display is not None:
+            result["display"] = obj.display
+        return result
+
+    def to_yaml(self, context: SaveContext | None = None) -> str:
+        """Convert the MathInline instance to a YAML string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            str: The YAML string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_yaml(self.save(context))
+
+    def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
+        """Convert the MathInline instance to a JSON string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+            indent (int): Number of spaces for indentation. Defaults to 2.
+        Returns:
+            str: The JSON string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_json(self.save(context), indent)
+
+
+@dataclass
+class ImageInline(Inline):
+    """
+
+    Attributes
+    ----------
+    kind : str
+
+    src : str
+
+    alt : str
+
+    title : str
+
+    """
+
+    _shorthand_property: ClassVar[str | None] = None
+
+    kind: str = field(default="image")
+    src: str = field(default="")
+    alt: str = field(default="")
+    title: str = field(default="")
+
+    @staticmethod
+    def load(data: Any, context: LoadContext | None = None) -> "ImageInline":
+        """Load a ImageInline instance.
+        Args:
+            data (Any): The data to load the instance from.
+            context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            ImageInline: The loaded ImageInline instance.
+
+        """
+
+        if context is None:
+            context = LoadContext()
+        data = context.process_input(data)
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid data for ImageInline: {data}")
+
+        # create new instance
+        instance = ImageInline()
+
+        if data is not None and "kind" in data:
+            instance.kind = data["kind"]
+        if data is not None and "src" in data:
+            instance.src = data["src"]
+        if data is not None and "alt" in data:
+            instance.alt = data["alt"]
+        if data is not None and "title" in data:
+            instance.title = data["title"]
+        if context is not None:
+            instance = context.process_output(instance)
+        return instance
+
+    def save(self, context: SaveContext | None = None) -> dict[str, Any]:
+        """Save the ImageInline instance to a dictionary.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            dict[str, Any]: The dictionary representation of this instance.
+
+        """
+        obj = self
+        if context is not None:
+            obj = context.process_object(obj)
+
+        # Start with parent class properties
+        result = super().save(context)
+
+        if obj.kind is not None:
+            result["kind"] = obj.kind
+        if obj.src is not None:
+            result["src"] = obj.src
+        if obj.alt is not None:
+            result["alt"] = obj.alt
+        if obj.title is not None:
+            result["title"] = obj.title
+        return result
+
+    def to_yaml(self, context: SaveContext | None = None) -> str:
+        """Convert the ImageInline instance to a YAML string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            str: The YAML string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_yaml(self.save(context))
+
+    def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
+        """Convert the ImageInline instance to a JSON string.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
             indent (int): Number of spaces for indentation. Defaults to 2.

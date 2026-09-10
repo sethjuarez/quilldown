@@ -106,6 +106,8 @@ def render_docx(doc: dict) -> "Any":
                 runs.append(("\n", dict(ctx)))
             elif k == "image":
                 runs.append(("[" + (inl.get("alt") or "") + "]", dict(ctx)))
+            elif k == "math":
+                runs.append((inl.get("latex") or "", dict(ctx)))
         return runs
 
     def _rpr(fmt):
