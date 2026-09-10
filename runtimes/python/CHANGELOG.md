@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.1.1...quilldown-python-v0.2.0) (2026-09-10)
+
+
+### Features
+
+* **python:** drive L2 document parity with the Rust reference engine ([6647b7a](https://github.com/sethjuarez/quilldown/commit/6647b7a2483b580fd5d2edf970f869d565fcc28d))
+* **python:** preserve math and images in lowering ([ead6ac8](https://github.com/sethjuarez/quilldown/commit/ead6ac8ccc8751677fc210a6f854cab6e62adcfd))
+* **python:** render real Word constructs to reach L2 document parity ([6a56e4f](https://github.com/sethjuarez/quilldown/commit/6a56e4f658eb8e54795abb255d37100fd9a153d0))
+
 ## [0.1.1](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.1.0...quilldown-python-v0.1.1) (2026-09-09)
 
 
