@@ -5,9 +5,9 @@ from __future__ import annotations
 from quilldown_spec import Document, RenderStats, RenderOptions, ConvertOptions
 
 from .parser import markdown_to_ir
-from .render import compute_stats, render_docx
+from .render import compute_stats, render_docx, validate_document
 
-__all__ = ["Runtime", "lower", "emit", "render_docx"]
+__all__ = ["Runtime", "lower", "emit", "render_docx", "validate_document"]
 
 
 class Runtime:

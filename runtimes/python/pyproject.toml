@@ -2,12 +2,21 @@
 name = "quilldown"
 version = "0.2.0"
 description = "Python runtime for the Quilldown shared contract (Markdown -> IR -> DOCX)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "markdown-it-py>=3.0",
     "mdit-py-plugins>=0.4",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sethjuarez/quilldown"
+Repository = "https://github.com/sethjuarez/quilldown"
+Issues = "https://github.com/sethjuarez/quilldown/issues"
+Changelog = "https://github.com/sethjuarez/quilldown/blob/main/runtimes/python/CHANGELOG.md"
 
 [project.optional-dependencies]
 docx = ["python-docx>=1.1"]

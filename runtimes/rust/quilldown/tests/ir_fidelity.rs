@@ -12,8 +12,9 @@
 //! monospace code) and that its cross-references are internally consistent (the **invariant**
 //! level: every anchor resolves to a bookmark, every numbering reference is defined).
 //!
-//! Enhanced features (math, SVG, captions) are intentionally excluded — lowering legalizes them
-//! to Core text, which is the documented boundary of this slice.
+//! Math and images are preserved in the IR as first-class inline nodes, but this Core emit path
+//! still renders their text fallback rather than native OMML or embedded images. SVG `<asvg>`
+//! layers, captions, and SEQ/REF fields remain Enhanced/byte-path concerns outside this slice.
 
 use std::io::{Cursor, Read};
 

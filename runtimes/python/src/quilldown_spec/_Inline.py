@@ -72,6 +72,8 @@ class Inline(ABC):
             return EmphasisInline.load(data, context)
         elif discriminator_value == "strikethrough":
             return StrikethroughInline.load(data, context)
+        elif discriminator_value == "subscript":
+            return SubscriptInline.load(data, context)
         elif discriminator_value == "code":
             return CodeInline.load(data, context)
         elif discriminator_value == "link":
@@ -80,6 +82,8 @@ class Inline(ABC):
             return MathInline.load(data, context)
         elif discriminator_value == "image":
             return ImageInline.load(data, context)
+        elif discriminator_value == "footnote_reference":
+            return FootnoteReferenceInline.load(data, context)
         elif discriminator_value == "soft_break":
             return SoftBreakInline.load(data, context)
         elif discriminator_value == "hard_break":
@@ -631,6 +635,133 @@ class StrikethroughInline(Inline):
 
 
 @dataclass
+class SubscriptInline(Inline):
+    """
+
+    Attributes
+    ----------
+    kind : str
+
+    data : list[Inline]
+
+    """
+
+    _shorthand_property: ClassVar[str | None] = None
+
+    kind: str = field(default="subscript")
+    data: list[Inline] = field(default_factory=list)
+
+    @staticmethod
+    def load(data: Any, context: LoadContext | None = None) -> "SubscriptInline":
+        """Load a SubscriptInline instance.
+        Args:
+            data (Any): The data to load the instance from.
+            context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            SubscriptInline: The loaded SubscriptInline instance.
+
+        """
+
+        if context is None:
+            context = LoadContext()
+        data = context.process_input(data)
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid data for SubscriptInline: {data}")
+
+        # create new instance
+        instance = SubscriptInline()
+
+        if data is not None and "kind" in data:
+            instance.kind = data["kind"]
+        if data is not None and "data" in data:
+            instance.data = SubscriptInline.load_data(data["data"], context.at("data"))
+        if context is not None:
+            instance = context.process_output(instance)
+        return instance
+
+    @staticmethod
+    def load_data(data: dict | list, context: LoadContext | None) -> list[Inline]:
+        if context is None:
+            context = LoadContext(path="data")
+        if isinstance(data, dict):
+            # convert simple named data to list of Inline
+            result = []
+            for k, v in data.items():
+                if isinstance(v, list):
+                    raise TypeError(
+                        f"{context.at(k).path}: invalid named collection entry category array"
+                    )
+                if isinstance(v, dict):
+                    # value is an object, spread its properties
+                    result.append(Inline.load({"name": k, **v}, context.at(k)))
+                else:
+                    # value is a scalar, use it as the primary property
+                    result.append(Inline.load({"name": k, "kind": v}, context.at(k)))
+            return result
+        return [
+            Inline.load(item, context.at_index(index))
+            for index, item in enumerate(data)
+        ]
+
+    @staticmethod
+    def save_data(
+        items: list[Inline], context: SaveContext | None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        if context is None:
+            context = SaveContext()
+
+        # The schema declares an ordered collection, so preserve array format
+        return [item.save(context) for item in items]
+
+    def save(self, context: SaveContext | None = None) -> dict[str, Any]:
+        """Save the SubscriptInline instance to a dictionary.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            dict[str, Any]: The dictionary representation of this instance.
+
+        """
+        obj = self
+        if context is not None:
+            obj = context.process_object(obj)
+
+        # Start with parent class properties
+        result = super().save(context)
+
+        if obj.kind is not None:
+            result["kind"] = obj.kind
+        if obj.data is not None:
+            result["data"] = SubscriptInline.save_data(obj.data, context)
+        return result
+
+    def to_yaml(self, context: SaveContext | None = None) -> str:
+        """Convert the SubscriptInline instance to a YAML string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            str: The YAML string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_yaml(self.save(context))
+
+    def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
+        """Convert the SubscriptInline instance to a JSON string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+            indent (int): Number of spaces for indentation. Defaults to 2.
+        Returns:
+            str: The JSON string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_json(self.save(context), indent)
+
+
+@dataclass
 class CodeInline(Inline):
     """
 
@@ -1054,6 +1185,101 @@ class ImageInline(Inline):
 
     def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
         """Convert the ImageInline instance to a JSON string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+            indent (int): Number of spaces for indentation. Defaults to 2.
+        Returns:
+            str: The JSON string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_json(self.save(context), indent)
+
+
+@dataclass
+class FootnoteReferenceInline(Inline):
+    """
+
+    Attributes
+    ----------
+    kind : str
+
+    label : str
+
+    """
+
+    _shorthand_property: ClassVar[str | None] = None
+
+    kind: str = field(default="footnote_reference")
+    label: str = field(default="")
+
+    @staticmethod
+    def load(
+        data: Any, context: LoadContext | None = None
+    ) -> "FootnoteReferenceInline":
+        """Load a FootnoteReferenceInline instance.
+        Args:
+            data (Any): The data to load the instance from.
+            context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            FootnoteReferenceInline: The loaded FootnoteReferenceInline instance.
+
+        """
+
+        if context is None:
+            context = LoadContext()
+        data = context.process_input(data)
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid data for FootnoteReferenceInline: {data}")
+
+        # create new instance
+        instance = FootnoteReferenceInline()
+
+        if data is not None and "kind" in data:
+            instance.kind = data["kind"]
+        if data is not None and "label" in data:
+            instance.label = data["label"]
+        if context is not None:
+            instance = context.process_output(instance)
+        return instance
+
+    def save(self, context: SaveContext | None = None) -> dict[str, Any]:
+        """Save the FootnoteReferenceInline instance to a dictionary.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            dict[str, Any]: The dictionary representation of this instance.
+
+        """
+        obj = self
+        if context is not None:
+            obj = context.process_object(obj)
+
+        # Start with parent class properties
+        result = super().save(context)
+
+        if obj.kind is not None:
+            result["kind"] = obj.kind
+        if obj.label is not None:
+            result["label"] = obj.label
+        return result
+
+    def to_yaml(self, context: SaveContext | None = None) -> str:
+        """Convert the FootnoteReferenceInline instance to a YAML string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            str: The YAML string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_yaml(self.save(context))
+
+    def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
+        """Convert the FootnoteReferenceInline instance to a JSON string.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
             indent (int): Number of spaces for indentation. Defaults to 2.

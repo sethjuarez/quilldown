@@ -35,6 +35,11 @@ model StrikethroughInline extends Inline {
   data: Inline[];
 }
 
+model SubscriptInline extends Inline {
+  kind: "subscript";
+  data: Inline[];
+}
+
 model CodeInline extends Inline {
   kind: "code";
   data: string;
@@ -66,6 +71,11 @@ model ImageInline extends Inline {
   src: string;
   alt: string;
   title: string;
+}
+
+model FootnoteReferenceInline extends Inline {
+  kind: "footnote_reference";
+  label: string;
 }
 
 model SoftBreakInline extends Inline {
@@ -150,12 +160,18 @@ model ThematicBreak extends Block {
   kind: "thematic_break";
 }
 
+model FootnoteDefinition {
+  label: string;
+  blocks: Block[];
+}
+
 // ---------------------------------------------------------------------------
 // Document + compiler contract.
 // ---------------------------------------------------------------------------
 @serializable
 model Document {
   blocks: Block[];
+  footnotes?: FootnoteDefinition[];
 }
 
 // Reserved option bags (Core tier uses no options yet).

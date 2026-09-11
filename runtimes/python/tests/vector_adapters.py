@@ -2,7 +2,7 @@
 suite via the target's `vector-adapter-path` option. Each adapter drives the
 real runtime and returns wire-shape values for byte-comparison against the
 oracle-derived vectors. No vector is silently skipped."""
-from quilldown import Runtime
+from quilldown import Runtime, validate_document
 from quilldown_spec import Document
 
 _RUNTIME = Runtime()
@@ -14,6 +14,7 @@ def _lower(resolved_input, context):
 
 
 def _emit(resolved_input, context):
+    validate_document(resolved_input["doc"])
     doc = Document.load(resolved_input["doc"])
     return _RUNTIME.emit(doc).save()
 

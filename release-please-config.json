@@ -10,6 +10,7 @@
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         "/Cargo.toml",
+        "/Cargo.lock",
         "/runtimes/rust/quilldown-cli/Cargo.toml"
       ]
     },

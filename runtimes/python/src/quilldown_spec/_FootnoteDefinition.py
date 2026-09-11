@@ -9,35 +9,34 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from ._Block import Block
-from ._FootnoteDefinition import FootnoteDefinition
 from ._context import LoadContext, SaveContext
 
 
 @dataclass
-class Document:
+class FootnoteDefinition:
     """
 
     Attributes
     ----------
-    blocks : list[Block]
+    label : str
 
-    footnotes : Optional[list[FootnoteDefinition]]
+    blocks : list[Block]
 
     """
 
     _shorthand_property: ClassVar[str | None] = None
 
+    label: str = field(default="")
     blocks: list[Block] = field(default_factory=list)
-    footnotes: list[FootnoteDefinition] | None = None
 
     @staticmethod
-    def load(data: Any, context: LoadContext | None = None) -> "Document":
-        """Load a Document instance.
+    def load(data: Any, context: LoadContext | None = None) -> "FootnoteDefinition":
+        """Load a FootnoteDefinition instance.
         Args:
             data (Any): The data to load the instance from.
             context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
         Returns:
-            Document: The loaded Document instance.
+            FootnoteDefinition: The loaded FootnoteDefinition instance.
 
         """
 
@@ -46,16 +45,16 @@ class Document:
         data = context.process_input(data)
 
         if not isinstance(data, dict):
-            raise ValueError(f"Invalid data for Document: {data}")
+            raise ValueError(f"Invalid data for FootnoteDefinition: {data}")
 
         # create new instance
-        instance = Document()
+        instance = FootnoteDefinition()
 
+        if data is not None and "label" in data:
+            instance.label = data["label"]
         if data is not None and "blocks" in data:
-            instance.blocks = Document.load_blocks(data["blocks"], context.at("blocks"))
-        if data is not None and "footnotes" in data:
-            instance.footnotes = Document.load_footnotes(
-                data["footnotes"], context.at("footnotes")
+            instance.blocks = FootnoteDefinition.load_blocks(
+                data["blocks"], context.at("blocks")
             )
         if context is not None:
             instance = context.process_output(instance)
@@ -94,48 +93,8 @@ class Document:
         # The schema declares an ordered collection, so preserve array format
         return [item.save(context) for item in items]
 
-    @staticmethod
-    def load_footnotes(
-        data: dict | list, context: LoadContext | None
-    ) -> list[FootnoteDefinition]:
-        if context is None:
-            context = LoadContext(path="footnotes")
-        if isinstance(data, dict):
-            # convert simple named footnotes to list of FootnoteDefinition
-            result = []
-            for k, v in data.items():
-                if isinstance(v, list):
-                    raise TypeError(
-                        f"{context.at(k).path}: invalid named collection entry category array"
-                    )
-                if isinstance(v, dict):
-                    # value is an object, spread its properties
-                    result.append(
-                        FootnoteDefinition.load({"name": k, **v}, context.at(k))
-                    )
-                else:
-                    # value is a scalar, use it as the primary property
-                    result.append(
-                        FootnoteDefinition.load({"name": k, "label": v}, context.at(k))
-                    )
-            return result
-        return [
-            FootnoteDefinition.load(item, context.at_index(index))
-            for index, item in enumerate(data)
-        ]
-
-    @staticmethod
-    def save_footnotes(
-        items: list[FootnoteDefinition], context: SaveContext | None
-    ) -> dict[str, Any] | list[dict[str, Any]]:
-        if context is None:
-            context = SaveContext()
-
-        # The schema declares an ordered collection, so preserve array format
-        return [item.save(context) for item in items]
-
     def save(self, context: SaveContext | None = None) -> dict[str, Any]:
-        """Save the Document instance to a dictionary.
+        """Save the FootnoteDefinition instance to a dictionary.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
         Returns:
@@ -148,17 +107,17 @@ class Document:
 
         result: dict[str, Any] = {}
 
+        if obj.label is not None:
+            result["label"] = obj.label
         if obj.blocks is not None:
-            result["blocks"] = Document.save_blocks(obj.blocks, context)
-        if obj.footnotes is not None:
-            result["footnotes"] = Document.save_footnotes(obj.footnotes, context)
+            result["blocks"] = FootnoteDefinition.save_blocks(obj.blocks, context)
 
         if context is not None:
             result = context.process_dict(result)
         return result
 
     def to_yaml(self, context: SaveContext | None = None) -> str:
-        """Convert the Document instance to a YAML string.
+        """Convert the FootnoteDefinition instance to a YAML string.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
         Returns:
@@ -170,7 +129,7 @@ class Document:
         return context.to_yaml(self.save(context))
 
     def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
-        """Convert the Document instance to a JSON string.
+        """Convert the FootnoteDefinition instance to a JSON string.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
             indent (int): Number of spaces for indentation. Defaults to 2.

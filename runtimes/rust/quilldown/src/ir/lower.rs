@@ -4,11 +4,12 @@
 //! options as the direct renderer (via [`crate::render::comrak_options_pub`]) so the two paths see
 //! an identical AST, then walks that AST into the backend-neutral [`crate::ir::model`] shapes.
 //!
-//! Only the Core tier is modeled, plus first-class [`Inline::Math`] and [`Inline::Image`] nodes so
-//! math and images survive lowering. The remaining Enhanced/inline constructs the Core IR does not
-//! represent (footnote refs, raw inline HTML, super/subscript) are still **legalized** here: their
-//! textual content is preserved as [`Inline::Text`] (or their formatting is flattened) rather than
-//! dropped, mirroring how the reference engine degrades unsupported input.
+//! Only the Core tier is modeled, plus first-class [`Inline::Math`], [`Inline::Image`],
+//! [`Inline::FootnoteReference`], and [`Inline::Subscript`] nodes so those enhanced semantics
+//! survive lowering. The remaining Enhanced/inline constructs the Core IR does not represent (raw
+//! inline HTML, superscript) are still **legalized** here: their textual content is preserved as
+//! [`Inline::Text`] (or their formatting is flattened) rather than dropped, mirroring how the
+//! reference engine degrades unsupported input.
 
 use comrak::nodes::{AstNode, ListType, NodeValue, TableAlignment};
 use comrak::{parse_document, Arena};
@@ -23,7 +24,23 @@ pub fn lower(markdown: &str) -> Document {
     let root = parse_document(&arena, markdown, &opts);
     Document {
         blocks: lower_blocks(root),
+        footnotes: lower_footnotes(root),
     }
+}
+
+fn lower_footnotes<'a>(root: &'a AstNode<'a>) -> Vec<crate::ir::model::FootnoteDefinition> {
+    let mut out = Vec::new();
+    for node in root.children() {
+        let value = node.data.borrow().value.clone();
+        let NodeValue::FootnoteDefinition(def) = value else {
+            continue;
+        };
+        out.push(crate::ir::model::FootnoteDefinition {
+            label: def.name,
+            blocks: lower_blocks(node),
+        });
+    }
+    out
 }
 
 /// Lower the block-level children of `container`.
@@ -154,8 +171,12 @@ fn lower_inlines<'a>(container: &'a AstNode<'a>) -> Vec<Inline> {
                 alt: text_of(child),
                 title: link.title,
             }),
-            // Formatting the Core IR does not carry (super/subscript, inline HTML) is flattened to
-            // its inner content rather than dropped.
+            NodeValue::Subscript => out.push(Inline::Subscript(lower_inlines(child))),
+            NodeValue::FootnoteReference(reference) => out.push(Inline::FootnoteReference {
+                label: reference.name,
+            }),
+            // Formatting the Core IR does not carry (superscript, inline HTML) is flattened to its
+            // inner content rather than dropped.
             _ => out.extend(lower_inlines(child)),
         }
     }
@@ -232,6 +253,35 @@ mod tests {
         assert!(content
             .iter()
             .any(|i| matches!(i, Inline::Code(c) if c == "code")));
+    }
+
+    #[test]
+    fn preserves_subscript_as_node() {
+        let doc = lower("H~2~O\n");
+        let Block::Paragraph { content } = &doc.blocks[0] else {
+            panic!("expected a paragraph");
+        };
+        assert!(
+            matches!(&content[1], Inline::Subscript(inner) if inner == &vec![Inline::text("2")])
+        );
+    }
+
+    #[test]
+    fn preserves_footnote_reference_and_definition() {
+        let doc = lower("See this[^Note].\n\n[^note]: Foot *note*.\n");
+        let Block::Paragraph { content } = &doc.blocks[0] else {
+            panic!("expected a paragraph");
+        };
+        assert!(matches!(
+        &content[1],
+        Inline::FootnoteReference { label } if label == "note"
+        ));
+        assert_eq!(doc.footnotes.len(), 1);
+        assert_eq!(doc.footnotes[0].label, "note");
+        assert!(matches!(
+        &doc.footnotes[0].blocks[0],
+        Block::Paragraph { content } if content.iter().any(|i| matches!(i, Inline::Emphasis(_)))
+        ));
     }
 
     #[test]
