@@ -1,4 +1,4 @@
 {
-  "runtimes/rust": "1.2.0",
+  "runtimes/rust": "1.3.0",
   "runtimes/python": "0.2.0"
 }
