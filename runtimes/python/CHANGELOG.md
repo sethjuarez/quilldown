@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.2.0...quilldown-python-v0.3.0) (2026-09-11)
+
+
+### Features
+
+* **spec:** harden polyglot parity gates ([7f96d6d](https://github.com/sethjuarez/quilldown/commit/7f96d6dcb4abda48f583b169eab9b3e20c106249))
+
 ## [0.2.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.1.1...quilldown-python-v0.2.0) (2026-09-10)
 
 
