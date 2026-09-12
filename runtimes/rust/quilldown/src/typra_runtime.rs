@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::io::{Cursor, Read};
-use std::path::Path;
+use std::io::{Cursor, Read, Write};
 
 use roxmltree::Document as XmlDocument;
 use serde_json::{json, Value};
@@ -25,6 +24,33 @@ const CORE_PROPERTIES_REL_TYPE: &str =
     "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties";
 const HYPERLINK_REL_TYPE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+const SLIDE_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
+const NOTES_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
+const NOTES_MASTER_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster";
+const IMAGE_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+const SLIDE_LAYOUT_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
+const SLIDE_MASTER_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster";
+const THEME_REL_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
+const PPTX_PRESENTATION_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
+const PPTX_SLIDE_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
+const PPTX_NOTES_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml";
+const PPTX_NOTES_MASTER_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml";
+const PPTX_SLIDE_LAYOUT_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml";
+const PPTX_SLIDE_MASTER_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml";
+const PPTX_THEME_CONTENT_TYPE: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
 const WORD_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const OFFICE_REL_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
@@ -41,6 +67,14 @@ pub fn lower(markdown: &str) -> TypraResult<spec::Document> {
 pub fn load_document_from_value(value: &Value) -> TypraResult<spec::Document> {
     validate_required_inline_payloads(value)?;
     Ok(spec::Document::try_load_from_value(
+        value,
+        &LoadContext::default(),
+    )?)
+}
+
+pub fn load_presentation_from_value(value: &Value) -> TypraResult<spec::Presentation> {
+    validate_required_presentation_payloads(value)?;
+    Ok(spec::Presentation::try_load_from_value(
         value,
         &LoadContext::default(),
     )?)
@@ -90,9 +124,98 @@ pub fn emit_word(
     )?)
 }
 
+pub fn emit_powerpoint(
+    presentation: &spec::Presentation,
+    options: &Option<spec::PowerPointRenderOptions>,
+) -> TypraResult<spec::PowerPointRenderResult> {
+    validate_presentation(presentation)?;
+    let bytes = render_pptx_bytes(presentation)?;
+    let inspected = inspect_pptx(&bytes)?;
+    let manifest = powerpoint_manifest_value(presentation, &inspected);
+    let invariants = powerpoint_invariants_value(presentation, &inspected);
+    let warnings = powerpoint_warnings_value(&invariants);
+    if options.as_ref().and_then(|o| o.strict).unwrap_or(false) {
+        if let Some(first) = warnings.as_array().and_then(|items| items.first()) {
+            let message = first
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("PowerPoint warning");
+            return Err(message.to_string().into());
+        }
+    }
+    let value = json!({
+        "stats": presentation_stats_value(presentation),
+        "manifest": manifest,
+        "invariants": invariants,
+        "warnings": warnings,
+    });
+    Ok(spec::PowerPointRenderResult::try_load_from_value(
+        &value,
+        &LoadContext::default(),
+    )?)
+}
+
+pub fn render_pptx_bytes(presentation: &spec::Presentation) -> TypraResult<Vec<u8>> {
+    validate_presentation(presentation)?;
+    emit_powerpoint_bytes(presentation)
+}
+
 fn validate_required_inline_payloads(doc: &Value) -> TypraResult<()> {
     if let Some(blocks) = doc.get("blocks").and_then(Value::as_array) {
         validate_blocks_payloads(blocks, "blocks")?;
+    }
+    Ok(())
+}
+
+fn validate_required_presentation_payloads(presentation: &Value) -> TypraResult<()> {
+    let Some(slides) = presentation.get("slides").and_then(Value::as_array) else {
+        return Err("slides must contain at least one slide".into());
+    };
+    if slides.is_empty() {
+        return Err("slides must contain at least one slide".into());
+    }
+    for (slide_index, slide) in slides.iter().enumerate() {
+        let Some(elements) = slide.get("elements").and_then(Value::as_array) else {
+            return Err(format!("slides[{slide_index}].elements is required").into());
+        };
+        for (element_index, element) in elements.iter().enumerate() {
+            let path = format!("slides[{slide_index}].elements[{element_index}]");
+            match element.get("kind").and_then(Value::as_str) {
+                Some("text_box") => {
+                    if !element.get("text").is_some_and(Value::is_string) {
+                        return Err(format!("{path}.text is required").into());
+                    }
+                    if element
+                        .get("bullets")
+                        .is_some_and(|value| !value.is_array())
+                    {
+                        return Err(format!("{path}.bullets must be an array").into());
+                    }
+                    if let Some(hyperlink) = element.get("hyperlink") {
+                        let Some(hyperlink) = hyperlink.as_str() else {
+                            return Err(format!("{path}.hyperlink must be a string").into());
+                        };
+                        if hyperlink.is_empty() {
+                            return Err(format!("{path}.hyperlink must not be empty").into());
+                        }
+                    }
+                }
+                Some("image") => {
+                    if !element.get("src").is_some_and(Value::is_string) {
+                        return Err(format!("{path}.src is required").into());
+                    }
+                    if !element.get("alt").is_some_and(Value::is_string) {
+                        return Err(format!("{path}.alt is required").into());
+                    }
+                }
+                Some(kind) => {
+                    return Err(format!("{path} has unsupported element kind '{kind}'").into());
+                }
+                None => {
+                    return Err(format!("{path} has unsupported element kind 'null'").into());
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -400,6 +523,497 @@ fn doc_meta(metadata: Option<&spec::DocumentMetadata>) -> DocMeta {
     }
 }
 
+fn validate_presentation(presentation: &spec::Presentation) -> TypraResult<()> {
+    if presentation.slides.is_empty() {
+        return Err("slides must contain at least one slide".into());
+    }
+    for (slide_index, slide) in presentation.slides.iter().enumerate() {
+        for (element_index, element) in slide.elements.iter().enumerate() {
+            match &element.kind {
+                spec::SlideElementKind::TextBoxElement { hyperlink, .. } => {
+                    if hyperlink.as_deref() == Some("") {
+                        return Err(format!(
+                            "slides[{slide_index}].elements[{element_index}].hyperlink must not be empty"
+                        )
+                        .into());
+                    }
+                }
+                spec::SlideElementKind::SlideImageElement { .. } => {}
+                spec::SlideElementKind::Unknown { kind_name, .. } => {
+                    return Err(format!(
+                        "slides[{slide_index}].elements[{element_index}] has unsupported element kind '{kind_name}'"
+                    )
+                    .into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn emit_powerpoint_bytes(presentation: &spec::Presentation) -> TypraResult<Vec<u8>> {
+    let mut out = Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut out);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        let entries = powerpoint_entries(presentation);
+        for (name, content) in entries {
+            zip.start_file(&name, opts)
+                .map_err(|error| format!("write pptx entry {name}: {error}"))?;
+            zip.write_all(content.as_bytes())?;
+        }
+        zip.finish()
+            .map_err(|error| format!("finish pptx package: {error}"))?;
+    }
+    Ok(out.into_inner())
+}
+
+fn powerpoint_entries(presentation: &spec::Presentation) -> Vec<(String, String)> {
+    let mut entries = vec![
+        (
+            "[Content_Types].xml".to_string(),
+            pptx_content_types_xml(presentation),
+        ),
+        ("_rels/.rels".to_string(), pptx_root_rels_xml()),
+        (
+            "docProps/core.xml".to_string(),
+            pptx_core_props_xml(presentation.metadata.as_ref()),
+        ),
+        (
+            "ppt/presentation.xml".to_string(),
+            pptx_presentation_xml(presentation),
+        ),
+        (
+            "ppt/_rels/presentation.xml.rels".to_string(),
+            pptx_presentation_rels_xml(presentation),
+        ),
+        (
+            "ppt/slideLayouts/slideLayout1.xml".to_string(),
+            pptx_slide_layout_xml(),
+        ),
+        (
+            "ppt/slideLayouts/_rels/slideLayout1.xml.rels".to_string(),
+            pptx_slide_layout_rels_xml(),
+        ),
+        (
+            "ppt/slideMasters/slideMaster1.xml".to_string(),
+            pptx_slide_master_xml(),
+        ),
+        (
+            "ppt/slideMasters/_rels/slideMaster1.xml.rels".to_string(),
+            pptx_slide_master_rels_xml(),
+        ),
+        ("ppt/theme/theme1.xml".to_string(), pptx_theme_xml()),
+    ];
+    if presentation_has_notes(presentation) {
+        entries.push((
+            "ppt/notesMasters/notesMaster1.xml".to_string(),
+            pptx_notes_master_xml(),
+        ));
+        entries.push((
+            "ppt/notesMasters/_rels/notesMaster1.xml.rels".to_string(),
+            pptx_notes_master_rels_xml(),
+        ));
+    }
+    for (index, slide) in presentation.slides.iter().enumerate() {
+        let slide_number = index + 1;
+        entries.push((
+            format!("ppt/slides/slide{slide_number}.xml"),
+            pptx_slide_xml(slide),
+        ));
+        entries.push((
+            format!("ppt/slides/_rels/slide{slide_number}.xml.rels"),
+            pptx_slide_rels_xml(slide, slide_number),
+        ));
+        if slide
+            .speaker_notes
+            .as_ref()
+            .is_some_and(|notes| !notes.is_empty())
+        {
+            entries.push((
+                format!("ppt/notesSlides/notesSlide{slide_number}.xml"),
+                pptx_notes_xml(slide),
+            ));
+            entries.push((
+                format!("ppt/notesSlides/_rels/notesSlide{slide_number}.xml.rels"),
+                pptx_notes_rels_xml(slide_number),
+            ));
+        }
+    }
+    entries
+}
+
+fn pptx_content_types_xml(presentation: &spec::Presentation) -> String {
+    let mut overrides = vec![
+        (
+            "/docProps/core.xml".to_string(),
+            CORE_PROPERTIES_CONTENT_TYPE,
+        ),
+        (
+            "/ppt/presentation.xml".to_string(),
+            PPTX_PRESENTATION_CONTENT_TYPE,
+        ),
+        (
+            "/ppt/slideLayouts/slideLayout1.xml".to_string(),
+            PPTX_SLIDE_LAYOUT_CONTENT_TYPE,
+        ),
+        (
+            "/ppt/slideMasters/slideMaster1.xml".to_string(),
+            PPTX_SLIDE_MASTER_CONTENT_TYPE,
+        ),
+        (
+            "/ppt/notesMasters/notesMaster1.xml".to_string(),
+            PPTX_NOTES_MASTER_CONTENT_TYPE,
+        ),
+        ("/ppt/theme/theme1.xml".to_string(), PPTX_THEME_CONTENT_TYPE),
+    ];
+    for (index, slide) in presentation.slides.iter().enumerate() {
+        let slide_number = index + 1;
+        overrides.push((
+            format!("/ppt/slides/slide{slide_number}.xml"),
+            PPTX_SLIDE_CONTENT_TYPE,
+        ));
+        if slide
+            .speaker_notes
+            .as_ref()
+            .is_some_and(|notes| !notes.is_empty())
+        {
+            overrides.push((
+                format!("/ppt/notesSlides/notesSlide{slide_number}.xml"),
+                PPTX_NOTES_CONTENT_TYPE,
+            ));
+        }
+    }
+    let override_xml = overrides
+        .iter()
+        .map(|(part, content_type)| {
+            format!(r#"<Override PartName="{part}" ContentType="{content_type}"/>"#)
+        })
+        .collect::<String>();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>{override_xml}</Types>"#
+    )
+}
+
+fn pptx_root_rels_xml() -> String {
+    rels_xml(&[
+        (
+            "rId1",
+            OFFICE_DOCUMENT_REL_TYPE,
+            "ppt/presentation.xml",
+            None,
+        ),
+        ("rId2", CORE_PROPERTIES_REL_TYPE, "docProps/core.xml", None),
+    ])
+}
+
+fn pptx_presentation_rels_xml(presentation: &spec::Presentation) -> String {
+    let mut rels = (1..=presentation.slides.len())
+        .map(|index| {
+            (
+                format!("rId{index}"),
+                SLIDE_REL_TYPE.to_string(),
+                format!("slides/slide{index}.xml"),
+                None,
+            )
+        })
+        .collect::<Vec<_>>();
+    rels.push((
+        format!("rId{}", rels.len() + 1),
+        SLIDE_MASTER_REL_TYPE.to_string(),
+        "slideMasters/slideMaster1.xml".to_string(),
+        None,
+    ));
+    if presentation_has_notes(presentation) {
+        rels.push((
+            format!("rId{}", rels.len() + 1),
+            NOTES_MASTER_REL_TYPE.to_string(),
+            "notesMasters/notesMaster1.xml".to_string(),
+            None,
+        ));
+    }
+    rels_xml_owned(&rels)
+}
+
+fn pptx_slide_rels_xml(slide: &spec::Slide, slide_number: usize) -> String {
+    let mut rels: Vec<(String, String, String, Option<String>)> = vec![(
+        "rId1".to_string(),
+        SLIDE_LAYOUT_REL_TYPE.to_string(),
+        "../slideLayouts/slideLayout1.xml".to_string(),
+        None,
+    )];
+    let mut next_id = 2;
+    for element in &slide.elements {
+        if let spec::SlideElementKind::TextBoxElement { hyperlink, .. } = &element.kind {
+            let Some(href) = hyperlink.as_ref().filter(|href| !href.is_empty()) else {
+                continue;
+            };
+            rels.push((
+                format!("rId{next_id}"),
+                HYPERLINK_REL_TYPE.to_string(),
+                href.clone(),
+                Some("External".to_string()),
+            ));
+            next_id += 1;
+        }
+    }
+    if slide
+        .speaker_notes
+        .as_ref()
+        .is_some_and(|notes| !notes.is_empty())
+    {
+        rels.push((
+            format!("rId{next_id}"),
+            NOTES_REL_TYPE.to_string(),
+            format!("../notesSlides/notesSlide{slide_number}.xml"),
+            None,
+        ));
+    }
+    rels_xml_owned(&rels)
+}
+
+fn pptx_slide_hyperlink_rids(slide: &spec::Slide) -> Vec<Option<String>> {
+    let mut rids = Vec::new();
+    let mut next_id = 2;
+    for element in &slide.elements {
+        if let spec::SlideElementKind::TextBoxElement { hyperlink, .. } = &element.kind {
+            if hyperlink.as_deref().is_some_and(|href| !href.is_empty()) {
+                rids.push(Some(format!("rId{next_id}")));
+                next_id += 1;
+            } else {
+                rids.push(None);
+            }
+        }
+    }
+    rids
+}
+
+fn pptx_slide_master_rels_xml() -> String {
+    rels_xml(&[
+        (
+            "rId1",
+            SLIDE_LAYOUT_REL_TYPE,
+            "../slideLayouts/slideLayout1.xml",
+            None,
+        ),
+        ("rId2", THEME_REL_TYPE, "../theme/theme1.xml", None),
+    ])
+}
+
+fn pptx_slide_layout_rels_xml() -> String {
+    rels_xml(&[(
+        "rId1",
+        SLIDE_MASTER_REL_TYPE,
+        "../slideMasters/slideMaster1.xml",
+        None,
+    )])
+}
+
+fn pptx_notes_master_rels_xml() -> String {
+    rels_xml(&[("rId1", THEME_REL_TYPE, "../theme/theme1.xml", None)])
+}
+
+fn pptx_notes_rels_xml(slide_number: usize) -> String {
+    let rels = vec![
+        (
+            "rId1".to_string(),
+            SLIDE_REL_TYPE.to_string(),
+            format!("../slides/slide{slide_number}.xml"),
+            None,
+        ),
+        (
+            "rId2".to_string(),
+            NOTES_MASTER_REL_TYPE.to_string(),
+            "../notesMasters/notesMaster1.xml".to_string(),
+            None,
+        ),
+    ];
+    rels_xml_owned(&rels)
+}
+
+fn rels_xml(rels: &[(&str, &str, &str, Option<&str>)]) -> String {
+    let owned = rels
+        .iter()
+        .map(|(id, rel_type, target, mode)| {
+            (
+                (*id).to_string(),
+                (*rel_type).to_string(),
+                (*target).to_string(),
+                mode.map(str::to_string),
+            )
+        })
+        .collect::<Vec<_>>();
+    rels_xml_owned(&owned)
+}
+
+fn rels_xml_owned(rels: &[(String, String, String, Option<String>)]) -> String {
+    let relationships = rels
+        .iter()
+        .map(|(id, rel_type, target, mode)| {
+            let mode = mode
+                .as_ref()
+                .map(|value| format!(r#" TargetMode="{}""#, xml_escape(value)))
+                .unwrap_or_default();
+            format!(
+                r#"<Relationship Id="{}" Type="{}" Target="{}"{} />"#,
+                xml_escape(id),
+                xml_escape(rel_type),
+                xml_escape(target),
+                mode
+            )
+        })
+        .collect::<String>();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{relationships}</Relationships>"#
+    )
+}
+
+fn pptx_core_props_xml(metadata: Option<&spec::DocumentMetadata>) -> String {
+    let empty = spec::DocumentMetadata::default();
+    let metadata = metadata.unwrap_or(&empty);
+    let keywords = metadata.keywords.as_deref().unwrap_or_default().join(", ");
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:subject>{}</dc:subject><dc:description>{}</dc:description><cp:keywords>{}</cp:keywords></cp:coreProperties>"#,
+        xml_escape(metadata.title.as_deref().unwrap_or_default()),
+        xml_escape(metadata.creator.as_deref().unwrap_or_default()),
+        xml_escape(metadata.subject.as_deref().unwrap_or_default()),
+        xml_escape(metadata.description.as_deref().unwrap_or_default()),
+        xml_escape(&keywords),
+    )
+}
+
+fn pptx_presentation_xml(presentation: &spec::Presentation) -> String {
+    let slide_ids = (1..=presentation.slides.len())
+        .map(|index| format!(r#"<p:sldId id="{}" r:id="rId{index}"/>"#, 255 + index))
+        .collect::<String>();
+    let notes_master_ids = if presentation_has_notes(presentation) {
+        format!(
+            r#"<p:notesMasterIdLst><p:notesMasterId r:id="rId{}"/></p:notesMasterIdLst>"#,
+            presentation.slides.len() + 2
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId{}"/></p:sldMasterIdLst>{notes_master_ids}<p:sldIdLst>{slide_ids}</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>"#,
+        presentation.slides.len() + 1
+    )
+}
+
+fn presentation_has_notes(presentation: &spec::Presentation) -> bool {
+    presentation.slides.iter().any(|slide| {
+        slide
+            .speaker_notes
+            .as_ref()
+            .is_some_and(|notes| !notes.is_empty())
+    })
+}
+
+fn pptx_slide_xml(slide: &spec::Slide) -> String {
+    let mut shapes = String::new();
+    if let Some(title) = &slide.title {
+        shapes.push_str(&pptx_shape_xml(1, title, &[], None, true));
+    }
+    let mut next_id = 2;
+    let mut hyperlink_rids = pptx_slide_hyperlink_rids(slide).into_iter();
+    for element in &slide.elements {
+        match &element.kind {
+            spec::SlideElementKind::TextBoxElement { text, bullets, .. } => {
+                let hyperlink_rid = hyperlink_rids.next().flatten();
+                shapes.push_str(&pptx_shape_xml(
+                    next_id,
+                    text,
+                    bullets.as_deref().unwrap_or_default(),
+                    hyperlink_rid.as_deref(),
+                    false,
+                ));
+                next_id += 1;
+            }
+            spec::SlideElementKind::SlideImageElement { alt, .. } => {
+                shapes.push_str(&pptx_shape_xml(next_id, alt, &[], None, false));
+                next_id += 1;
+            }
+            spec::SlideElementKind::Unknown { .. } => {}
+        }
+    }
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>{shapes}</p:spTree></p:cSld></p:sld>"#
+    )
+}
+
+fn pptx_shape_xml(
+    shape_id: usize,
+    text: &str,
+    bullets: &[String],
+    hyperlink: Option<&str>,
+    title: bool,
+) -> String {
+    let mut paragraphs = pptx_paragraph_xml(text, hyperlink, false);
+    for bullet in bullets {
+        paragraphs.push_str(&pptx_paragraph_xml(bullet, None, true));
+    }
+    let placeholder = if title { r#"<p:ph type="title"/>"# } else { "" };
+    format!(
+        r#"<p:sp><p:nvSpPr><p:cNvPr id="{}" name="TextBox {shape_id}"/><p:cNvSpPr txBox="1"/><p:nvPr>{placeholder}</p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="7315200" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/>{paragraphs}</p:txBody></p:sp>"#,
+        shape_id + 1
+    )
+}
+
+fn pptx_paragraph_xml(text: &str, hyperlink: Option<&str>, bullet: bool) -> String {
+    let bullet_xml = if bullet {
+        r#"<a:buChar char="•"/>"#
+    } else {
+        ""
+    };
+    let hyperlink_xml = if let Some(rid) = hyperlink {
+        format!(r#"<a:hlinkClick r:id="{}"/>"#, xml_escape(rid))
+    } else {
+        String::new()
+    };
+    format!(
+        r#"<a:p><a:pPr>{bullet_xml}</a:pPr><a:r><a:rPr lang="en-US">{hyperlink_xml}</a:rPr><a:t>{}</a:t></a:r></a:p>"#,
+        xml_escape(text)
+    )
+}
+
+fn pptx_notes_xml(slide: &spec::Slide) -> String {
+    let paragraphs = slide
+        .speaker_notes
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .map(|note| format!(r#"<a:p><a:r><a:t>{}</a:t></a:r></a:p>"#, xml_escape(note)))
+        .collect::<String>();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder"/><p:cNvSpPr txBox="1"/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>{paragraphs}</p:txBody></p:sp></p:spTree></p:cSld></p:notes>"#
+    )
+}
+
+fn pptx_slide_layout_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>"#.to_string()
+}
+
+fn pptx_slide_master_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>"#.to_string()
+}
+
+fn pptx_theme_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Quilldown"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F1F1F"/></a:dk2><a:lt2><a:srgbClr val="F2F2F2"/></a:lt2><a:accent1><a:srgbClr val="4472C4"/></a:accent1><a:accent2><a:srgbClr val="ED7D31"/></a:accent2><a:accent3><a:srgbClr val="A5A5A5"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4><a:accent5><a:srgbClr val="5B9BD5"/></a:accent5><a:accent6><a:srgbClr val="70AD47"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="Office"><a:majorFont><a:latin typeface="Aptos Display"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Office"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"#.to_string()
+}
+
+fn pptx_notes_master_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notesMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder"/><p:cNvSpPr txBox="1"/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:notesMaster>"#.to_string()
+}
+
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 #[derive(Clone)]
 struct Relationship {
     id: String,
@@ -418,6 +1032,7 @@ struct InspectedPackage {
     defaults: BTreeMap<String, String>,
     overrides: BTreeMap<String, String>,
     relationships: Vec<RelationshipSet>,
+    slide_xml: BTreeMap<String, String>,
     document_xml: String,
     numbering_xml: String,
     styles_xml: String,
@@ -490,9 +1105,85 @@ fn inspect_docx(bytes: &[u8]) -> TypraResult<InspectedPackage> {
         defaults,
         overrides,
         relationships,
+        slide_xml: BTreeMap::new(),
         document_xml,
         numbering_xml,
         styles_xml,
+        core_xml,
+    })
+}
+
+fn inspect_pptx(bytes: &[u8]) -> TypraResult<InspectedPackage> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes))?;
+    let names = (0..archive.len())
+        .map(|index| archive.by_index(index).map(|file| file.name().to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let content_types_xml = read_zip_string(&mut archive, "[Content_Types].xml")?;
+    let core_xml = read_zip_string(&mut archive, "docProps/core.xml")?;
+    let content_types = XmlDocument::parse(&content_types_xml)?;
+    let mut defaults = BTreeMap::new();
+    let mut overrides = BTreeMap::new();
+    for node in content_types.descendants().filter(|node| node.is_element()) {
+        match node.tag_name().name() {
+            "Default" => {
+                if let (Some(ext), Some(content_type)) =
+                    (node.attribute("Extension"), node.attribute("ContentType"))
+                {
+                    defaults.insert(ext.to_string(), content_type.to_string());
+                }
+            }
+            "Override" => {
+                if let (Some(part), Some(content_type)) =
+                    (node.attribute("PartName"), node.attribute("ContentType"))
+                {
+                    overrides.insert(part.to_string(), content_type.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut relationships = Vec::new();
+    let mut slide_xml = BTreeMap::new();
+    for name in &names {
+        if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") {
+            slide_xml.insert(format!("/{name}"), read_zip_string(&mut archive, name)?);
+        }
+        if !name.ends_with(".rels") {
+            continue;
+        }
+        let xml = read_zip_string(&mut archive, name)?;
+        let rel_doc = XmlDocument::parse(&xml)?;
+        let mut rels = Vec::new();
+        for node in rel_doc
+            .descendants()
+            .filter(|node| node.has_tag_name("Relationship"))
+        {
+            rels.push(Relationship {
+                id: node.attribute("Id").unwrap_or_default().to_string(),
+                rel_type: node.attribute("Type").unwrap_or_default().to_string(),
+                target: node.attribute("Target").unwrap_or_default().to_string(),
+                target_mode: node.attribute("TargetMode").map(str::to_string),
+            });
+        }
+        relationships.push(RelationshipSet {
+            source_part: source_part_for_rels(name),
+            relationships: rels,
+        });
+    }
+    relationships.sort_by(|a, b| a.source_part.cmp(&b.source_part));
+    Ok(InspectedPackage {
+        part_names: names
+            .iter()
+            .filter(|name| !name.ends_with('/'))
+            .map(|name| format!("/{name}"))
+            .collect(),
+        defaults,
+        overrides,
+        relationships,
+        slide_xml,
+        document_xml: String::new(),
+        numbering_xml: String::new(),
+        styles_xml: String::new(),
         core_xml,
     })
 }
@@ -539,7 +1230,7 @@ fn manifest_value(
     if let Some(content_type) = inspected.defaults.get("xml") {
         content_types.push(json!({"extension": "xml", "contentType": content_type}));
     }
-    for (name, _) in &required_roles {
+    for name in required_roles.keys() {
         if let Some(content_type) = inspected.overrides.get(*name) {
             content_types.push(json!({"partName": *name, "contentType": content_type}));
         }
@@ -552,7 +1243,7 @@ fn manifest_value(
         "contentTypes": content_types,
     });
     let core = requested_core_properties(doc.metadata.as_ref(), inspected);
-    if !core.as_object().map_or(true, serde_json::Map::is_empty) {
+    if !core.as_object().is_none_or(serde_json::Map::is_empty) {
         result["coreProperties"] = core;
     }
     result
@@ -661,6 +1352,307 @@ fn requested_metadata_has_field(metadata: &spec::DocumentMetadata, field: &str) 
         "keywords" => metadata.keywords.is_some(),
         _ => false,
     }
+}
+
+fn powerpoint_manifest_value(
+    presentation: &spec::Presentation,
+    inspected: &InspectedPackage,
+) -> Value {
+    let required_roles = required_powerpoint_part_roles(presentation);
+    let mut parts: Vec<_> = required_roles
+        .iter()
+        .filter_map(|(name, role)| {
+            inspected.overrides.get(name).map(
+                |content_type| json!({"name": name, "contentType": content_type, "role": role}),
+            )
+        })
+        .collect();
+    parts.sort_by_key(|part| part["name"].as_str().unwrap_or_default().to_string());
+    let mut content_types = Vec::new();
+    if let Some(content_type) = inspected.defaults.get("rels") {
+        content_types.push(json!({"extension": "rels", "contentType": content_type}));
+    }
+    if let Some(content_type) = inspected.defaults.get("xml") {
+        content_types.push(json!({"extension": "xml", "contentType": content_type}));
+    }
+    for name in required_roles.keys() {
+        if let Some(content_type) = inspected.overrides.get(name) {
+            content_types.push(json!({"partName": name, "contentType": content_type}));
+        }
+    }
+    let mut result = json!({
+        "kind": "pptx",
+        "parts": parts,
+        "relationships": normalized_powerpoint_relationship_sets(inspected),
+        "contentTypes": content_types,
+    });
+    let core = requested_core_properties(presentation.metadata.as_ref(), inspected);
+    if !core.as_object().is_none_or(serde_json::Map::is_empty) {
+        result["coreProperties"] = core;
+    }
+    result
+}
+
+fn required_powerpoint_part_roles(
+    presentation: &spec::Presentation,
+) -> BTreeMap<String, &'static str> {
+    let mut roles = BTreeMap::from([
+        ("/docProps/core.xml".to_string(), "core-properties"),
+        ("/ppt/presentation.xml".to_string(), "presentation"),
+    ]);
+    for (index, slide) in presentation.slides.iter().enumerate() {
+        let slide_number = index + 1;
+        roles.insert(format!("/ppt/slides/slide{slide_number}.xml"), "slide");
+        if slide
+            .speaker_notes
+            .as_ref()
+            .is_some_and(|notes| !notes.is_empty())
+        {
+            roles.insert(
+                format!("/ppt/notesSlides/notesSlide{slide_number}.xml"),
+                "notes",
+            );
+        }
+    }
+    roles
+}
+
+fn normalized_powerpoint_relationship_sets(inspected: &InspectedPackage) -> Vec<Value> {
+    let wanted = [
+        OFFICE_DOCUMENT_REL_TYPE,
+        CORE_PROPERTIES_REL_TYPE,
+        SLIDE_REL_TYPE,
+        NOTES_REL_TYPE,
+        HYPERLINK_REL_TYPE,
+    ];
+    normalized_relationship_sets_for(inspected, &wanted)
+}
+
+fn normalized_relationship_sets_for(inspected: &InspectedPackage, wanted: &[&str]) -> Vec<Value> {
+    let mut sets = Vec::new();
+    for rel_set in &inspected.relationships {
+        let mut seen = HashSet::new();
+        let mut relationships = Vec::new();
+        for rel in &rel_set.relationships {
+            if !wanted.contains(&rel.rel_type.as_str()) {
+                continue;
+            }
+            if rel.rel_type == SLIDE_REL_TYPE
+                && rel_set.source_part.as_deref() != Some("/ppt/presentation.xml")
+            {
+                continue;
+            }
+            if rel.rel_type == NOTES_REL_TYPE
+                && !rel_set
+                    .source_part
+                    .as_deref()
+                    .is_some_and(|source| source.starts_with("/ppt/slides/"))
+            {
+                continue;
+            }
+            let key = (
+                rel.rel_type.clone(),
+                rel.target.clone(),
+                rel.target_mode.clone().unwrap_or_default(),
+            );
+            if !seen.insert(key) {
+                continue;
+            }
+            let mut item = json!({"type": rel.rel_type, "target": rel.target});
+            if let Some(mode) = &rel.target_mode {
+                item["targetMode"] = json!(mode);
+            }
+            relationships.push(item);
+        }
+        relationships.sort_by_key(|rel| {
+            format!(
+                "{}\u{0}{}\u{0}{}",
+                rel["type"].as_str().unwrap_or_default(),
+                rel["target"].as_str().unwrap_or_default(),
+                rel["targetMode"].as_str().unwrap_or_default()
+            )
+        });
+        if !relationships.is_empty() {
+            let mut item = json!({"relationships": relationships});
+            if let Some(source) = &rel_set.source_part {
+                item["sourcePart"] = json!(source);
+            }
+            sets.push(item);
+        }
+    }
+    sets.sort_by_key(|set| set["sourcePart"].as_str().unwrap_or_default().to_string());
+    sets
+}
+
+fn powerpoint_invariants_value(
+    presentation: &spec::Presentation,
+    inspected: &InspectedPackage,
+) -> Value {
+    let required_roles = required_powerpoint_part_roles(presentation);
+    let presentation_rels = relationships_for_source(inspected, "/ppt/presentation.xml");
+    let slide_parts = (1..=presentation.slides.len())
+        .map(|index| format!("/ppt/slides/slide{index}.xml"))
+        .collect::<BTreeSet<_>>();
+    let slide_targets = presentation_rels
+        .iter()
+        .filter(|rel| rel.rel_type == SLIDE_REL_TYPE)
+        .map(|rel| relationship_target_part(Some("/ppt/presentation.xml"), &rel.target))
+        .collect::<BTreeSet<_>>();
+    let hyperlink_rids = powerpoint_hyperlink_rids_by_slide(inspected);
+    json!({
+        "allRelationshipIdsResolve": relationships_resolve(inspected),
+        "allContentTypesDeclared": required_roles.keys().all(|name| inspected.overrides.get(name).map(String::as_str) == Some(powerpoint_content_type_for_required_part(name))),
+        "noDuplicateRelationshipIds": relationship_ids_unique(inspected),
+        "noOrphanRequiredParts": required_roles.keys().all(|name| inspected.part_names.contains(name)),
+        "allSlidesReachable": slide_parts.is_subset(&slide_targets),
+        "allMediaPartsReachable": presentation_stats_value(presentation)["images"].as_i64().unwrap_or_default() == 0 || has_media_relationship(inspected),
+        "allHyperlinksHaveRelationships": hyperlink_rids.iter().all(|(source_part, rids)| hyperlinks_resolve_for_slide(inspected, source_part, rids)),
+    })
+}
+
+fn powerpoint_content_type_for_required_part(name: &str) -> &'static str {
+    if name.starts_with("/ppt/slides/slide") {
+        return PPTX_SLIDE_CONTENT_TYPE;
+    }
+    if name.starts_with("/ppt/notesSlides/notesSlide") {
+        return PPTX_NOTES_CONTENT_TYPE;
+    }
+    match name {
+        "/docProps/core.xml" => CORE_PROPERTIES_CONTENT_TYPE,
+        "/ppt/presentation.xml" => PPTX_PRESENTATION_CONTENT_TYPE,
+        _ => "",
+    }
+}
+
+fn relationships_for_source<'a>(
+    inspected: &'a InspectedPackage,
+    source_part: &str,
+) -> Vec<&'a Relationship> {
+    inspected
+        .relationships
+        .iter()
+        .find(|set| set.source_part.as_deref() == Some(source_part))
+        .map(|set| set.relationships.iter().collect())
+        .unwrap_or_default()
+}
+
+fn powerpoint_hyperlink_rids_by_slide(inspected: &InspectedPackage) -> Vec<(String, Vec<String>)> {
+    let mut slide_rids = Vec::new();
+    for (source_part, xml) in &inspected.slide_xml {
+        if let Ok(doc) = XmlDocument::parse(xml) {
+            let mut rids = Vec::new();
+            for node in doc.descendants().filter(|node| node.is_element()) {
+                if node.tag_name().name() == "hlinkClick" {
+                    if let Some(rid) = node.attribute((
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+                        "id",
+                    )) {
+                        rids.push(rid.to_string());
+                    }
+                }
+            }
+            if !rids.is_empty() {
+                slide_rids.push((source_part.clone(), rids));
+            }
+        }
+    }
+    slide_rids
+}
+
+fn hyperlinks_resolve_for_slide(
+    inspected: &InspectedPackage,
+    source_part: &str,
+    rids: &[String],
+) -> bool {
+    let relationships = relationships_for_source(inspected, source_part)
+        .into_iter()
+        .map(|rel| (rel.id.as_str(), rel))
+        .collect::<BTreeMap<_, _>>();
+    rids.iter().all(|rid| {
+        relationships
+            .get(rid.as_str())
+            .map(|rel| rel.rel_type.as_str())
+            == Some(HYPERLINK_REL_TYPE)
+    })
+}
+
+fn powerpoint_warnings_value(invariants: &Value) -> Value {
+    let invariant_codes = [
+        (
+            "allRelationshipIdsResolve",
+            "powerpoint.relationships-unresolved",
+        ),
+        (
+            "allContentTypesDeclared",
+            "powerpoint.content-types-missing",
+        ),
+        (
+            "noDuplicateRelationshipIds",
+            "powerpoint.relationship-ids-duplicate",
+        ),
+        ("noOrphanRequiredParts", "powerpoint.required-parts-missing"),
+        ("allSlidesReachable", "powerpoint.slides-unreachable"),
+        ("allMediaPartsReachable", "powerpoint.media-unreachable"),
+        (
+            "allHyperlinksHaveRelationships",
+            "powerpoint.hyperlinks-unresolved",
+        ),
+    ];
+    Value::Array(
+        invariant_codes
+            .iter()
+            .filter_map(|(key, code)| {
+                if invariants.get(*key).and_then(Value::as_bool) == Some(false) {
+                    Some(json!({
+                        "code": code,
+                        "severity": "warning",
+                        "message": format!("PowerPoint invariant failed: {key}."),
+                        "path": format!("invariants.{key}"),
+                    }))
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    )
+}
+
+fn presentation_stats_value(presentation: &spec::Presentation) -> Value {
+    let mut text_boxes = 0;
+    let mut bullet_items = 0;
+    let mut images = 0;
+    let mut links = 0;
+    let mut speaker_notes = 0;
+    for slide in &presentation.slides {
+        speaker_notes += slide
+            .speaker_notes
+            .as_ref()
+            .map_or(0, |notes| notes.len() as i32);
+        for element in &slide.elements {
+            match &element.kind {
+                spec::SlideElementKind::TextBoxElement {
+                    bullets, hyperlink, ..
+                } => {
+                    text_boxes += 1;
+                    bullet_items += bullets.as_ref().map_or(0, |items| items.len() as i32);
+                    if hyperlink.is_some() {
+                        links += 1;
+                    }
+                }
+                spec::SlideElementKind::SlideImageElement { .. } => images += 1,
+                spec::SlideElementKind::Unknown { .. } => {}
+            }
+        }
+    }
+    json!({
+        "slides": presentation.slides.len() as i32,
+        "textBoxes": text_boxes,
+        "bulletItems": bullet_items,
+        "images": images,
+        "links": links,
+        "speakerNotes": speaker_notes,
+        "warnings": [],
+    })
 }
 
 fn invariants_value(
@@ -863,14 +1855,24 @@ fn relationship_target_part(source_part: Option<&str>, target: &str) -> String {
     if target.starts_with('/') {
         return target.to_string();
     }
-    match source_part.and_then(|source| Path::new(source).parent()) {
-        Some(parent) => format!(
-            "/{}",
-            parent.join(target).to_string_lossy().replace('\\', "/")
-        )
-        .replace("//", "/"),
+    let combined = match source_part {
+        Some(source) => {
+            let base = source.rsplit_once('/').map(|(base, _)| base).unwrap_or("");
+            format!("{base}/{target}")
+        }
         None => format!("/{target}"),
+    };
+    let mut parts = Vec::new();
+    for part in combined.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            _ => parts.push(part),
+        }
     }
+    format!("/{}", parts.join("/"))
 }
 
 fn document_relationships(inspected: &InspectedPackage) -> BTreeMap<String, Relationship> {
@@ -892,7 +1894,7 @@ fn has_media_relationship(inspected: &InspectedPackage) -> bool {
         .relationships
         .iter()
         .flat_map(|set| &set.relationships)
-        .any(|rel| rel.rel_type.ends_with("/image"))
+        .any(|rel| rel.rel_type == IMAGE_REL_TYPE)
 }
 
 fn has_images(doc: &ir::Document) -> bool {
@@ -1036,7 +2038,7 @@ fn defined_numberings(inspected: &InspectedPackage) -> HashSet<String> {
 fn all_table_first_rows_marked(inspected: &InspectedPackage) -> bool {
     XmlDocument::parse(&inspected.document_xml)
         .ok()
-        .map_or(false, |doc| {
+        .is_some_and(|doc| {
             doc.descendants()
                 .filter(|node| node.has_tag_name((WORD_NS, "tbl")))
                 .all(|table| {
@@ -1047,7 +2049,7 @@ fn all_table_first_rows_marked(inspected: &InspectedPackage) -> bool {
                             row.children()
                                 .find(|node| node.has_tag_name((WORD_NS, "trPr")))
                         })
-                        .map_or(false, |props| {
+                        .is_some_and(|props| {
                             props
                                 .children()
                                 .any(|node| node.has_tag_name((WORD_NS, "tblHeader")))

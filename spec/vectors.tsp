@@ -2290,6 +2290,485 @@ const WordEmitVectors = #[
   }
 ];
 
+const PowerPointEmitVectors = #[
+  #{
+    name: "powerpoint_title_slide_manifest-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{
+        metadata: #{ title: "Demo deck", creator: "Quilldown" },
+        slides: #[
+          #{ title: "Hello", elements: #[#{ kind: "text_box", text: "Welcome" }] }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{ slides: 1, textBoxes: 1, bulletItems: 0, images: 0, links: 0, speakerNotes: 0, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ],
+        coreProperties: #{ title: "Demo deck", creator: "Quilldown" }
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_bullets_notes_manifest-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{
+        slides: #[
+          #{
+            title: "Agenda",
+            elements: #[#{ kind: "text_box", text: "Topics", bullets: #["Why", "How"] }],
+            speakerNotes: #["Open with the problem.", "Preview the demo."]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{ slides: 1, textBoxes: 1, bulletItems: 2, images: 0, links: 0, speakerNotes: 2, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/notesSlides/notesSlide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml", role: "notes" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide1.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide", target: "../notesSlides/notesSlide1.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/notesSlides/notesSlide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_hyperlink_relationship-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{ slides: #[#{ elements: #[#{ kind: "text_box", text: "Guide", hyperlink: "https://example.com/guide" }] }] }
+    },
+    expected: #{
+      stats: #{ slides: 1, textBoxes: 1, bulletItems: 0, images: 0, links: 1, speakerNotes: 0, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide1.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: "https://example.com/guide", targetMode: "External" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_two_hyperlinks_relationships-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{
+        slides: #[
+          #{
+            elements: #[
+              #{ kind: "text_box", text: "One", hyperlink: "https://example.com/one" },
+              #{ kind: "text_box", text: "Two", hyperlink: "https://example.com/two" }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{ slides: 1, textBoxes: 2, bulletItems: 0, images: 0, links: 2, speakerNotes: 0, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide1.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: "https://example.com/one", targetMode: "External" },
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: "https://example.com/two", targetMode: "External" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_multi_slide_hyperlink_scoped_relationships-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{
+        slides: #[
+          #{ elements: #[#{ kind: "text_box", text: "Guide", hyperlink: "https://example.com/guide" }] },
+          #{
+            title: "Wrap",
+            elements: #[#{ kind: "text_box", text: "Questions" }],
+            speakerNotes: #["Close with next steps."]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{ slides: 2, textBoxes: 2, bulletItems: 0, images: 0, links: 1, speakerNotes: 1, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/notesSlides/notesSlide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml", role: "notes" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" },
+          #{ name: "/ppt/slides/slide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" },
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide2.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide1.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: "https://example.com/guide", targetMode: "External" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide2.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide", target: "../notesSlides/notesSlide2.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/notesSlides/notesSlide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" },
+          #{ partName: "/ppt/slides/slide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_slide_two_hyperlink_scoped_relationships-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{
+        slides: #[
+          #{
+            title: "Intro",
+            elements: #[#{ kind: "text_box", text: "Set context" }],
+            speakerNotes: #["Open with context."]
+          },
+          #{ elements: #[#{ kind: "text_box", text: "Guide", hyperlink: "https://example.com/guide" }] }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{ slides: 2, textBoxes: 2, bulletItems: 0, images: 0, links: 1, speakerNotes: 1, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/notesSlides/notesSlide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml", role: "notes" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" },
+          #{ name: "/ppt/slides/slide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" },
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide2.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide1.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide", target: "../notesSlides/notesSlide1.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/slides/slide2.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", target: "https://example.com/guide", targetMode: "External" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/notesSlides/notesSlide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" },
+          #{ partName: "/ppt/slides/slide2.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: true,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "powerpoint_image_fallback_media_warning-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[#{ elements: #[#{ kind: "image", src: "cat.png", alt: "a cat" }] }] } },
+    expected: #{
+      stats: #{ slides: 1, textBoxes: 0, bulletItems: 0, images: 1, links: 0, speakerNotes: 0, warnings: #[] },
+      manifest: #{
+        kind: "pptx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", role: "presentation" },
+          #{ name: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml", role: "slide" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "ppt/presentation.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          },
+          #{
+            sourcePart: "/ppt/presentation.xml",
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide", target: "slides/slide1.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/ppt/presentation.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" },
+          #{ partName: "/ppt/slides/slide1.xml", contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        noOrphanRequiredParts: true,
+        allSlidesReachable: true,
+        allMediaPartsReachable: false,
+        allHyperlinksHaveRelationships: true
+      },
+      warnings: #[#{ code: "powerpoint.media-unreachable", severity: "warning", message: "PowerPoint invariant failed: allMediaPartsReachable.", path: "invariants.allMediaPartsReachable" }]
+    }
+  },
+  #{
+    name: "powerpoint_image_strict-emit",
+    stage: "callable",
+    input: #{
+      presentation: #{ slides: #[#{ elements: #[#{ kind: "image", src: "cat.png", alt: "a cat" }] }] },
+      options: #{ strict: true }
+    },
+    expectedError: #{ message: "PowerPoint invariant failed: allMediaPartsReachable." }
+  },
+  #{
+    name: "powerpoint_invalid_empty_slides-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[] } },
+    expectedError: #{ message: "slides must contain at least one slide" }
+  },
+  #{
+    name: "powerpoint_invalid_element_kind-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[#{ elements: #[#{ kind: "chart" }] }] } },
+    expectedError: #{ message: "slides[0].elements[0] has unsupported element kind 'chart'" }
+  },
+  #{
+    name: "powerpoint_invalid_empty_hyperlink-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[#{ elements: #[#{ kind: "text_box", text: "Guide", hyperlink: "" }] }] } },
+    expectedError: #{ message: "slides[0].elements[0].hyperlink must not be empty" }
+  },
+  #{
+    name: "powerpoint_invalid_missing_text-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[#{ elements: #[#{ kind: "text_box" }] }] } },
+    expectedError: #{ message: "slides[0].elements[0].text is required" }
+  },
+  #{
+    name: "powerpoint_invalid_bullets_shape-emit",
+    stage: "callable",
+    input: #{ presentation: #{ slides: #[#{ elements: #[#{ kind: "text_box", text: "Agenda", bullets: "not-array" }] }] } },
+    expectedError: #{ message: "slides[0].elements[0].bullets must be an array" }
+  }
+];
+
 
 const EmitVectors = #[
   #{

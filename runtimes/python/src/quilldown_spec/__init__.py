@@ -64,6 +64,22 @@ from ._RenderStats import RenderStats
 
 from ._WordRenderResult import WordRenderResult
 
+from ._SlideElement import (
+    SlideElement,
+    TextBoxElement,
+    SlideImageElement,
+)
+
+from ._Slide import Slide
+
+from ._Presentation import Presentation
+
+from ._PresentationStats import PresentationStats
+
+from ._PowerPointInvariants import PowerPointInvariants
+
+from ._PowerPointRenderResult import PowerPointRenderResult
+
 from ._Samples import Samples
 
 from ._ConvertOptions import ConvertOptions
@@ -71,6 +87,10 @@ from ._ConvertOptions import ConvertOptions
 from ._RenderOptions import RenderOptions
 
 from ._WordRenderOptions import WordRenderOptions
+
+from ._PowerPointRenderOptions import PowerPointRenderOptions
+
+from ._PowerPointEmitter import PowerPointEmitter
 
 from ._Quilldown import Quilldown
 
@@ -116,10 +136,20 @@ __all__ = [
     "WordInvariants",
     "RenderStats",
     "WordRenderResult",
+    "SlideElement",
+    "TextBoxElement",
+    "SlideImageElement",
+    "Slide",
+    "Presentation",
+    "PresentationStats",
+    "PowerPointInvariants",
+    "PowerPointRenderResult",
     "Samples",
     "ConvertOptions",
     "RenderOptions",
     "WordRenderOptions",
+    "PowerPointRenderOptions",
+    "PowerPointEmitter",
     "Quilldown",
     "WordEmitter",
 ]

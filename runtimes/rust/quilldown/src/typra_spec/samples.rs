@@ -22,6 +22,14 @@ use super::document_metadata::DocumentMetadata;
 
 use super::office_package_manifest::OfficePackageManifest;
 
+use super::power_point_invariants::PowerPointInvariants;
+
+use super::power_point_render_result::PowerPointRenderResult;
+
+use super::presentation::Presentation;
+
+use super::presentation_stats::PresentationStats;
+
 use super::word_invariants::WordInvariants;
 
 use super::word_render_result::WordRenderResult;
@@ -50,6 +58,10 @@ pub struct Samples {
     pub office_package_manifest: OfficePackageManifest,
     pub word_invariants: WordInvariants,
     pub word_render_result: WordRenderResult,
+    pub presentation: Presentation,
+    pub presentation_stats: PresentationStats,
+    pub powerpoint_invariants: PowerPointInvariants,
+    pub powerpoint_render_result: PowerPointRenderResult,
 }
 
 impl Samples {
@@ -279,6 +291,46 @@ impl Samples {
             .filter(|candidate| !candidate.is_null())
             .ok_or_else(|| format!("{}: missing required field", child_path))?;
         WordRenderResult::validate_input_at(child, &child_path)?;
+        let child_path = if path.is_empty() {
+            "presentation".to_string()
+        } else {
+            format!("{}.presentation", path)
+        };
+        let child = value
+            .get("presentation")
+            .filter(|candidate| !candidate.is_null())
+            .ok_or_else(|| format!("{}: missing required field", child_path))?;
+        Presentation::validate_input_at(child, &child_path)?;
+        let child_path = if path.is_empty() {
+            "presentation_stats".to_string()
+        } else {
+            format!("{}.presentation_stats", path)
+        };
+        let child = value
+            .get("presentation_stats")
+            .filter(|candidate| !candidate.is_null())
+            .ok_or_else(|| format!("{}: missing required field", child_path))?;
+        PresentationStats::validate_input_at(child, &child_path)?;
+        let child_path = if path.is_empty() {
+            "powerpoint_invariants".to_string()
+        } else {
+            format!("{}.powerpoint_invariants", path)
+        };
+        let child = value
+            .get("powerpoint_invariants")
+            .filter(|candidate| !candidate.is_null())
+            .ok_or_else(|| format!("{}: missing required field", child_path))?;
+        PowerPointInvariants::validate_input_at(child, &child_path)?;
+        let child_path = if path.is_empty() {
+            "powerpoint_render_result".to_string()
+        } else {
+            format!("{}.powerpoint_render_result", path)
+        };
+        let child = value
+            .get("powerpoint_render_result")
+            .filter(|candidate| !candidate.is_null())
+            .ok_or_else(|| format!("{}: missing required field", child_path))?;
+        PowerPointRenderResult::validate_input_at(child, &child_path)?;
         Ok(())
     }
 }

@@ -2,8 +2,13 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use quilldown::typra_spec::{Document, LoadContext, SaveContext, WordRenderOptions};
+use quilldown::typra_spec::{
+    Document, LoadContext, PowerPointRenderOptions, Presentation, SaveContext, WordRenderOptions,
+};
 use serde_json::Value;
+
+type AsyncInvoke =
+    fn(&Value, &Context) -> Pin<Box<dyn Future<Output = Result<Value, VectorError>> + Send>>;
 
 pub struct Context {
     pub contract: String,
@@ -22,7 +27,7 @@ pub struct Adapter {
 
 pub enum Invoke {
     Sync(fn(&Value, &Context) -> Result<Value, VectorError>),
-    Async(fn(&Value, &Context) -> Pin<Box<dyn Future<Output = Result<Value, VectorError>> + Send>>),
+    Async(AsyncInvoke),
 }
 
 pub struct VectorError {
@@ -59,6 +64,13 @@ pub fn adapters() -> HashMap<&'static str, Adapter> {
             "WordEmitter.emitWord",
             Adapter {
                 invoke: Invoke::Sync(emit_word_adapter),
+                normalize: None,
+            },
+        ),
+        (
+            "PowerPointEmitter.emitPowerPoint",
+            Adapter {
+                invoke: Invoke::Sync(emit_powerpoint_adapter),
                 normalize: None,
             },
         ),
@@ -104,11 +116,32 @@ fn emit_word_adapter(input: &Value, _ctx: &Context) -> Result<Value, VectorError
         .map_err(vector_error)
 }
 
+fn emit_powerpoint_adapter(input: &Value, _ctx: &Context) -> Result<Value, VectorError> {
+    let presentation = load_presentation(input)?;
+    let options = match input.get("options") {
+        Some(value) => Some(
+            PowerPointRenderOptions::try_load_from_value(value, &LoadContext::default())
+                .map_err(vector_error)?,
+        ),
+        None => None,
+    };
+    quilldown::typra_runtime::emit_powerpoint(&presentation, &options)
+        .map(|result| result.to_value(&SaveContext::default()))
+        .map_err(vector_error)
+}
+
 fn load_doc(input: &Value) -> Result<Document, VectorError> {
     let value = input
         .get("doc")
         .ok_or_else(|| VectorError::message("input.doc is required"))?;
     quilldown::typra_runtime::load_document_from_value(value).map_err(vector_error)
+}
+
+fn load_presentation(input: &Value) -> Result<Presentation, VectorError> {
+    let value = input
+        .get("presentation")
+        .ok_or_else(|| VectorError::message("input.presentation is required"))?;
+    quilldown::typra_runtime::load_presentation_from_value(value).map_err(vector_error)
 }
 
 fn vector_error(error: impl std::fmt::Display) -> VectorError {

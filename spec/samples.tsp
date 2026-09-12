@@ -753,3 +753,109 @@ const Sample_word_render_result = #{
     warnings: #[]
   }
 };
+
+const Sample_presentation = #{
+  presentation: #{
+    metadata: #{ title: "Demo deck", creator: "Quilldown" },
+    slides: #[
+      #{
+        title: "Hello",
+        elements: #[
+          #{ kind: "text_box", text: "Welcome", bullets: #["First", "Second"] }
+        ],
+        speakerNotes: #["Say hello."]
+      }
+    ]
+  }
+};
+
+const Sample_presentation_stats = #{
+  presentation_stats: #{
+    slides: 1,
+    textBoxes: 1,
+    bulletItems: 2,
+    images: 0,
+    links: 0,
+    speakerNotes: 1,
+    warnings: #[]
+  }
+};
+
+const Sample_powerpoint_invariants = #{
+  powerpoint_invariants: #{
+    allRelationshipIdsResolve: true,
+    allContentTypesDeclared: true,
+    noDuplicateRelationshipIds: true,
+    noOrphanRequiredParts: true,
+    allSlidesReachable: true,
+    allMediaPartsReachable: true,
+    allHyperlinksHaveRelationships: true
+  }
+};
+
+const Sample_powerpoint_render_result = #{
+  powerpoint_render_result: #{
+    stats: #{
+      slides: 1,
+      textBoxes: 1,
+      bulletItems: 0,
+      images: 0,
+      links: 0,
+      speakerNotes: 0,
+      warnings: #[]
+    },
+    manifest: #{
+      kind: "pptx",
+      parts: #[
+        #{
+          name: "/ppt/presentation.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+          role: "presentation"
+        },
+        #{
+          name: "/ppt/slides/slide1.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml",
+          role: "slide"
+        }
+      ],
+      relationships: #[
+        #{
+          relationships: #[
+            #{
+              type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+              target: "ppt/presentation.xml"
+            }
+          ]
+        }
+      ],
+      contentTypes: #[
+        #{
+          extension: "rels",
+          contentType: "application/vnd.openxmlformats-package.relationships+xml"
+        },
+        #{
+          extension: "xml",
+          contentType: "application/xml"
+        },
+        #{
+          partName: "/ppt/presentation.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+        },
+        #{
+          partName: "/ppt/slides/slide1.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+        }
+      ]
+    },
+    invariants: #{
+      allRelationshipIdsResolve: true,
+      allContentTypesDeclared: true,
+      noDuplicateRelationshipIds: true,
+      noOrphanRequiredParts: true,
+      allSlidesReachable: true,
+      allMediaPartsReachable: true,
+      allHyperlinksHaveRelationships: true
+    },
+    warnings: #[]
+  }
+};

@@ -6,6 +6,9 @@ from __future__ import annotations
 from quilldown_spec import (
     ConvertOptions,
     Document,
+    PowerPointRenderOptions,
+    PowerPointRenderResult,
+    Presentation,
     RenderOptions,
     RenderStats,
     WordRenderOptions,
@@ -13,9 +16,20 @@ from quilldown_spec import (
 )
 
 from .parser import markdown_to_ir
+from .pptx import emit_powerpoint_result, render_pptx_bytes, validate_presentation
 from .render import compute_stats, emit_word_result, render_docx, validate_document
 
-__all__ = ["Runtime", "lower", "emit", "emit_word", "render_docx", "validate_document"]
+__all__ = [
+    "Runtime",
+    "lower",
+    "emit",
+    "emit_word",
+    "emit_powerpoint",
+    "render_docx",
+    "render_pptx_bytes",
+    "validate_document",
+    "validate_presentation",
+]
 
 
 class Runtime:
@@ -46,6 +60,20 @@ class Runtime:
     ) -> WordRenderResult:
         return self.emit_word(doc, options)
 
+    def emit_powerpoint(
+        self, presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+    ) -> PowerPointRenderResult:
+        if not isinstance(presentation, Presentation):
+            validate_presentation(presentation)
+        typed = presentation if isinstance(presentation, Presentation) else Presentation.load(presentation)
+        strict = bool(getattr(options, "strict", False)) if options is not None else False
+        return PowerPointRenderResult.load(emit_powerpoint_result(typed.save(), strict=strict))
+
+    async def emit_powerpoint_async(
+        self, presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+    ) -> PowerPointRenderResult:
+        return self.emit_powerpoint(presentation, options)
+
 
 _DEFAULT = Runtime()
 
@@ -62,3 +90,9 @@ def emit_word(
     doc: Document, options: "WordRenderOptions | None" = None
 ) -> WordRenderResult:
     return _DEFAULT.emit_word(doc, options)
+
+
+def emit_powerpoint(
+    presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+) -> PowerPointRenderResult:
+    return _DEFAULT.emit_powerpoint(presentation, options)

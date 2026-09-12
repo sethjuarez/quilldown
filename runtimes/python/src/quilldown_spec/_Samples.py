@@ -13,6 +13,10 @@ from ._Diagnostic import Diagnostic
 from ._Document import Document
 from ._DocumentMetadata import DocumentMetadata
 from ._OfficePackageManifest import OfficePackageManifest
+from ._PowerPointInvariants import PowerPointInvariants
+from ._PowerPointRenderResult import PowerPointRenderResult
+from ._Presentation import Presentation
+from ._PresentationStats import PresentationStats
 from ._WordInvariants import WordInvariants
 from ._WordRenderResult import WordRenderResult
 from ._context import LoadContext, SaveContext
@@ -68,6 +72,14 @@ class Samples:
 
     word_render_result : WordRenderResult
 
+    presentation : Presentation
+
+    presentation_stats : PresentationStats
+
+    powerpoint_invariants : PowerPointInvariants
+
+    powerpoint_render_result : PowerPointRenderResult
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
@@ -96,3 +108,11 @@ class Samples:
     )
     word_invariants: WordInvariants = field(default_factory=WordInvariants)
     word_render_result: WordRenderResult = field(default_factory=WordRenderResult)
+    presentation: Presentation = field(default_factory=Presentation)
+    presentation_stats: PresentationStats = field(default_factory=PresentationStats)
+    powerpoint_invariants: PowerPointInvariants = field(
+        default_factory=PowerPointInvariants
+    )
+    powerpoint_render_result: PowerPointRenderResult = field(
+        default_factory=PowerPointRenderResult
+    )

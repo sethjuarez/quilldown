@@ -64,6 +64,24 @@ pub use render_stats::*;
 pub mod word_render_result;
 pub use word_render_result::*;
 
+pub mod slide_element;
+pub use slide_element::*;
+
+pub mod slide;
+pub use slide::*;
+
+pub mod presentation;
+pub use presentation::*;
+
+pub mod presentation_stats;
+pub use presentation_stats::*;
+
+pub mod power_point_invariants;
+pub use power_point_invariants::*;
+
+pub mod power_point_render_result;
+pub use power_point_render_result::*;
+
 pub mod samples;
 pub use samples::*;
 
@@ -75,6 +93,12 @@ pub use render_options::*;
 
 pub mod word_render_options;
 pub use word_render_options::*;
+
+pub mod power_point_render_options;
+pub use power_point_render_options::*;
+
+pub mod power_point_emitter;
+pub use power_point_emitter::*;
 
 pub mod quilldown;
 pub use quilldown::*;

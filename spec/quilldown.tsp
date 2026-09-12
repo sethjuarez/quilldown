@@ -287,6 +287,73 @@ model WordRenderResult {
   warnings: Diagnostic[];
 }
 
+// ---------------------------------------------------------------------------
+// PowerPoint presentation contract.
+// ---------------------------------------------------------------------------
+@abstract
+@discriminator("kind")
+model SlideElement {
+  kind: string;
+}
+
+model TextBoxElement extends SlideElement {
+  kind: "text_box";
+  text: string;
+  bullets?: string[];
+  hyperlink?: string;
+}
+
+model SlideImageElement extends SlideElement {
+  kind: "image";
+  src: string;
+  alt: string;
+  title?: string;
+}
+
+model Slide {
+  title?: string;
+  elements: SlideElement[];
+  speakerNotes?: string[];
+}
+
+@serializable
+model Presentation {
+  slides: Slide[];
+  metadata?: DocumentMetadata;
+  assets?: AssetReference[];
+}
+
+model PresentationStats {
+  slides: int32;
+  textBoxes: int32;
+  bulletItems: int32;
+  images: int32;
+  links: int32;
+  speakerNotes: int32;
+  warnings: string[];
+}
+
+model PowerPointInvariants {
+  allRelationshipIdsResolve: boolean;
+  allContentTypesDeclared: boolean;
+  noDuplicateRelationshipIds: boolean;
+  noOrphanRequiredParts: boolean;
+  allSlidesReachable: boolean;
+  allMediaPartsReachable: boolean;
+  allHyperlinksHaveRelationships: boolean;
+}
+
+model PowerPointRenderOptions {
+  strict?: boolean;
+}
+
+model PowerPointRenderResult {
+  stats: PresentationStats;
+  manifest: OfficePackageManifest;
+  invariants: PowerPointInvariants;
+  warnings: Diagnostic[];
+}
+
 interface Quilldown {
   @vector(LowerVectors)
   lower(markdown: string, options?: ConvertOptions): Document;
@@ -298,6 +365,11 @@ interface Quilldown {
 interface WordEmitter {
   @vector(WordEmitVectors)
   emitWord(doc: Document, options?: WordRenderOptions): WordRenderResult;
+}
+
+interface PowerPointEmitter {
+  @vector(PowerPointEmitVectors)
+  emitPowerPoint(presentation: Presentation, options?: PowerPointRenderOptions): PowerPointRenderResult;
 }
 
 // Emitter root-object: its closure pulls in the full model surface, and each
@@ -325,4 +397,8 @@ model Samples {
   @sample(Sample_office_package_manifest) office_package_manifest: OfficePackageManifest;
   @sample(Sample_word_invariants) word_invariants: WordInvariants;
   @sample(Sample_word_render_result) word_render_result: WordRenderResult;
+  @sample(Sample_presentation) presentation: Presentation;
+  @sample(Sample_presentation_stats) presentation_stats: PresentationStats;
+  @sample(Sample_powerpoint_invariants) powerpoint_invariants: PowerPointInvariants;
+  @sample(Sample_powerpoint_render_result) powerpoint_render_result: PowerPointRenderResult;
 }
