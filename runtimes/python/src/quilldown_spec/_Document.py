@@ -8,7 +8,9 @@
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
+from ._AssetReference import AssetReference
 from ._Block import Block
+from ._DocumentMetadata import DocumentMetadata
 from ._FootnoteDefinition import FootnoteDefinition
 from ._context import LoadContext, SaveContext
 
@@ -23,12 +25,18 @@ class Document:
 
     footnotes : Optional[list[FootnoteDefinition]]
 
+    metadata : Optional[DocumentMetadata]
+
+    assets : Optional[list[AssetReference]]
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
 
     blocks: list[Block] = field(default_factory=list)
     footnotes: list[FootnoteDefinition] | None = None
+    metadata: DocumentMetadata | None = None
+    assets: list[AssetReference] | None = None
 
     @staticmethod
     def load(data: Any, context: LoadContext | None = None) -> "Document":
@@ -57,6 +65,12 @@ class Document:
             instance.footnotes = Document.load_footnotes(
                 data["footnotes"], context.at("footnotes")
             )
+        if data is not None and "metadata" in data:
+            instance.metadata = DocumentMetadata.load(
+                data["metadata"], context.at("metadata")
+            )
+        if data is not None and "assets" in data:
+            instance.assets = Document.load_assets(data["assets"], context.at("assets"))
         if context is not None:
             instance = context.process_output(instance)
         return instance
@@ -134,6 +148,44 @@ class Document:
         # The schema declares an ordered collection, so preserve array format
         return [item.save(context) for item in items]
 
+    @staticmethod
+    def load_assets(
+        data: dict | list, context: LoadContext | None
+    ) -> list[AssetReference]:
+        if context is None:
+            context = LoadContext(path="assets")
+        if isinstance(data, dict):
+            # convert simple named assets to list of AssetReference
+            result = []
+            for k, v in data.items():
+                if isinstance(v, list):
+                    raise TypeError(
+                        f"{context.at(k).path}: invalid named collection entry category array"
+                    )
+                if isinstance(v, dict):
+                    # value is an object, spread its properties
+                    result.append(AssetReference.load({"name": k, **v}, context.at(k)))
+                else:
+                    # value is a scalar, use it as the primary property
+                    result.append(
+                        AssetReference.load({"name": k, "id": v}, context.at(k))
+                    )
+            return result
+        return [
+            AssetReference.load(item, context.at_index(index))
+            for index, item in enumerate(data)
+        ]
+
+    @staticmethod
+    def save_assets(
+        items: list[AssetReference], context: SaveContext | None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        if context is None:
+            context = SaveContext()
+
+        # The schema declares an ordered collection, so preserve array format
+        return [item.save(context) for item in items]
+
     def save(self, context: SaveContext | None = None) -> dict[str, Any]:
         """Save the Document instance to a dictionary.
         Args:
@@ -152,6 +204,10 @@ class Document:
             result["blocks"] = Document.save_blocks(obj.blocks, context)
         if obj.footnotes is not None:
             result["footnotes"] = Document.save_footnotes(obj.footnotes, context)
+        if obj.metadata is not None:
+            result["metadata"] = obj.metadata.save(context)
+        if obj.assets is not None:
+            result["assets"] = Document.save_assets(obj.assets, context)
 
         if context is not None:
             result = context.process_dict(result)

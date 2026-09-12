@@ -608,3 +608,148 @@ const Sample_heading_para = #{
     ]
   }
 };
+
+const Sample_document_metadata = #{
+  document_metadata: #{
+    title: "Quarterly Report",
+    creator: "Quilldown",
+    subject: "Status",
+    description: "A generated Office artifact",
+    keywords: #["markdown", "office"],
+    language: "en-US",
+    created: "2026-09-11"
+  }
+};
+
+const Sample_asset_reference = #{
+  asset_reference: #{
+    id: "asset-1",
+    source: "diagrams/flow.svg",
+    kind: "svg",
+    alt: "Request flow",
+    title: "Flow diagram"
+  }
+};
+
+const Sample_diagnostic = #{
+  diagnostic: #{
+    code: "office.missing-alt",
+    severity: "warning",
+    message: "Image has no alt text",
+    path: "blocks[0].content[1]"
+  }
+};
+
+const Sample_office_package_manifest = #{
+  office_package_manifest: #{
+    kind: "docx",
+    parts: #[
+      #{
+        name: "/word/document.xml",
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+        role: "document"
+      },
+      #{
+        name: "/word/styles.xml",
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+        role: "styles"
+      }
+    ],
+    relationships: #[
+      #{
+        relationships: #[
+          #{
+            id: "rId1",
+            type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            target: "word/document.xml"
+          }
+        ]
+      }
+    ],
+    contentTypes: #[
+      #{
+        partName: "/word/document.xml",
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+      },
+      #{
+        extension: "rels",
+        contentType: "application/vnd.openxmlformats-package.relationships+xml"
+      }
+    ],
+    coreProperties: #{
+      title: "Quarterly Report",
+      language: "en-US"
+    }
+  }
+};
+
+const Sample_word_invariants = #{
+  word_invariants: #{
+    allRelationshipIdsResolve: true,
+    allContentTypesDeclared: true,
+    noDuplicateRelationshipIds: true,
+    allMediaPartsReachable: true,
+    noOrphanRequiredParts: true,
+    allHyperlinksHaveRelationships: true,
+    allAnchorLinksHaveBookmarks: true,
+    allNumberingReferencesDefined: true,
+    allTableHeadersMarked: true,
+    defaultProofingLanguageSet: true
+  }
+};
+
+const Sample_word_render_result = #{
+  word_render_result: #{
+    stats: #{
+      headings: 1,
+      paragraphs: 1,
+      codeBlocks: 0,
+      blockQuotes: 0,
+      lists: 0,
+      listItems: 0,
+      tables: 0,
+      links: 0,
+      thematicBreaks: 0,
+      warnings: #[]
+    },
+    manifest: #{
+      kind: "docx",
+      parts: #[
+        #{
+          name: "/word/document.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+          role: "document"
+        }
+      ],
+      relationships: #[
+        #{
+          relationships: #[
+            #{
+              id: "rId1",
+              type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+              target: "word/document.xml"
+            }
+          ]
+        }
+      ],
+      contentTypes: #[
+        #{
+          partName: "/word/document.xml",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+        }
+      ]
+    },
+    invariants: #{
+      allRelationshipIdsResolve: true,
+      allContentTypesDeclared: true,
+      noDuplicateRelationshipIds: true,
+      allMediaPartsReachable: true,
+      noOrphanRequiredParts: true,
+      allHyperlinksHaveRelationships: true,
+      allAnchorLinksHaveBookmarks: true,
+      allNumberingReferencesDefined: true,
+      allTableHeadersMarked: true
+    },
+    warnings: #[]
+  }
+};

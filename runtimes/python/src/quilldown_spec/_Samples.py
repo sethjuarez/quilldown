@@ -8,7 +8,13 @@
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from ._AssetReference import AssetReference
+from ._Diagnostic import Diagnostic
 from ._Document import Document
+from ._DocumentMetadata import DocumentMetadata
+from ._OfficePackageManifest import OfficePackageManifest
+from ._WordInvariants import WordInvariants
+from ._WordRenderResult import WordRenderResult
 from ._context import LoadContext, SaveContext
 
 
@@ -50,6 +56,18 @@ class Samples:
 
     heading_para : Document
 
+    document_metadata : DocumentMetadata
+
+    asset_reference : AssetReference
+
+    diagnostic : Diagnostic
+
+    office_package_manifest : OfficePackageManifest
+
+    word_invariants : WordInvariants
+
+    word_render_result : WordRenderResult
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
@@ -70,3 +88,11 @@ class Samples:
     blockquote: Document = field(default_factory=Document)
     thematic_break: Document = field(default_factory=Document)
     heading_para: Document = field(default_factory=Document)
+    document_metadata: DocumentMetadata = field(default_factory=DocumentMetadata)
+    asset_reference: AssetReference = field(default_factory=AssetReference)
+    diagnostic: Diagnostic = field(default_factory=Diagnostic)
+    office_package_manifest: OfficePackageManifest = field(
+        default_factory=OfficePackageManifest
+    )
+    word_invariants: WordInvariants = field(default_factory=WordInvariants)
+    word_render_result: WordRenderResult = field(default_factory=WordRenderResult)

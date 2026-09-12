@@ -1889,6 +1889,407 @@ const LowerVectors = #[
   }
 ];
 
+const WordEmitVectors = #[
+  #{
+    name: "word_heading_link_manifest-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        metadata: #{
+          title: "Demo",
+          creator: "Quilldown",
+          language: "de-DE"
+        },
+        blocks: #[
+          #{
+            content: #[
+              #{
+                data: "Getting Started",
+                kind: "text"
+              }
+            ],
+            kind: "heading",
+            level: 1
+          },
+          #{
+            content: #[
+              #{
+                data: "Read the ",
+                kind: "text"
+              },
+              #{
+                kind: "link",
+                href: "https://example.com/guide",
+                content: #[
+                  #{
+                    data: "guide",
+                    kind: "text"
+                  }
+                ]
+              },
+              #{
+                data: " and jump to ",
+                kind: "text"
+              },
+              #{
+                kind: "link",
+                href: "#getting-started",
+                content: #[
+                  #{
+                    data: "start",
+                    kind: "text"
+                  }
+                ]
+              },
+              #{
+                data: ".",
+                kind: "text"
+              }
+            ],
+            kind: "paragraph"
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{
+        headings: 1,
+        paragraphs: 1,
+        codeBlocks: 0,
+        blockQuotes: 0,
+        lists: 0,
+        listItems: 0,
+        tables: 0,
+        links: 2,
+        thematicBreaks: 0,
+        warnings: #[]
+      },
+      manifest: #{
+        kind: "docx",
+        parts: #[
+          #{
+            name: "/docProps/core.xml",
+            contentType: "application/vnd.openxmlformats-package.core-properties+xml",
+            role: "core-properties"
+          },
+          #{
+            name: "/word/document.xml",
+            contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+            role: "document"
+          },
+          #{
+            name: "/word/styles.xml",
+            contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+            role: "styles"
+          }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{
+                type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+                target: "word/document.xml"
+              },
+              #{
+                type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties",
+                target: "docProps/core.xml"
+              }
+            ]
+          },
+          #{
+            sourcePart: "/word/document.xml",
+            relationships: #[
+              #{
+                type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                target: "https://example.com/guide",
+                targetMode: "External"
+              }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{
+            extension: "rels",
+            contentType: "application/vnd.openxmlformats-package.relationships+xml"
+          },
+          #{
+            extension: "xml",
+            contentType: "application/xml"
+          },
+          #{
+            partName: "/docProps/core.xml",
+            contentType: "application/vnd.openxmlformats-package.core-properties+xml"
+          },
+          #{
+            partName: "/word/document.xml",
+            contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+          },
+          #{
+            partName: "/word/styles.xml",
+            contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"
+          }
+        ],
+        coreProperties: #{
+          title: "Demo",
+          creator: "Quilldown",
+          language: "de-DE"
+        }
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        allMediaPartsReachable: true,
+        noOrphanRequiredParts: true,
+        allHyperlinksHaveRelationships: true,
+        allAnchorLinksHaveBookmarks: true,
+        allNumberingReferencesDefined: true,
+        allTableHeadersMarked: true,
+        defaultProofingLanguageSet: true
+      },
+      warnings: #[]
+    }
+  },
+  #{
+    name: "word_dangling_anchor_warning-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "paragraph",
+            content: #[
+              #{ kind: "text", data: "Jump to " },
+              #{ kind: "link", href: "#missing", content: #[#{ kind: "text", data: "missing" }] },
+              #{ kind: "text", data: "." }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{
+        headings: 0,
+        paragraphs: 1,
+        codeBlocks: 0,
+        blockQuotes: 0,
+        lists: 0,
+        listItems: 0,
+        tables: 0,
+        links: 1,
+        thematicBreaks: 0,
+        warnings: #[]
+      },
+      manifest: #{
+        kind: "docx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", role: "document" },
+          #{ name: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml", role: "styles" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "word/document.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" },
+          #{ partName: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        allMediaPartsReachable: true,
+        noOrphanRequiredParts: true,
+        allHyperlinksHaveRelationships: true,
+        allAnchorLinksHaveBookmarks: false,
+        allNumberingReferencesDefined: true,
+        allTableHeadersMarked: true
+      },
+      warnings: #[
+        #{
+          code: "word.anchors-unresolved",
+          severity: "warning",
+          message: "Word invariant failed: allAnchorLinksHaveBookmarks.",
+          path: "invariants.allAnchorLinksHaveBookmarks"
+        }
+      ]
+    }
+  },
+  #{
+    name: "word_dangling_anchor_strict-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "paragraph",
+            content: #[
+              #{ kind: "text", data: "Jump to " },
+              #{ kind: "link", href: "#missing", content: #[#{ kind: "text", data: "missing" }] },
+              #{ kind: "text", data: "." }
+            ]
+          }
+        ]
+      },
+      options: #{ strict: true }
+    },
+    expectedError: #{ message: "Word invariant failed: allAnchorLinksHaveBookmarks." }
+  },
+  #{
+    name: "word_image_fallback_media_warning-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "paragraph",
+            content: #[
+              #{ kind: "text", data: "See " },
+              #{ kind: "image", src: "cat.png", alt: "a cat", title: "" },
+              #{ kind: "text", data: "." }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{
+        headings: 0,
+        paragraphs: 1,
+        codeBlocks: 0,
+        blockQuotes: 0,
+        lists: 0,
+        listItems: 0,
+        tables: 0,
+        links: 0,
+        thematicBreaks: 0,
+        warnings: #[]
+      },
+      manifest: #{
+        kind: "docx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", role: "document" },
+          #{ name: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml", role: "styles" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "word/document.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" },
+          #{ partName: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        allMediaPartsReachable: false,
+        noOrphanRequiredParts: true,
+        allHyperlinksHaveRelationships: true,
+        allAnchorLinksHaveBookmarks: true,
+        allNumberingReferencesDefined: true,
+        allTableHeadersMarked: true
+      },
+      warnings: #[
+        #{
+          code: "word.media-unreachable",
+          severity: "warning",
+          message: "Word invariant failed: allMediaPartsReachable.",
+          path: "invariants.allMediaPartsReachable"
+        }
+      ]
+    }
+  },
+  #{
+    name: "word_ordered_list_numbering_manifest-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "list",
+            ordered: true,
+            start: 3,
+            items: #[
+              #{ kind: "list_item", blocks: #[#{ kind: "paragraph", content: #[#{ kind: "text", data: "alpha" }] }] },
+              #{ kind: "list_item", blocks: #[#{ kind: "paragraph", content: #[#{ kind: "text", data: "beta" }] }] }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      stats: #{
+        headings: 0,
+        paragraphs: 2,
+        codeBlocks: 0,
+        blockQuotes: 0,
+        lists: 1,
+        listItems: 2,
+        tables: 0,
+        links: 0,
+        thematicBreaks: 0,
+        warnings: #[]
+      },
+      manifest: #{
+        kind: "docx",
+        parts: #[
+          #{ name: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml", role: "core-properties" },
+          #{ name: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", role: "document" },
+          #{ name: "/word/numbering.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml", role: "numbering" },
+          #{ name: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml", role: "styles" }
+        ],
+        relationships: #[
+          #{
+            relationships: #[
+              #{ type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", target: "word/document.xml" },
+              #{ type: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", target: "docProps/core.xml" }
+            ]
+          }
+        ],
+        contentTypes: #[
+          #{ extension: "rels", contentType: "application/vnd.openxmlformats-package.relationships+xml" },
+          #{ extension: "xml", contentType: "application/xml" },
+          #{ partName: "/docProps/core.xml", contentType: "application/vnd.openxmlformats-package.core-properties+xml" },
+          #{ partName: "/word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" },
+          #{ partName: "/word/numbering.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml" },
+          #{ partName: "/word/styles.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml" }
+        ]
+      },
+      invariants: #{
+        allRelationshipIdsResolve: true,
+        allContentTypesDeclared: true,
+        noDuplicateRelationshipIds: true,
+        allMediaPartsReachable: true,
+        noOrphanRequiredParts: true,
+        allHyperlinksHaveRelationships: true,
+        allAnchorLinksHaveBookmarks: true,
+        allNumberingReferencesDefined: true,
+        allTableHeadersMarked: true
+      },
+      warnings: #[]
+    }
+  }
+];
+
 
 const EmitVectors = #[
   #{
@@ -2762,6 +3163,30 @@ const EmitVectors = #[
     expectedError: #{ message: "blocks[0] list_item is only valid inside a list" }
   },
   #{
+    name: "invalid_list_item_shape-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "list", ordered: false, start: 1, items: #[#{ kind: "paragraph", content: #[] }] }] } },
+    expectedError: #{ message: "blocks[0].items[0] must be list_item" }
+  },
+  #{
+    name: "invalid_ordered_start_negative-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "list", ordered: true, start: -1, items: #[#{ kind: "list_item", blocks: #[] }] }] } },
+    expectedError: #{ message: "blocks[0].start must be greater than or equal to 1" }
+  },
+  #{
+    name: "invalid_nested_heading_level-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "block_quote", blocks: #[#{ kind: "heading", level: 7, content: #[] }] }] } },
+    expectedError: #{ message: "blocks[0].blocks[0].level must be between 1 and 6" }
+  },
+  #{
+    name: "invalid_nested_list_item-emit",
+    stage: "callable",
+    input: #{ doc: #{ blocks: #[#{ kind: "block_quote", blocks: #[#{ kind: "list_item", blocks: #[] }] }] } },
+    expectedError: #{ message: "blocks[0].blocks[0] list_item is only valid inside a list" }
+  },
+  #{
     name: "invalid_ragged_table-emit",
     stage: "callable",
     input: #{
@@ -2794,6 +3219,23 @@ const EmitVectors = #[
       }
     },
     expectedError: #{ message: "blocks[0].align contains unsupported alignment" }
+  },
+  #{
+    name: "invalid_table_alignment_width-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "table",
+            align: #["left"],
+            head: #{ cells: #[#{ content: #[] }, #{ content: #[] }] },
+            rows: #[]
+          }
+        ]
+      }
+    },
+    expectedError: #{ message: "blocks[0].align length must match table width" }
   },
   #{
     name: "invalid_missing_math_payload-emit",

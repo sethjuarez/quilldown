@@ -109,7 +109,7 @@ model Block {
 
 model Heading extends Block {
   kind: "heading";
-  level: uint8;
+  level: int32;
   content: Inline[];
 }
 
@@ -133,9 +133,7 @@ model BlockQuote extends Block {
 // so it is emitted into the same generated module as `Block`. A standalone
 // model that both references `Block` and is referenced by it produces a hard
 // circular import in the generated Python; keeping it inside the discriminated
-// `Block` hierarchy makes the self-reference intra-module and safe. It is
-// declared before `ListBlock` so the generated `items: list[ListItemBlock]`
-// annotation resolves in declaration order within the module.
+// `Block` hierarchy makes the self-reference intra-module and safe.
 model ListItemBlock extends Block {
   kind: "list_item";
   blocks: Block[];
@@ -145,8 +143,9 @@ model ListItemBlock extends Block {
 model ListBlock extends Block {
   kind: "list";
   ordered: boolean;
-  start: uint32;
-  items: ListItemBlock[];
+  start: int32;
+  // Runtime validation requires every item to have kind "list_item".
+  items: Block[];
 }
 
 model TableBlock extends Block {
@@ -166,12 +165,42 @@ model FootnoteDefinition {
 }
 
 // ---------------------------------------------------------------------------
+// Target-neutral document concerns shared by Office emitters.
+// ---------------------------------------------------------------------------
+model DocumentMetadata {
+  title?: string;
+  creator?: string;
+  subject?: string;
+  description?: string;
+  keywords?: string[];
+  language?: string;
+  created?: string;
+}
+
+model AssetReference {
+  id: string;
+  source: string;
+  kind: string;
+  alt?: string;
+  title?: string;
+}
+
+model Diagnostic {
+  code: string;
+  severity: string;
+  message: string;
+  path?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Document + compiler contract.
 // ---------------------------------------------------------------------------
 @serializable
 model Document {
   blocks: Block[];
   footnotes?: FootnoteDefinition[];
+  metadata?: DocumentMetadata;
+  assets?: AssetReference[];
 }
 
 // Reserved option bags (Core tier uses no options yet).
@@ -187,16 +216,75 @@ model RenderOptions {
 // out-of-band `.docx` bytes are produced as a side artifact and are NOT part of
 // the asserted contract.
 model RenderStats {
-  headings: uint32;
-  paragraphs: uint32;
-  codeBlocks: uint32;
-  blockQuotes: uint32;
-  lists: uint32;
-  listItems: uint32;
-  tables: uint32;
-  links: uint32;
-  thematicBreaks: uint32;
+  headings: int32;
+  paragraphs: int32;
+  codeBlocks: int32;
+  blockQuotes: int32;
+  lists: int32;
+  listItems: int32;
+  tables: int32;
+  links: int32;
+  thematicBreaks: int32;
   warnings: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Shared Office package contract.
+// ---------------------------------------------------------------------------
+model PackagePart {
+  name: string;
+  contentType: string;
+  role: string;
+}
+
+model Relationship {
+  id?: string;
+  type: string;
+  target: string;
+  targetMode?: string;
+}
+
+model PackageRelationshipSet {
+  sourcePart?: string;
+  relationships: Relationship[];
+}
+
+model ContentTypeDeclaration {
+  extension?: string;
+  partName?: string;
+  contentType: string;
+}
+
+model OfficePackageManifest {
+  kind: string;
+  parts: PackagePart[];
+  relationships: PackageRelationshipSet[];
+  contentTypes: ContentTypeDeclaration[];
+  coreProperties?: DocumentMetadata;
+}
+
+model WordInvariants {
+  allRelationshipIdsResolve: boolean;
+  allContentTypesDeclared: boolean;
+  noDuplicateRelationshipIds: boolean;
+  allMediaPartsReachable: boolean;
+  noOrphanRequiredParts: boolean;
+  allHyperlinksHaveRelationships: boolean;
+  allAnchorLinksHaveBookmarks: boolean;
+  allNumberingReferencesDefined: boolean;
+  allTableHeadersMarked: boolean;
+  defaultProofingLanguageSet?: boolean;
+}
+
+model WordRenderOptions {
+  strict?: boolean;
+}
+
+model WordRenderResult {
+  stats: RenderStats;
+  manifest: OfficePackageManifest;
+  invariants: WordInvariants;
+  warnings: Diagnostic[];
 }
 
 interface Quilldown {
@@ -205,6 +293,11 @@ interface Quilldown {
 
   @vector(EmitVectors)
   emit(doc: Document, options?: RenderOptions): RenderStats;
+}
+
+interface WordEmitter {
+  @vector(WordEmitVectors)
+  emitWord(doc: Document, options?: WordRenderOptions): WordRenderResult;
 }
 
 // Emitter root-object: its closure pulls in the full model surface, and each
@@ -226,4 +319,10 @@ model Samples {
   @sample(Sample_blockquote) blockquote: Document;
   @sample(Sample_thematic_break) thematic_break: Document;
   @sample(Sample_heading_para) heading_para: Document;
+  @sample(Sample_document_metadata) document_metadata: DocumentMetadata;
+  @sample(Sample_asset_reference) asset_reference: AssetReference;
+  @sample(Sample_diagnostic) diagnostic: Diagnostic;
+  @sample(Sample_office_package_manifest) office_package_manifest: OfficePackageManifest;
+  @sample(Sample_word_invariants) word_invariants: WordInvariants;
+  @sample(Sample_word_render_result) word_render_result: WordRenderResult;
 }

@@ -40,7 +40,29 @@ from ._TableRow import TableRow
 
 from ._FootnoteDefinition import FootnoteDefinition
 
+from ._DocumentMetadata import DocumentMetadata
+
+from ._AssetReference import AssetReference
+
 from ._Document import Document
+
+from ._Diagnostic import Diagnostic
+
+from ._PackagePart import PackagePart
+
+from ._Relationship import Relationship
+
+from ._PackageRelationshipSet import PackageRelationshipSet
+
+from ._ContentTypeDeclaration import ContentTypeDeclaration
+
+from ._OfficePackageManifest import OfficePackageManifest
+
+from ._WordInvariants import WordInvariants
+
+from ._RenderStats import RenderStats
+
+from ._WordRenderResult import WordRenderResult
 
 from ._Samples import Samples
 
@@ -48,9 +70,11 @@ from ._ConvertOptions import ConvertOptions
 
 from ._RenderOptions import RenderOptions
 
-from ._RenderStats import RenderStats
+from ._WordRenderOptions import WordRenderOptions
 
 from ._Quilldown import Quilldown
+
+from ._WordEmitter import WordEmitter
 
 __all__ = [
     "LoadContext",
@@ -76,14 +100,26 @@ __all__ = [
     "TableRow",
     "TableBlock",
     "ThematicBreak",
-    "ListItemBlock",
     "ListBlock",
+    "ListItemBlock",
     "BlockQuote",
     "FootnoteDefinition",
+    "DocumentMetadata",
+    "AssetReference",
     "Document",
+    "Diagnostic",
+    "PackagePart",
+    "Relationship",
+    "PackageRelationshipSet",
+    "ContentTypeDeclaration",
+    "OfficePackageManifest",
+    "WordInvariants",
+    "RenderStats",
+    "WordRenderResult",
     "Samples",
     "ConvertOptions",
     "RenderOptions",
-    "RenderStats",
+    "WordRenderOptions",
     "Quilldown",
+    "WordEmitter",
 ]

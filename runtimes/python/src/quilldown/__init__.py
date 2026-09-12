@@ -1,13 +1,21 @@
 """Quilldown Python runtime: the hand-authored `lower`/`emit` seam that
-implements the generated `Quilldown` Protocol from the shared spec."""
+implements the generated `Quilldown` and `WordEmitter` Protocols from the
+shared spec."""
 from __future__ import annotations
 
-from quilldown_spec import Document, RenderStats, RenderOptions, ConvertOptions
+from quilldown_spec import (
+    ConvertOptions,
+    Document,
+    RenderOptions,
+    RenderStats,
+    WordRenderOptions,
+    WordRenderResult,
+)
 
 from .parser import markdown_to_ir
-from .render import compute_stats, render_docx, validate_document
+from .render import compute_stats, emit_word_result, render_docx, validate_document
 
-__all__ = ["Runtime", "lower", "emit", "render_docx", "validate_document"]
+__all__ = ["Runtime", "lower", "emit", "emit_word", "render_docx", "validate_document"]
 
 
 class Runtime:
@@ -26,6 +34,18 @@ class Runtime:
     async def emit_async(self, doc: Document, options: "RenderOptions | None" = None) -> RenderStats:
         return self.emit(doc, options)
 
+    def emit_word(
+        self, doc: Document, options: "WordRenderOptions | None" = None
+    ) -> WordRenderResult:
+        typed_doc = doc if isinstance(doc, Document) else Document.load(doc)
+        strict = bool(getattr(options, "strict", False)) if options is not None else False
+        return WordRenderResult.load(emit_word_result(typed_doc.save(), strict=strict))
+
+    async def emit_word_async(
+        self, doc: Document, options: "WordRenderOptions | None" = None
+    ) -> WordRenderResult:
+        return self.emit_word(doc, options)
+
 
 _DEFAULT = Runtime()
 
@@ -36,3 +56,9 @@ def lower(markdown: str, options: "ConvertOptions | None" = None) -> Document:
 
 def emit(doc: Document, options: "RenderOptions | None" = None) -> RenderStats:
     return _DEFAULT.emit(doc, options)
+
+
+def emit_word(
+    doc: Document, options: "WordRenderOptions | None" = None
+) -> WordRenderResult:
+    return _DEFAULT.emit_word(doc, options)
