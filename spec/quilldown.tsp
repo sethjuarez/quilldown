@@ -368,6 +368,9 @@ interface WordEmitter {
 }
 
 interface PowerPointEmitter {
+  @vector(PowerPointLowerVectors)
+  lowerPowerPoint(markdown: string, options?: ConvertOptions): Presentation;
+
   @vector(PowerPointEmitVectors)
   emitPowerPoint(presentation: Presentation, options?: PowerPointRenderOptions): PowerPointRenderResult;
 }

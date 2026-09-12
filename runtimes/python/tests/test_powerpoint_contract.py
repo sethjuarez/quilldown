@@ -2,8 +2,8 @@ import io
 import zipfile
 from xml.etree import ElementTree
 
-from quilldown import emit_powerpoint, render_pptx_bytes
-from quilldown_spec import Presentation
+from quilldown import Runtime, emit_powerpoint, lower_powerpoint, render_pptx_bytes
+from quilldown_spec import PowerPointEmitter, Presentation
 
 
 PRESENTATION_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
@@ -38,6 +38,10 @@ def _sample_presentation() -> Presentation:
     )
 
 
+def test_runtime_satisfies_generated_powerpoint_protocol() -> None:
+    assert isinstance(Runtime(), PowerPointEmitter)
+
+
 def test_emit_powerpoint_reports_manifest_and_invariants() -> None:
     result = emit_powerpoint(_sample_presentation()).save()
 
@@ -62,6 +66,50 @@ def test_emit_powerpoint_reports_manifest_and_invariants() -> None:
         "allHyperlinksHaveRelationships": True,
     }
     assert result["warnings"] == []
+
+
+def test_markdown_lowers_to_openable_powerpoint_package() -> None:
+    presentation = lower_powerpoint(
+        "---\n"
+        "title: Sleep deck\n"
+        "creator: Quilldown\n"
+        "---\n"
+        "# Start\n\n"
+        "A deterministic intro.\n\n"
+        "## Links\n\n"
+        "[Docs](https://example.com/docs)\n\n"
+        "```notes\n"
+        "Mention editable output.\n"
+        "```\n"
+    )
+
+    result = emit_powerpoint(presentation).save()
+    assert result["stats"]["slides"] == 2
+    assert result["stats"]["textBoxes"] == 2
+    assert result["stats"]["links"] == 1
+    assert result["stats"]["speakerNotes"] == 1
+    assert result["manifest"]["coreProperties"] == {"title": "Sleep deck", "creator": "Quilldown"}
+    assert result["invariants"] == {
+        "allRelationshipIdsResolve": True,
+        "allContentTypesDeclared": True,
+        "noDuplicateRelationshipIds": True,
+        "noOrphanRequiredParts": True,
+        "allSlidesReachable": True,
+        "allMediaPartsReachable": True,
+        "allHyperlinksHaveRelationships": True,
+    }
+
+    with zipfile.ZipFile(io.BytesIO(render_pptx_bytes(presentation.save()))) as package:
+        names = set(package.namelist())
+        assert "ppt/slides/slide1.xml" in names
+        assert "ppt/slides/slide2.xml" in names
+        assert "ppt/notesSlides/notesSlide2.xml" in names
+        slide2_rels = ElementTree.fromstring(package.read("ppt/slides/_rels/slide2.xml.rels"))
+        assert any(
+            node.attrib["Type"] == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+            and node.attrib["Target"] == "https://example.com/docs"
+            for node in slide2_rels.findall(f"{REL_NS}Relationship")
+        )
 
 
 def test_render_pptx_bytes_contains_required_openable_parts_and_relationships() -> None:

@@ -2290,6 +2290,150 @@ const WordEmitVectors = #[
   }
 ];
 
+const PowerPointLowerVectors = #[
+  #{
+    name: "powerpoint_heading_slides-lower",
+    stage: "callable",
+    input: #{ markdown: "# Roadmap\n\nIntro text.\n\n---\n\n## Details\n\nMore text.\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "Roadmap",
+          elements: #[#{ kind: "text_box", text: "Intro text." }]
+        },
+        #{
+          title: "Details",
+          elements: #[#{ kind: "text_box", text: "More text." }]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_list_notes-lower",
+    stage: "callable",
+    input: #{ markdown: "# Agenda\n\n- Why\n- How\n\n```notes\nOpen with the problem.\nPreview the demo.\n```\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "Agenda",
+          elements: #[#{ kind: "text_box", text: "", bullets: #["Why", "How"] }],
+          speakerNotes: #["Open with the problem.", "Preview the demo."]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_link_image-lower",
+    stage: "callable",
+    input: #{ markdown: "# References\n\n[Guide](https://example.com/guide)\n\n![Architecture](arch.png \"Diagram\")\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "References",
+          elements: #[
+            #{ kind: "text_box", text: "Guide", hyperlink: "https://example.com/guide" },
+            #{ kind: "text_box", text: "Architecture" }
+          ]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_front_matter_metadata-lower",
+    stage: "callable",
+    input: #{ markdown: "---\ntitle: Demo deck\ncreator: Quilldown\nkeywords: ai, office\n---\n# Hello\n\nBody.\n" },
+    expected: #{
+      metadata: #{ title: "Demo deck", creator: "Quilldown", keywords: #["ai", "office"] },
+      slides: #[
+        #{
+          title: "Hello",
+          elements: #[#{ kind: "text_box", text: "Body." }]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_no_heading_single_slide-lower",
+    stage: "callable",
+    input: #{ markdown: "Lead paragraph.\n\nSecond paragraph with `code`.\n" },
+    expected: #{
+      slides: #[
+        #{
+          elements: #[
+            #{ kind: "text_box", text: "Lead paragraph." },
+            #{ kind: "text_box", text: "Second paragraph with code." }
+          ]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_consecutive_headings_split-lower",
+    stage: "callable",
+    input: #{ markdown: "# One\n\n## Two\n\n### Detail\n" },
+    expected: #{
+      slides: #[
+        #{ title: "One", elements: #[] },
+        #{
+          title: "Two",
+          elements: #[#{ kind: "text_box", text: "Detail" }]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_empty_heading_splits_consistently-lower",
+    stage: "callable",
+    input: #{ markdown: "#\n\n# Two\n" },
+    expected: #{
+      slides: #[
+        #{ title: "", elements: #[] },
+        #{ title: "Two", elements: #[] }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_mixed_link_flattens_without_hyperlink-lower",
+    stage: "callable",
+    input: #{ markdown: "# Links\n\nRead the [guide](https://example.com/guide) today.\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "Links",
+          elements: #[#{ kind: "text_box", text: "Read the guide today." }]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_notes_blank_lines_filtered-lower",
+    stage: "callable",
+    input: #{ markdown: "# Notes\n\n```speaker-notes\nFirst note.\n\nSecond note.\n```\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "Notes",
+          elements: #[],
+          speakerNotes: #["First note.", "Second note."]
+        }
+      ]
+    }
+  },
+  #{
+    name: "powerpoint_inline_image_alt_flattens-lower",
+    stage: "callable",
+    input: #{ markdown: "# Images\n\nDiagram: ![system map](map.png) in context.\n" },
+    expected: #{
+      slides: #[
+        #{
+          title: "Images",
+          elements: #[#{ kind: "text_box", text: "Diagram: system map in context." }]
+        }
+      ]
+    }
+  }
+];
+
 const PowerPointEmitVectors = #[
   #{
     name: "powerpoint_title_slide_manifest-emit",

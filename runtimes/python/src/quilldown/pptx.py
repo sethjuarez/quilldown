@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import io
 import posixpath
+import re
 import zipfile
 from html import escape
 from xml.etree import ElementTree
+
+from .parser import markdown_to_ir
 
 CORE_PROPERTIES_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 PACKAGE_RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.relationships+xml"
@@ -116,6 +119,169 @@ PPTX_PART_CONTENT_TYPES = {
 
 class PresentationValidationError(ValueError):
     pass
+
+
+def markdown_to_presentation(markdown: str) -> dict:
+    doc = markdown_to_ir(markdown)
+    presentation: dict = {"slides": []}
+    if metadata := _front_matter_metadata(markdown):
+        presentation["metadata"] = metadata
+
+    current = _new_slide()
+    for block in doc.get("blocks", []):
+        kind = block.get("kind")
+        if kind == "thematic_break":
+            _append_slide(presentation, current)
+            current = _new_slide()
+            continue
+        if kind == "heading":
+            title = _inline_text(block.get("content", []))
+            if block.get("level", 1) <= 2 and _slide_has_content(current):
+                _append_slide(presentation, current)
+                current = _new_slide()
+            if "title" not in current:
+                current["title"] = title
+            else:
+                current["elements"].append({"kind": "text_box", "text": title})
+            continue
+        if kind == "paragraph":
+            current["elements"].extend(_paragraph_elements(block))
+            continue
+        if kind == "list":
+            current["elements"].append({"kind": "text_box", "text": "", "bullets": _list_bullets(block)})
+            continue
+        if kind == "code_block":
+            language = (block.get("language") or "").lower().replace("_", "-")
+            if language in {"notes", "speaker-notes"}:
+                current.setdefault("speakerNotes", []).extend(_note_lines(block.get("code", "")))
+            else:
+                current["elements"].append({"kind": "text_box", "text": block.get("code", "")})
+            continue
+        if kind == "block_quote":
+            text = _blocks_text(block.get("blocks", []))
+            if text:
+                current["elements"].append({"kind": "text_box", "text": text})
+            continue
+        if kind == "table":
+            current["elements"].append({"kind": "text_box", "text": _table_text(block)})
+
+    _append_slide(presentation, current)
+    return presentation
+
+
+def _new_slide() -> dict:
+    return {"elements": []}
+
+
+def _slide_has_content(slide: dict) -> bool:
+    return bool("title" in slide or slide.get("elements") or slide.get("speakerNotes"))
+
+
+def _append_slide(presentation: dict, slide: dict) -> None:
+    if not _slide_has_content(slide):
+        return
+    if not slide.get("elements"):
+        slide["elements"] = []
+    presentation["slides"].append(slide)
+
+
+def _paragraph_elements(block: dict) -> list[dict]:
+    content = block.get("content", [])
+    if len(content) == 1 and content[0].get("kind") == "image":
+        image = content[0]
+        return [{"kind": "text_box", "text": image.get("alt") or image.get("src", "")}]
+    text = _inline_text(content)
+    link = _single_link(content)
+    element = {"kind": "text_box", "text": text}
+    if link:
+        element["hyperlink"] = link
+    return [element] if text or link else []
+
+
+def _single_link(content: list[dict]) -> str | None:
+    visible = [item for item in content if item.get("kind") not in {"soft_break", "hard_break"} or _inline_text([item])]
+    if len(visible) == 1 and visible[0].get("kind") == "link":
+        href = visible[0].get("href") or ""
+        return href or None
+    return None
+
+
+def _inline_text(content: list[dict]) -> str:
+    parts: list[str] = []
+    for inline in content:
+        kind = inline.get("kind")
+        if kind in {"text", "code"}:
+            parts.append(inline.get("data", ""))
+        elif kind in {"strong", "emphasis", "strikethrough", "subscript"}:
+            parts.append(_inline_text(inline.get("data", [])))
+        elif kind == "link":
+            parts.append(_inline_text(inline.get("content", [])))
+        elif kind == "math":
+            parts.append(inline.get("latex", ""))
+        elif kind == "image":
+            parts.append(inline.get("alt", ""))
+        elif kind in {"soft_break", "hard_break"}:
+            parts.append("\n" if kind == "hard_break" else " ")
+        elif kind == "footnote_reference":
+            parts.append(f"[{inline.get('label', '')}]")
+    return "".join(parts)
+
+
+def _list_bullets(block: dict) -> list[str]:
+    bullets = []
+    for item in block.get("items", []):
+        text = _blocks_text(item.get("blocks", []))
+        if "task" in item:
+            text = ("[x] " if item["task"] else "[ ] ") + text
+        bullets.append(text)
+    return bullets
+
+
+def _blocks_text(blocks: list[dict]) -> str:
+    lines = []
+    for block in blocks:
+        kind = block.get("kind")
+        if kind in {"heading", "paragraph"}:
+            lines.append(_inline_text(block.get("content", [])))
+        elif kind == "list":
+            lines.extend(_list_bullets(block))
+        elif kind == "code_block":
+            lines.append(block.get("code", ""))
+        elif kind == "block_quote":
+            lines.append(_blocks_text(block.get("blocks", [])))
+        elif kind == "table":
+            lines.append(_table_text(block))
+    return "\n".join(line for line in lines if line)
+
+
+def _table_text(block: dict) -> str:
+    rows = [block.get("head", {})] + block.get("rows", [])
+    return "\n".join(
+        " | ".join(_inline_text(cell.get("content", [])) for cell in row.get("cells", []))
+        for row in rows
+    )
+
+
+def _note_lines(code: str) -> list[str]:
+    return [line.strip() for line in code.splitlines() if line.strip()]
+
+
+def _front_matter_metadata(markdown: str) -> dict:
+    match = re.match(r"^---\r?\n(.*?)\r?\n---(?:\r?\n|$)", markdown, re.S)
+    if not match:
+        return {}
+    metadata: dict = {}
+    for line in match.group(1).splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key in {"title", "creator", "subject", "description", "language", "created"}:
+            metadata[key] = value
+        elif key == "keywords":
+            metadata[key] = [item.strip() for item in value.split(",") if item.strip()]
+    return metadata
 
 
 def validate_presentation(presentation: dict) -> None:

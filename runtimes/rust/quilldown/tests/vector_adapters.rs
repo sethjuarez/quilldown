@@ -68,6 +68,13 @@ pub fn adapters() -> HashMap<&'static str, Adapter> {
             },
         ),
         (
+            "PowerPointEmitter.lowerPowerPoint",
+            Adapter {
+                invoke: Invoke::Sync(lower_powerpoint_adapter),
+                normalize: None,
+            },
+        ),
+        (
             "PowerPointEmitter.emitPowerPoint",
             Adapter {
                 invoke: Invoke::Sync(emit_powerpoint_adapter),
@@ -127,6 +134,16 @@ fn emit_powerpoint_adapter(input: &Value, _ctx: &Context) -> Result<Value, Vecto
     };
     quilldown::typra_runtime::emit_powerpoint(&presentation, &options)
         .map(|result| result.to_value(&SaveContext::default()))
+        .map_err(vector_error)
+}
+
+fn lower_powerpoint_adapter(input: &Value, _ctx: &Context) -> Result<Value, VectorError> {
+    let markdown = input
+        .get("markdown")
+        .and_then(Value::as_str)
+        .ok_or_else(|| VectorError::message("input.markdown is required"))?;
+    quilldown::typra_runtime::lower_powerpoint(markdown)
+        .map(|presentation| presentation.to_value(&SaveContext::default()))
         .map_err(vector_error)
 }
 

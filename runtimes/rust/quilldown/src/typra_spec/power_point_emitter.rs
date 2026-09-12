@@ -10,6 +10,8 @@
     clippy::all
 )]
 
+use super::convert_options::ConvertOptions;
+
 use super::power_point_render_options::PowerPointRenderOptions;
 
 use super::power_point_render_result::PowerPointRenderResult;
@@ -23,4 +25,9 @@ pub trait PowerPointEmitter: Send + Sync {
         presentation: &Presentation,
         options: &Option<PowerPointRenderOptions>,
     ) -> Result<PowerPointRenderResult, Box<dyn std::error::Error + Send + Sync>>;
+    async fn lower_power_point(
+        &self,
+        markdown: &String,
+        options: &Option<ConvertOptions>,
+    ) -> Result<Presentation, Box<dyn std::error::Error + Send + Sync>>;
 }

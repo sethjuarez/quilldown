@@ -7,6 +7,7 @@
 
 from typing import Protocol, runtime_checkable
 
+from ._ConvertOptions import ConvertOptions
 from ._PowerPointRenderOptions import PowerPointRenderOptions
 from ._PowerPointRenderResult import PowerPointRenderResult
 from ._Presentation import Presentation
@@ -22,4 +23,14 @@ class PowerPointEmitter(Protocol):
     async def emit_power_point_async(
         self, presentation: Presentation, options: PowerPointRenderOptions | None
     ) -> PowerPointRenderResult:
+        raise NotImplementedError
+
+    def lower_power_point(
+        self, markdown: str, options: ConvertOptions | None
+    ) -> Presentation:
+        raise NotImplementedError
+
+    async def lower_power_point_async(
+        self, markdown: str, options: ConvertOptions | None
+    ) -> Presentation:
         raise NotImplementedError

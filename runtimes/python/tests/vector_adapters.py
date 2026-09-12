@@ -41,10 +41,15 @@ def _emit_powerpoint(resolved_input, context):
     return _RUNTIME.emit_powerpoint(presentation, options).save()
 
 
+def _lower_powerpoint(resolved_input, context):
+    return _RUNTIME.lower_powerpoint(resolved_input["markdown"]).save()
+
+
 VECTOR_ADAPTERS = {
     "Quilldown.lower": {"invoke": _lower},
     "Quilldown.emit": {"invoke": _emit},
     "WordEmitter.emitWord": {"invoke": _emit_word},
+    "PowerPointEmitter.lowerPowerPoint": {"invoke": _lower_powerpoint},
     "PowerPointEmitter.emitPowerPoint": {"invoke": _emit_powerpoint},
 }
 

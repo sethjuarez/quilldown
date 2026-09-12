@@ -64,6 +64,93 @@ pub fn lower(markdown: &str) -> TypraResult<spec::Document> {
     )?)
 }
 
+pub fn lower_powerpoint(markdown: &str) -> TypraResult<spec::Presentation> {
+    let doc = crate::ir::lower(markdown);
+    let mut presentation = json!({"slides": []});
+    if let Some(metadata) = front_matter_metadata(markdown) {
+        presentation["metadata"] = metadata;
+    }
+
+    let mut current = json!({"elements": []});
+    for block in &doc.blocks {
+        match block {
+            ir::Block::ThematicBreak => {
+                append_slide(&mut presentation, &mut current);
+                current = json!({"elements": []});
+            }
+            ir::Block::Heading { level, content } => {
+                let title = inline_text(content);
+                if *level <= 2 && slide_has_content(&current) {
+                    append_slide(&mut presentation, &mut current);
+                    current = json!({"elements": []});
+                }
+                if current.get("title").is_none() {
+                    current["title"] = json!(title);
+                } else {
+                    current["elements"]
+                        .as_array_mut()
+                        .expect("slide elements")
+                        .push(json!({"kind": "text_box", "text": title}));
+                }
+            }
+            ir::Block::Paragraph { content } => {
+                for element in paragraph_elements(content) {
+                    current["elements"]
+                        .as_array_mut()
+                        .expect("slide elements")
+                        .push(element);
+                }
+            }
+            ir::Block::List(list) => {
+                current["elements"]
+                    .as_array_mut()
+                    .expect("slide elements")
+                    .push(json!({"kind": "text_box", "text": "", "bullets": list_bullets(list)}));
+            }
+            ir::Block::CodeBlock { language, code } => {
+                let language = language
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_ascii_lowercase()
+                    .replace('_', "-");
+                if matches!(language.as_str(), "notes" | "speaker-notes") {
+                    let notes = current
+                        .as_object_mut()
+                        .expect("slide")
+                        .entry("speakerNotes")
+                        .or_insert_with(|| json!([]));
+                    notes
+                        .as_array_mut()
+                        .expect("speaker notes")
+                        .extend(note_lines(code).into_iter().map(Value::String));
+                } else {
+                    current["elements"]
+                        .as_array_mut()
+                        .expect("slide elements")
+                        .push(json!({"kind": "text_box", "text": code}));
+                }
+            }
+            ir::Block::BlockQuote { blocks } => {
+                let text = blocks_text(blocks);
+                if !text.is_empty() {
+                    current["elements"]
+                        .as_array_mut()
+                        .expect("slide elements")
+                        .push(json!({"kind": "text_box", "text": text}));
+                }
+            }
+            ir::Block::Table(table) => {
+                current["elements"]
+                    .as_array_mut()
+                    .expect("slide elements")
+                    .push(json!({"kind": "text_box", "text": table_text(table)}));
+            }
+        }
+    }
+    append_slide(&mut presentation, &mut current);
+    load_presentation_from_value(&presentation)
+}
+
 pub fn load_document_from_value(value: &Value) -> TypraResult<spec::Document> {
     validate_required_inline_payloads(value)?;
     Ok(spec::Document::try_load_from_value(
@@ -78,6 +165,168 @@ pub fn load_presentation_from_value(value: &Value) -> TypraResult<spec::Presenta
         value,
         &LoadContext::default(),
     )?)
+}
+
+fn append_slide(presentation: &mut Value, slide: &mut Value) {
+    if !slide_has_content(slide) {
+        return;
+    }
+    if slide.get("elements").is_none() {
+        slide["elements"] = json!([]);
+    }
+    presentation["slides"]
+        .as_array_mut()
+        .expect("presentation slides")
+        .push(slide.clone());
+}
+
+fn slide_has_content(slide: &Value) -> bool {
+    slide.get("title").is_some()
+        || slide
+            .get("elements")
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
+        || slide
+            .get("speakerNotes")
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
+}
+
+fn paragraph_elements(content: &[ir::Inline]) -> Vec<Value> {
+    if let [ir::Inline::Image { src, alt, .. }] = content {
+        let text = if alt.is_empty() { src } else { alt };
+        return vec![json!({"kind": "text_box", "text": text})];
+    }
+    let text = inline_text(content);
+    let link = single_link(content);
+    if text.is_empty() && link.is_none() {
+        return Vec::new();
+    }
+    let mut element = json!({"kind": "text_box", "text": text});
+    if let Some(href) = link {
+        element["hyperlink"] = json!(href);
+    }
+    vec![element]
+}
+
+fn single_link(content: &[ir::Inline]) -> Option<String> {
+    match content {
+        [ir::Inline::Link { href, .. }] if !href.is_empty() => Some(href.clone()),
+        _ => None,
+    }
+}
+
+fn inline_text(content: &[ir::Inline]) -> String {
+    let mut text = String::new();
+    for inline in content {
+        match inline {
+            ir::Inline::Text(value) | ir::Inline::Code(value) => text.push_str(value),
+            ir::Inline::Strong(items)
+            | ir::Inline::Emphasis(items)
+            | ir::Inline::Strikethrough(items)
+            | ir::Inline::Subscript(items) => text.push_str(&inline_text(items)),
+            ir::Inline::Link { content, .. } => text.push_str(&inline_text(content)),
+            ir::Inline::Math { latex, .. } => text.push_str(latex),
+            ir::Inline::Image { alt, .. } => text.push_str(alt),
+            ir::Inline::FootnoteReference { label } => {
+                text.push('[');
+                text.push_str(label);
+                text.push(']');
+            }
+            ir::Inline::SoftBreak => text.push(' '),
+            ir::Inline::HardBreak => text.push('\n'),
+        }
+    }
+    text
+}
+
+fn list_bullets(list: &ir::List) -> Vec<String> {
+    list.items
+        .iter()
+        .map(|item| {
+            let mut text = blocks_text(&item.blocks);
+            if let Some(task) = item.task {
+                text = format!("{}{}", if task { "[x] " } else { "[ ] " }, text);
+            }
+            text
+        })
+        .collect()
+}
+
+fn blocks_text(blocks: &[ir::Block]) -> String {
+    blocks
+        .iter()
+        .filter_map(|block| {
+            let text = match block {
+                ir::Block::Heading { content, .. } | ir::Block::Paragraph { content } => {
+                    inline_text(content)
+                }
+                ir::Block::CodeBlock { code, .. } => code.clone(),
+                ir::Block::BlockQuote { blocks } => blocks_text(blocks),
+                ir::Block::List(list) => list_bullets(list)
+                    .into_iter()
+                    .filter(|item| !item.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                ir::Block::Table(table) => table_text(table),
+                ir::Block::ThematicBreak => String::new(),
+            };
+            (!text.is_empty()).then_some(text)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn table_text(table: &ir::Table) -> String {
+    let mut rows = Vec::new();
+    rows.push(table.head.as_slice());
+    rows.extend(table.rows.iter().map(Vec::as_slice));
+    rows.iter()
+        .map(|row| {
+            row.iter()
+                .map(|cell| inline_text(cell))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn note_lines(code: &str) -> Vec<String> {
+    code.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn front_matter_metadata(markdown: &str) -> Option<Value> {
+    let normalized = markdown.replace("\r\n", "\n").replace('\r', "\n");
+    let rest = normalized.strip_prefix("---\n")?;
+    let (front_matter, _) = rest.split_once("\n---")?;
+    let mut metadata = serde_json::Map::new();
+    for line in front_matter.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim().trim_matches(['"', '\'']);
+        match key {
+            "title" | "creator" | "subject" | "description" | "language" | "created" => {
+                metadata.insert(key.to_string(), json!(value));
+            }
+            "keywords" => {
+                let keywords = value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .collect::<Vec<_>>();
+                metadata.insert(key.to_string(), json!(keywords));
+            }
+            _ => {}
+        }
+    }
+    (!metadata.is_empty()).then_some(Value::Object(metadata))
 }
 
 pub fn emit(

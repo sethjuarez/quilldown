@@ -55,6 +55,49 @@ fn emit_powerpoint_reports_manifest_and_invariants() {
 }
 
 #[test]
+fn markdown_lowers_to_openable_powerpoint_package() {
+    let presentation = quilldown::typra_runtime::lower_powerpoint(
+        "---\n\
+         title: Sleep deck\n\
+         creator: Quilldown\n\
+         ---\n\
+         # Start\n\n\
+         A deterministic intro.\n\n\
+         ## Links\n\n\
+         [Docs](https://example.com/docs)\n\n\
+         ```notes\n\
+         Mention editable output.\n\
+         ```\n",
+    )
+    .unwrap();
+
+    let result = quilldown::typra_runtime::emit_powerpoint(&presentation, &None).unwrap();
+    let value = result.to_value(&SaveContext::default());
+    assert_eq!(value["stats"]["slides"], 2);
+    assert_eq!(value["stats"]["textBoxes"], 2);
+    assert_eq!(value["stats"]["links"], 1);
+    assert_eq!(value["stats"]["speakerNotes"], 1);
+    assert_eq!(value["manifest"]["coreProperties"]["title"], "Sleep deck");
+    assert_eq!(value["manifest"]["coreProperties"]["creator"], "Quilldown");
+    for (_, invariant) in value["invariants"].as_object().unwrap() {
+        assert_eq!(invariant, true);
+    }
+
+    let bytes = quilldown::typra_runtime::render_pptx_bytes(&presentation).unwrap();
+    let mut package = ZipArchive::new(Cursor::new(bytes)).unwrap();
+    let names = package
+        .file_names()
+        .map(|name| name.to_string())
+        .collect::<HashSet<_>>();
+    assert!(names.contains("ppt/slides/slide1.xml"));
+    assert!(names.contains("ppt/slides/slide2.xml"));
+    assert!(names.contains("ppt/notesSlides/notesSlide2.xml"));
+
+    let slide2_rels_xml = read_part(&mut package, "ppt/slides/_rels/slide2.xml.rels");
+    assert!(slide2_rels_xml.contains(r#"Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/docs" TargetMode="External""#));
+}
+
+#[test]
 fn render_pptx_bytes_contains_required_openable_parts_and_relationships() {
     let bytes = quilldown::typra_runtime::render_pptx_bytes(&sample_presentation()).unwrap();
     let mut package = ZipArchive::new(Cursor::new(bytes)).unwrap();

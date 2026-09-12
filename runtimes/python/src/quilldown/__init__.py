@@ -16,7 +16,7 @@ from quilldown_spec import (
 )
 
 from .parser import markdown_to_ir
-from .pptx import emit_powerpoint_result, render_pptx_bytes, validate_presentation
+from .pptx import emit_powerpoint_result, markdown_to_presentation, render_pptx_bytes, validate_presentation
 from .render import compute_stats, emit_word_result, render_docx, validate_document
 
 __all__ = [
@@ -25,6 +25,9 @@ __all__ = [
     "emit",
     "emit_word",
     "emit_powerpoint",
+    "emit_power_point",
+    "lower_powerpoint",
+    "lower_power_point",
     "render_docx",
     "render_pptx_bytes",
     "validate_document",
@@ -74,6 +77,32 @@ class Runtime:
     ) -> PowerPointRenderResult:
         return self.emit_powerpoint(presentation, options)
 
+    def emit_power_point(
+        self, presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+    ) -> PowerPointRenderResult:
+        return self.emit_powerpoint(presentation, options)
+
+    async def emit_power_point_async(
+        self, presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+    ) -> PowerPointRenderResult:
+        return self.emit_powerpoint(presentation, options)
+
+    def lower_powerpoint(self, markdown: str, options: "ConvertOptions | None" = None) -> Presentation:
+        return Presentation.load(markdown_to_presentation(markdown))
+
+    async def lower_powerpoint_async(
+        self, markdown: str, options: "ConvertOptions | None" = None
+    ) -> Presentation:
+        return self.lower_powerpoint(markdown, options)
+
+    def lower_power_point(self, markdown: str, options: "ConvertOptions | None" = None) -> Presentation:
+        return self.lower_powerpoint(markdown, options)
+
+    async def lower_power_point_async(
+        self, markdown: str, options: "ConvertOptions | None" = None
+    ) -> Presentation:
+        return self.lower_powerpoint(markdown, options)
+
 
 _DEFAULT = Runtime()
 
@@ -96,3 +125,17 @@ def emit_powerpoint(
     presentation: Presentation, options: "PowerPointRenderOptions | None" = None
 ) -> PowerPointRenderResult:
     return _DEFAULT.emit_powerpoint(presentation, options)
+
+
+def emit_power_point(
+    presentation: Presentation, options: "PowerPointRenderOptions | None" = None
+) -> PowerPointRenderResult:
+    return _DEFAULT.emit_power_point(presentation, options)
+
+
+def lower_powerpoint(markdown: str, options: "ConvertOptions | None" = None) -> Presentation:
+    return _DEFAULT.lower_powerpoint(markdown, options)
+
+
+def lower_power_point(markdown: str, options: "ConvertOptions | None" = None) -> Presentation:
+    return _DEFAULT.lower_power_point(markdown, options)
