@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.3.0...quilldown-python-v0.3.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **python:** emit strict-valid docx packages ([129a9f9](https://github.com/sethjuarez/quilldown/commit/129a9f9aa33ffcd091346b0cb3af437d1f872b07))
+* **python:** emit strict-valid docx packages ([03e5e58](https://github.com/sethjuarez/quilldown/commit/03e5e58f6c4ab042ccd6a412fe6b828d0add6ef3))
+
 ## [0.3.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.2.0...quilldown-python-v0.3.0) (2026-09-11)
 
 
