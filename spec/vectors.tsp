@@ -2750,6 +2750,102 @@ const EmitVectors = #[
     }
   },
   #{
+    name: "contract_brief-emit",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "heading",
+            level: 1,
+            content: #[
+              #{
+                kind: "text",
+                data: "Contract Brief"
+              }
+            ]
+          },
+          #{
+            kind: "heading",
+            level: 2,
+            content: #[
+              #{
+                kind: "text",
+                data: "Summary"
+              }
+            ]
+          },
+          #{
+            kind: "list",
+            ordered: false,
+            start: 1,
+            items: #[
+              #{
+                kind: "list_item",
+                blocks: #[
+                  #{
+                    kind: "paragraph",
+                    content: #[
+                      #{
+                        kind: "text",
+                        data: "Supplier: Aster Ridge"
+                      }
+                    ]
+                  }
+                ]
+              },
+              #{
+                kind: "list_item",
+                blocks: #[
+                  #{
+                    kind: "paragraph",
+                    content: #[
+                      #{
+                        kind: "text",
+                        data: "Monthly minimum: USD 125,000"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          #{
+            kind: "heading",
+            level: 2,
+            content: #[
+              #{
+                kind: "text",
+                data: "Notes"
+              }
+            ]
+          },
+          #{
+            kind: "paragraph",
+            content: #[
+              #{
+                kind: "text",
+                data: "Generated from Markdown with quilldown."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    expected: #{
+      headings: 3,
+      paragraphs: 3,
+      codeBlocks: 0,
+      blockQuotes: 0,
+      lists: 1,
+      listItems: 2,
+      tables: 0,
+      links: 0,
+      thematicBreaks: 0,
+      warnings: #[]
+    }
+  },
+  #{
     name: "invalid_heading_level_zero-emit",
     stage: "callable",
     input: #{ doc: #{ blocks: #[#{ kind: "heading", level: 0, content: #[] }] } },

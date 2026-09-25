@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from docx_invariants import assert_strict_ooxml_invariants  # noqa: E402
 from doc_normalizer import normalize_docx  # noqa: E402
 
 from quilldown import lower, render_docx  # noqa: E402
@@ -90,6 +91,14 @@ CASES = {
         "| A | B |\n|---|---|\n| 1 | 2 |\n\n"
         "> a quote\n"
     ),
+    "contract_brief": (
+        "# Contract Brief\n\n"
+        "## Summary\n\n"
+        "- Supplier: Aster Ridge\n"
+        "- Monthly minimum: USD 125,000\n\n"
+        "## Notes\n\n"
+        "Generated from Markdown with quilldown.\n"
+    ),
 }
 
 
@@ -104,6 +113,9 @@ def test_doc_parity(name: str, tmp_path: Path) -> None:
 
     py_docx = tmp_path / f"{name}.py.docx"
     render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
 
     rust = normalize_docx(str(rust_docx))
     py = normalize_docx(str(py_docx))

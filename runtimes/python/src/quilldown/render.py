@@ -292,7 +292,8 @@ def render_docx(doc: dict) -> "Any":
         start.set(qn("w:name"), slug)
         end = OxmlElement("w:bookmarkEnd")
         end.set(qn("w:id"), bid)
-        paragraph._p.insert(0, start)
+        ppr = paragraph._p.get_or_add_pPr()
+        paragraph._p.insert(paragraph._p.index(ppr) + 1, start)
         paragraph._p.append(end)
 
     def render_inlines(paragraph, inlines, base=None):
@@ -332,7 +333,11 @@ def render_docx(doc: dict) -> "Any":
         lvl_text.set(qn("w:val"), "%1." if ordered else "•")
         lvl.extend([start_el, num_fmt, lvl_text])
         abstract.append(lvl)
-        root.append(abstract)
+        first_num = root.find(qn("w:num"))
+        if first_num is None:
+            root.append(abstract)
+        else:
+            root.insert(root.index(first_num), abstract)
 
         num = OxmlElement("w:num")
         num.set(qn("w:numId"), num_id)
@@ -433,7 +438,41 @@ def render_docx(doc: dict) -> "Any":
                 if i:
                     p.add_run(" ")
                 render_inlines(p, block["content"])
+    _normalize_strict_ooxml(out)
     return out
+
+
+def _normalize_strict_ooxml(document: "Any") -> None:
+    """Patch python-docx template defaults that fail strict validation."""
+    from docx.oxml.ns import qn  # noqa: WPS433
+    from docx.opc.packuri import PackURI  # noqa: WPS433
+
+    settings = document.part.settings.element
+    zoom = settings.find(qn("w:zoom"))
+    if zoom is not None and zoom.get(qn("w:percent")) is None:
+        zoom.set(qn("w:percent"), "100")
+
+    font_table = next(
+        (
+            part
+            for part in document.part.package.parts
+            if part.partname == PackURI("/word/fontTable.xml")
+        ),
+        None,
+    )
+    if font_table is not None:
+        font_table._blob = (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b'<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+            b'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            b'<w:font w:name="Times New Roman"><w:charset w:val="00"/>'
+            b'<w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
+            b'<w:font w:name="Symbol"><w:charset w:val="02"/>'
+            b'<w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
+            b'<w:font w:name="Arial"><w:charset w:val="00"/>'
+            b'<w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>'
+            b"</w:fonts>"
+        )
 
 
 def _paragraph_alignment(align: list[str], index: int, wd_align) -> "Any":
