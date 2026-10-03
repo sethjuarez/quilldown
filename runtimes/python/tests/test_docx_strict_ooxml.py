@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import base64
+import struct
 import xml.etree.ElementTree as ET
+import zlib
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -10,6 +13,9 @@ from docx_invariants import assert_strict_ooxml_invariants
 from quilldown import markdown_to_ir, render_docx
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+ONE_PIXEL_PNG = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+)
 
 
 def _q(local: str) -> str:
@@ -51,6 +57,25 @@ def _render_bytes(markdown: str) -> bytes:
     out = BytesIO()
     render_docx(markdown_to_ir(markdown)).save(out)
     return out.getvalue()
+
+
+def _png_data_url(width: int, height: int) -> str:
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        )
+
+    raw = b"".join(b"\x00" + (b"\xff\x00\x00" * width) for _ in range(height))
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
 
 def test_repro_docx_satisfies_shared_strict_ooxml_invariants() -> None:
@@ -157,3 +182,27 @@ def test_alert_body_renders_nested_block_kinds() -> None:
         and block["borders"] == {"bottom": {"color": "BFBFBF", "size": 4, "space": 0, "style": "single"}}
         for block in blocks
     )
+
+
+def test_png_data_url_images_embed_as_drawings() -> None:
+    view = rendered_view(_render_bytes(f"![dot](data:image/png;base64,{ONE_PIXEL_PNG})\n"))
+    image = view["body"][0]["runs"][0]["image"]
+    assert image["sha256"] == "4b5c5c92cec3b23e6a294fc0eea43234ef5126c5a64f4c6c531ac8430ab0b844"
+
+
+def test_unavailable_images_fall_back_to_alt_text() -> None:
+    view = rendered_view(_render_bytes("![chart](https://example.invalid/chart.png)\n"))
+    assert view["body"][0]["runs"][0]["text"] == "[chart]"
+
+
+def test_large_png_images_are_clamped_to_content_width() -> None:
+    view = rendered_view(_render_bytes(f"![wide]({_png_data_url(1600, 10)})\n"))
+    image = view["body"][0]["runs"][0]["image"]
+    assert image["cx"] == 5943600
+
+
+def test_linked_unavailable_images_keep_hyperlink_on_fallback() -> None:
+    view = rendered_view(_render_bytes("[![chart](missing.png)](https://example.com)\n"))
+    run = view["body"][0]["runs"][0]
+    assert run["text"] == "[chart]"
+    assert run["link"] == "https://example.com"

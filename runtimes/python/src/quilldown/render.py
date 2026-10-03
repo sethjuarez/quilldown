@@ -6,6 +6,10 @@ not part of the asserted contract.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 
@@ -205,6 +209,7 @@ def render_docx(doc: dict) -> Any:
     Returns the docx `Document`; callers may `.save(path)`."""
     from docx import Document as DocxDocument  # noqa: WPS433
     from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: WPS433
+    from docx.image.image import Image as DocxImage  # noqa: WPS433
     from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
     from docx.oxml import OxmlElement  # noqa: WPS433
     from docx.oxml.ns import qn  # noqa: WPS433
@@ -467,7 +472,8 @@ def render_docx(doc: dict) -> Any:
             elif k == "hard_break":
                 runs.append(("\n", dict(ctx)))
             elif k == "image":
-                runs.append(("[" + (inl.get("alt") or "") + "]", dict(ctx)))
+                c = dict(ctx); c["image"] = inl
+                runs.append(("", c))
             elif k == "math":
                 runs.append((inl.get("latex") or "", dict(ctx)))
             elif k == "footnote_reference":
@@ -548,6 +554,18 @@ def render_docx(doc: dict) -> Any:
 
     def render_inlines(paragraph, inlines, base=None):
         for text, fmt in flatten(inlines, base or new_ctx()):
+            if fmt.get("image"):
+                image = fmt["image"]
+                alt_text = "[" + (image.get("alt") or "") + "]"
+                if fmt.get("link"):
+                    if not _add_hyperlinked_image(paragraph, fmt["link"], image):
+                        if fmt["link"].startswith("#"):
+                            _add_anchor_link(paragraph, fmt["link"][1:], alt_text, fmt)
+                        else:
+                            _add_hyperlink(paragraph, fmt["link"], alt_text, fmt)
+                elif not _add_image_run(paragraph, image):
+                    _add_styled_text_run(paragraph, alt_text, fmt)
+                continue
             if fmt.get("link"):
                 if fmt["link"].startswith("#"):
                     _add_anchor_link(paragraph, fmt["link"][1:], text, fmt)
@@ -566,6 +584,86 @@ def render_docx(doc: dict) -> Any:
                 run.font.size = Pt(10)
             elif fmt.get("quote"):
                 run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
+
+    def _add_styled_text_run(paragraph, text: str, fmt: dict):
+        run = paragraph.add_run(text)
+        if fmt.get("bold"):
+            run.bold = True
+        if fmt.get("italic"):
+            run.italic = True
+        if fmt.get("strike"):
+            run.font.strike = True
+        if fmt.get("code"):
+            run.font.name = CODE_FONT
+            run.font.size = Pt(10)
+        elif fmt.get("quote"):
+            run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
+        return run
+
+    def _image_source(src: str) -> BytesIO | str | None:
+        if src.startswith("data:image/"):
+            try:
+                meta, payload = src.split(",", 1)
+            except (ValueError, binascii.Error):
+                return None
+            if ";base64" not in meta:
+                return None
+            try:
+                return BytesIO(base64.b64decode(payload, validate=True))
+            except binascii.Error:
+                return None
+        if src.startswith(("http://", "https://")):
+            return None
+        path = Path(src)
+        if path.exists() and path.is_file():
+            return str(path)
+        return None
+
+    def _image_width(source: BytesIO | str):
+        if isinstance(source, BytesIO):
+            source.seek(0)
+        try:
+            img = DocxImage.from_file(source)
+        except Exception:  # noqa: BLE001
+            if isinstance(source, BytesIO):
+                source.seek(0)
+            return None
+        dpi = img.horz_dpi or 72
+        native_inches = img.px_width / dpi
+        width_inches = min(native_inches, CONTENT_WIDTH_DXA / 1440)
+        if isinstance(source, BytesIO):
+            source.seek(0)
+        return Inches(width_inches)
+
+    def _add_image_run(paragraph, image: dict):
+        source = _image_source(image.get("src") or "")
+        if source is None:
+            return None
+        width = _image_width(source)
+        try:
+            run = paragraph.add_run()
+            if width is None:
+                run.add_picture(source)
+            else:
+                run.add_picture(source, width=width)
+        except Exception:  # noqa: BLE001
+            return None
+        return run
+
+    def _add_hyperlinked_image(paragraph, url: str, image: dict) -> bool:
+        run = _add_image_run(paragraph, image)
+        if run is None:
+            return False
+        paragraph._p.remove(run._r)
+        hyperlink = OxmlElement("w:hyperlink")
+        if url.startswith("#"):
+            hyperlink.set(qn("w:anchor"), url[1:])
+        else:
+            r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+            hyperlink.set(qn("r:id"), r_id)
+        hyperlink.append(run._r)
+        paragraph._p.append(hyperlink)
+        return True
 
     def add_numbering(ordered: bool, start: int, level: int) -> str:
         root = out.part.numbering_part.element
