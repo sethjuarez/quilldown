@@ -36,9 +36,6 @@ VECTOR_ADAPTERS = {
     "Quilldown.render": {"invoke": _render},
 }
 
-VECTOR_WAIVERS = {
-    "Quilldown.render:render_tables_tasks": "Python table/task styling port lands in u5",
-    "Quilldown.render:render_quotes_code_rule": "Python quote/code/rule styling port lands in u5",
-}
+VECTOR_WAIVERS = {}
 
 VECTOR_DOUBLES = {}

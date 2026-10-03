@@ -211,8 +211,15 @@ def render_docx(doc: dict) -> Any:
     HEADING_FONT = "Aptos Display"
     HEADING_COLOR = "2F5496"
     LINK_COLOR = "0563C1"
+    CODE_FILL = "F2F2F2"
+    TABLE_BORDER_COLOR = "BFBFBF"
+    TABLE_HEADER_FILL = "D9D9D9"
+    QUOTE_BORDER_COLOR = "8B949E"
+    QUOTE_TEXT_COLOR = "57606A"
+    CONTENT_WIDTH_DXA = 9360
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
+    last_flow: str | None = None
 
     def _clear_children(el, names: set[str]) -> None:
         for child in list(el):
@@ -249,6 +256,101 @@ def render_docx(doc: dict) -> Any:
         c = OxmlElement("w:color")
         c.set(qn("w:val"), color)
         rpr.append(c)
+
+    def _set_paragraph_spacing(paragraph, *, after: int, line: int = 259, rule: str = "auto") -> None:
+        ppr = paragraph._p.get_or_add_pPr()
+        _clear_children(ppr, {qn("w:spacing")})
+        spacing = OxmlElement("w:spacing")
+        spacing.set(qn("w:after"), str(after))
+        spacing.set(qn("w:line"), str(line))
+        spacing.set(qn("w:lineRule"), rule)
+        if rule == "exact":
+            spacing.set(qn("w:before"), "0")
+        ppr.append(spacing)
+
+    def _set_paragraph_indent(paragraph, *, left: int, hanging: int | None = None) -> None:
+        ppr = paragraph._p.get_or_add_pPr()
+        _clear_children(ppr, {qn("w:ind")})
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), str(left))
+        if hanging is not None:
+            ind.set(qn("w:hanging"), str(hanging))
+        ppr.append(ind)
+
+    def _set_quote_border(paragraph) -> None:
+        ppr = paragraph._p.get_or_add_pPr()
+        _clear_children(ppr, {qn("w:pBdr")})
+        borders = OxmlElement("w:pBdr")
+        left = OxmlElement("w:left")
+        left.set(qn("w:val"), "single")
+        left.set(qn("w:sz"), "24")
+        left.set(qn("w:space"), "12")
+        left.set(qn("w:color"), QUOTE_BORDER_COLOR)
+        borders.append(left)
+        ppr.append(borders)
+
+    def _set_table_width(table, width: int = CONTENT_WIDTH_DXA) -> None:
+        tbl_pr = table._tbl.tblPr
+        tbl_w = tbl_pr.find(qn("w:tblW"))
+        if tbl_w is None:
+            tbl_w = OxmlElement("w:tblW")
+            tbl_pr.append(tbl_w)
+        tbl_w.set(qn("w:w"), str(width))
+        tbl_w.set(qn("w:type"), "dxa")
+
+    def _set_table_borders(table, borders: dict[str, tuple[str, int] | None]) -> None:
+        tbl_pr = table._tbl.tblPr
+        old = tbl_pr.find(qn("w:tblBorders"))
+        if old is not None:
+            tbl_pr.remove(old)
+        tbl_borders = OxmlElement("w:tblBorders")
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            border = OxmlElement(f"w:{side}")
+            spec = borders.get(side)
+            if spec is None:
+                border.set(qn("w:val"), "nil")
+            else:
+                color, size = spec
+                border.set(qn("w:val"), "single")
+                border.set(qn("w:sz"), str(size))
+                border.set(qn("w:color"), color)
+            tbl_borders.append(border)
+        tbl_pr.append(tbl_borders)
+
+    def _set_table_margins(table, top: int, left: int, bottom: int, right: int) -> None:
+        tbl_pr = table._tbl.tblPr
+        old = tbl_pr.find(qn("w:tblCellMar"))
+        if old is not None:
+            tbl_pr.remove(old)
+        margins = OxmlElement("w:tblCellMar")
+        for side, value in (("top", top), ("left", left), ("bottom", bottom), ("right", right)):
+            el = OxmlElement(f"w:{side}")
+            el.set(qn("w:w"), str(value))
+            el.set(qn("w:type"), "dxa")
+            margins.append(el)
+        tbl_pr.append(margins)
+
+    def _shade_cell(cell, fill: str) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        old = tc_pr.find(qn("w:shd"))
+        if old is not None:
+            tc_pr.remove(old)
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:fill"), fill)
+        tc_pr.append(shd)
+
+    def _clear_table_geometry_defaults(table) -> None:
+        tbl_grid = table._tbl.tblGrid
+        if tbl_grid is not None:
+            for grid_col in list(tbl_grid):
+                tbl_grid.remove(grid_col)
+        for row in table.rows:
+            for cell in row.cells:
+                tc_pr = cell._tc.get_or_add_tcPr()
+                tc_w = tc_pr.find(qn("w:tcW"))
+                if tc_w is not None:
+                    tc_pr.remove(tc_w)
 
     def apply_document_theme() -> None:
         for section in out.sections:
@@ -314,7 +416,14 @@ def render_docx(doc: dict) -> Any:
     apply_document_theme()
 
     def new_ctx() -> dict:
-        return {"bold": False, "italic": False, "strike": False, "code": False, "link": None}
+        return {
+            "bold": False,
+            "italic": False,
+            "strike": False,
+            "code": False,
+            "link": None,
+            "quote": False,
+        }
 
     def flatten(inlines, ctx):
         """Walk inline IR into a flat list of (text, fmt) run tuples."""
@@ -376,6 +485,10 @@ def render_docx(doc: dict) -> Any:
             underline = OxmlElement("w:u")
             underline.set(qn("w:val"), "single")
             rpr.extend([color, underline])
+        elif fmt.get("quote") and not fmt.get("code"):
+            color = OxmlElement("w:color")
+            color.set(qn("w:val"), QUOTE_TEXT_COLOR)
+            rpr.append(color)
         return rpr
 
     def _add_hyperlink(paragraph, url, text, fmt):
@@ -438,8 +551,10 @@ def render_docx(doc: dict) -> Any:
             if fmt.get("code"):
                 run.font.name = CODE_FONT
                 run.font.size = Pt(10)
+            elif fmt.get("quote"):
+                run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
 
-    def add_numbering(ordered: bool, start: int) -> str:
+    def add_numbering(ordered: bool, start: int, level: int) -> str:
         root = out.part.numbering_part.element
         ids = [int(el.get(qn("w:abstractNumId"))) for el in root.findall(qn("w:abstractNum"))]
         abstract_id = str(max(ids, default=0) + 1)
@@ -449,14 +564,19 @@ def render_docx(doc: dict) -> Any:
         abstract = OxmlElement("w:abstractNum")
         abstract.set(qn("w:abstractNumId"), abstract_id)
         lvl = OxmlElement("w:lvl")
-        lvl.set(qn("w:ilvl"), "0")
+        lvl.set(qn("w:ilvl"), str(level))
         start_el = OxmlElement("w:start")
-        start_el.set(qn("w:val"), "1")
+        start_el.set(qn("w:val"), str(start))
         num_fmt = OxmlElement("w:numFmt")
         num_fmt.set(qn("w:val"), "decimal" if ordered else "bullet")
         lvl_text = OxmlElement("w:lvlText")
         lvl_text.set(qn("w:val"), "%1." if ordered else "•")
-        lvl.extend([start_el, num_fmt, lvl_text])
+        ppr = OxmlElement("w:pPr")
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), str(720 * (level + 1)))
+        ind.set(qn("w:hanging"), "360")
+        ppr.append(ind)
+        lvl.extend([start_el, num_fmt, lvl_text, ppr])
         abstract.append(lvl)
         first_num = root.find(qn("w:num"))
         if first_num is None:
@@ -471,7 +591,7 @@ def render_docx(doc: dict) -> Any:
         num.append(abstract_ref)
         if ordered and start != 1:
             override = OxmlElement("w:lvlOverride")
-            override.set(qn("w:ilvl"), "0")
+            override.set(qn("w:ilvl"), str(level))
             start_override = OxmlElement("w:startOverride")
             start_override.set(qn("w:val"), str(start))
             override.append(start_override)
@@ -479,45 +599,131 @@ def render_docx(doc: dict) -> Any:
         root.append(num)
         return num_id
 
-    def apply_numbering(paragraph, num_id: str) -> None:
+    def apply_numbering(paragraph, num_id: str, level: int) -> None:
         ppr = paragraph._p.get_or_add_pPr()
         numpr = OxmlElement("w:numPr")
         ilvl = OxmlElement("w:ilvl")
-        ilvl.set(qn("w:val"), "0")
+        ilvl.set(qn("w:val"), str(level))
         num = OxmlElement("w:numId")
         num.set(qn("w:val"), num_id)
         numpr.extend([ilvl, num])
         ppr.append(numpr)
-
-    def add_thematic_break() -> None:
-        out.add_table(rows=1, cols=1)
 
     def mark_table_header(row):
         trpr = row._tr.get_or_add_trPr()
         if trpr.find(qn("w:tblHeader")) is None:
             trpr.append(OxmlElement("w:tblHeader"))
 
-    def emit_blocks(blocks):
+    def mark_flow(kind: str) -> None:
+        nonlocal last_flow
+        last_flow = kind
+
+    def push_gap() -> None:
+        nonlocal last_flow
+        if last_flow in (None, "gap"):
+            return
+        if last_flow == "body" and out.paragraphs:
+            _set_paragraph_spacing(out.paragraphs[-1], after=0)
+        p = out.add_paragraph()
+        _set_paragraph_spacing(p, after=0, line=160, rule="exact")
+        last_flow = "gap"
+
+    def trim_trailing_gap() -> None:
+        nonlocal last_flow
+        if last_flow == "gap" and out.paragraphs:
+            out._element.body.remove(out.paragraphs[-1]._p)
+            last_flow = None
+
+    def add_code_block(code: str) -> None:
+        push_gap()
+        table = out.add_table(rows=1, cols=1)
+        _set_table_width(table)
+        _set_table_borders(table, {side: ("000000", 2) for side in ("top", "left", "bottom", "right", "insideH", "insideV")})
+        _set_table_margins(table, 80, 120, 80, 120)
+        cell = table.rows[0].cells[0]
+        _shade_cell(cell, CODE_FILL)
+        lines = code.removesuffix("\n").split("\n")
+        for index, line in enumerate(lines):
+            p = cell.paragraphs[0] if index == 0 else cell.add_paragraph()
+            _set_paragraph_spacing(p, after=0, line=240)
+            run = p.add_run(line)
+            run.font.name = CODE_FONT
+            run.font.size = Pt(10)
+        _clear_table_geometry_defaults(table)
+        mark_flow("table")
+        push_gap()
+
+    def add_rule() -> None:
+        push_gap()
+        table = out.add_table(rows=1, cols=1)
+        _set_table_width(table)
+        _set_table_borders(table, {"bottom": (TABLE_BORDER_COLOR, 4)})
+        _clear_table_geometry_defaults(table)
+        mark_flow("table")
+        push_gap()
+
+    def add_data_table(block: dict) -> None:
+        push_gap()
+        header = block["head"]["cells"]
+        table = out.add_table(rows=1, cols=max(1, len(header)))
+        _set_table_width(table)
+        _set_table_borders(table, {side: (TABLE_BORDER_COLOR, 2) for side in ("top", "left", "bottom", "right", "insideH", "insideV")})
+        _set_table_margins(table, 40, 108, 40, 108)
+        mark_table_header(table.rows[0])
+        bold = {**new_ctx(), "bold": True}
+        for i, cell in enumerate(header):
+            _shade_cell(table.rows[0].cells[i], TABLE_HEADER_FILL)
+            p = table.rows[0].cells[i].paragraphs[0]
+            _set_paragraph_spacing(p, after=0)
+            p.alignment = _paragraph_alignment(block.get("align", []), i, WD_ALIGN_PARAGRAPH)
+            render_inlines(p, cell["content"], base=bold)
+        for row in block["rows"]:
+            cells = table.add_row().cells
+            for i, cell in enumerate(row["cells"]):
+                p = cells[i].paragraphs[0]
+                _set_paragraph_spacing(p, after=0)
+                p.alignment = _paragraph_alignment(block.get("align", []), i, WD_ALIGN_PARAGRAPH)
+                render_inlines(p, cell["content"])
+        _clear_table_geometry_defaults(table)
+        mark_flow("table")
+        push_gap()
+
+    def add_quote_paragraph(block: dict, depth: int) -> None:
+        p = out.add_paragraph()
+        _set_paragraph_indent(p, left=360 * depth)
+        _set_quote_border(p)
+        ctx = {**new_ctx(), "quote": True}
+        render_inlines(p, block["content"], base=ctx)
+        mark_flow("para")
+
+    def emit_blocks(blocks, *, quote_depth: int = 0, list_depth: int = 0):
         for b in blocks:
             k = b["kind"]
             if k == "heading":
                 p = out.add_paragraph(style=f"Heading {min(b['level'], 9)}")
                 render_inlines(p, b["content"])
                 add_heading_bookmark(p, _plain_text(b["content"]))
+                if quote_depth:
+                    _set_paragraph_indent(p, left=360 * quote_depth)
+                    _set_quote_border(p)
+                mark_flow("para")
             elif k == "paragraph":
-                render_inlines(out.add_paragraph(), b["content"])
+                if quote_depth:
+                    add_quote_paragraph(b, quote_depth)
+                else:
+                    render_inlines(out.add_paragraph(), b["content"])
+                    mark_flow("body")
             elif k == "code_block":
-                p = out.add_paragraph()
-                run = p.add_run(b["code"])
-                run.font.name = CODE_FONT
+                add_code_block(b["code"])
             elif k == "block_quote":
-                for ib in b["blocks"]:
-                    if ib["kind"] == "paragraph":
-                        render_inlines(out.add_paragraph(style="Quote"), ib["content"])
-                    else:
-                        emit_blocks([ib])
+                top_level = quote_depth == 0
+                if top_level:
+                    push_gap()
+                emit_blocks(b["blocks"], quote_depth=quote_depth + 1, list_depth=list_depth)
+                if top_level:
+                    push_gap()
             elif k == "list":
-                num_id = add_numbering(bool(b.get("ordered")), int(b.get("start", 1)))
+                num_id = add_numbering(bool(b.get("ordered")), int(b.get("start", 1)), list_depth)
                 for it in b["items"]:
                     first = True
                     for ib in it["blocks"]:
@@ -525,30 +731,22 @@ def render_docx(doc: dict) -> Any:
                             p = out.add_paragraph()
                             task = it.get("task")
                             if task is None:
-                                apply_numbering(p, num_id)
+                                apply_numbering(p, num_id, list_depth)
                             else:
+                                _set_paragraph_indent(p, left=720 * (list_depth + 1), hanging=360)
                                 p.add_run("☑\t" if task else "☐\t")
+                            _set_paragraph_spacing(p, after=0)
                             render_inlines(p, ib["content"])
+                            if quote_depth:
+                                _set_quote_border(p)
                             first = False
+                            mark_flow("para")
                         else:
-                            emit_blocks([ib])
+                            emit_blocks([ib], quote_depth=quote_depth, list_depth=list_depth + 1)
             elif k == "table":
-                header = b["head"]["cells"]
-                tbl = out.add_table(rows=1, cols=max(1, len(header)))
-                mark_table_header(tbl.rows[0])
-                bold = {**new_ctx(), "bold": True}
-                for i, cell in enumerate(header):
-                    p = tbl.rows[0].cells[i].paragraphs[0]
-                    p.alignment = _paragraph_alignment(b.get("align", []), i, WD_ALIGN_PARAGRAPH)
-                    render_inlines(p, cell["content"], base=bold)
-                for row in b["rows"]:
-                    cells = tbl.add_row().cells
-                    for i, cell in enumerate(row["cells"]):
-                        p = cells[i].paragraphs[0]
-                        p.alignment = _paragraph_alignment(b.get("align", []), i, WD_ALIGN_PARAGRAPH)
-                        render_inlines(p, cell["content"])
+                add_data_table(b)
             elif k == "thematic_break":
-                add_thematic_break()
+                add_rule()
 
     emit_blocks(doc.get("blocks", []))
     if doc.get("footnotes"):
@@ -563,6 +761,8 @@ def render_docx(doc: dict) -> Any:
                 if i:
                     p.add_run(" ")
                 render_inlines(p, block["content"])
+        mark_flow("body")
+    trim_trailing_gap()
     _normalize_strict_ooxml(out)
     return out
 
