@@ -107,7 +107,7 @@ def test_rust_ir_emit_matches_direct_renderer_for_core_probe(
     name: str, markdown: str, tmp_path: Path
 ) -> None:
     md_path = tmp_path / f"{name}.md"
-    md_path.write_text(markdown, encoding="utf-8")
+    md_path.write_text(markdown, encoding="utf-8", newline="\n")
 
     direct = tmp_path / f"{name}.direct.docx"
     ir = tmp_path / f"{name}.ir.docx"

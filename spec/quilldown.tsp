@@ -205,6 +205,9 @@ interface Quilldown {
 
   @vector(EmitVectors)
   emit(doc: Document, options?: RenderOptions): RenderStats;
+
+  @vector(RenderVectors)
+  render(doc: Document, options?: RenderOptions): unknown;
 }
 
 // Emitter root-object: its closure pulls in the full model surface, and each

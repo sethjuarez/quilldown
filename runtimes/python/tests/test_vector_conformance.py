@@ -3803,3 +3803,1081 @@ async def test_vector_83_quilldown_lower_thematic_break_lower():
     """
     vector = json.loads(vector_json, strict=False)
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_84_quilldown_render_render_quotes_code_rule():
+    vector_json = r"""
+    {
+      "name": "render_quotes_code_rule",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "blocks": [
+                {
+                  "content": [
+                    {
+                      "data": "A quote with ",
+                      "kind": "text"
+                    },
+                    {
+                      "data": [
+                        {
+                          "data": "bold",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "strong"
+                    },
+                    {
+                      "data": " and ",
+                      "kind": "text"
+                    },
+                    {
+                      "data": "code",
+                      "kind": "code"
+                    },
+                    {
+                      "data": ".",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "paragraph"
+                }
+              ],
+              "kind": "block_quote"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            },
+            {
+              "kind": "thematic_break"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": {
+              "left": {
+                "color": "8B949E",
+                "size": 24,
+                "space": 12,
+                "style": "single"
+              }
+            },
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 360,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "A quote with ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": true,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "bold",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": " and ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Consolas",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "code",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ".",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideH": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideV": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "left": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "right": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "top": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": {
+              "bottom": 80,
+              "left": 120,
+              "right": 120,
+              "top": 80
+            },
+            "columns": [],
+            "gapBefore": 320,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 240,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Consolas",
+                            "italic": false,
+                            "link": null,
+                            "size": 20,
+                            "strike": false,
+                            "text": "x = 1",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "F2F2F2",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "BFBFBF",
+                "size": 4,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": null,
+            "columns": [],
+            "gapBefore": 160,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 160,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_85_quilldown_render_render_tables_tasks():
+    vector_json = r"""
+    {
+      "name": "render_tables_tasks",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "items": [
+                {
+                  "blocks": [
+                    {
+                      "content": [
+                        {
+                          "data": "done",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "paragraph"
+                    }
+                  ],
+                  "kind": "list_item",
+                  "task": true
+                },
+                {
+                  "blocks": [
+                    {
+                      "content": [
+                        {
+                          "data": "todo",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "paragraph"
+                    }
+                  ],
+                  "kind": "list_item",
+                  "task": false
+                }
+              ],
+              "kind": "list",
+              "ordered": false,
+              "start": 1
+            },
+            {
+              "align": [
+                "left",
+                "right"
+              ],
+              "head": {
+                "cells": [
+                  {
+                    "content": [
+                      {
+                        "data": "A",
+                        "kind": "text"
+                      }
+                    ]
+                  },
+                  {
+                    "content": [
+                      {
+                        "data": "B",
+                        "kind": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "kind": "table",
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "content": [
+                        {
+                          "data": "1",
+                          "kind": "text"
+                        }
+                      ]
+                    },
+                    {
+                      "content": [
+                        {
+                          "data": "2",
+                          "kind": "text"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 360,
+              "left": 720,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "☑\tdone",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 360,
+              "left": 720,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "☐\ttodo",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideH": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideV": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "left": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "right": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "top": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": {
+              "bottom": 40,
+              "left": 108,
+              "right": 108,
+              "top": 40
+            },
+            "columns": [],
+            "gapBefore": 160,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": true,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "A",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "D9D9D9",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  },
+                  {
+                    "blocks": [
+                      {
+                        "align": "right",
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": true,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "B",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "D9D9D9",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": true
+              },
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "1",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  },
+                  {
+                    "blocks": [
+                      {
+                        "align": "right",
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "2",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_86_quilldown_render_render_typography():
+    vector_json = r"""
+    {
+      "name": "render_typography",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Title",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 1
+            },
+            {
+              "content": [
+                {
+                  "data": "Body with ",
+                  "kind": "text"
+                },
+                {
+                  "data": [
+                    {
+                      "data": "bold",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "strong"
+                },
+                {
+                  "data": ", ",
+                  "kind": "text"
+                },
+                {
+                  "data": [
+                    {
+                      "data": "italic",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "emphasis"
+                },
+                {
+                  "data": ", ",
+                  "kind": "text"
+                },
+                {
+                  "content": [
+                    {
+                      "data": "link",
+                      "kind": "text"
+                    }
+                  ],
+                  "href": "https://example.com",
+                  "kind": "link"
+                },
+                {
+                  "data": ", and ",
+                  "kind": "text"
+                },
+                {
+                  "data": "code",
+                  "kind": "code"
+                },
+                {
+                  "data": ".",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "data": "Sub",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 2
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 360,
+            "headingLevel": 1,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 40,
+                "strike": false,
+                "text": "Title",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading1"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 80,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "Body with ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": true,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "bold",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": true,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "italic",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "0563C1",
+                "font": "Aptos",
+                "italic": false,
+                "link": "https://example.com",
+                "size": 24,
+                "strike": false,
+                "text": "link",
+                "underline": "single",
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", and ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Consolas",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "code",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ".",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 360,
+            "headingLevel": 2,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 32,
+                "strike": false,
+                "text": "Sub",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading2"
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 80
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)

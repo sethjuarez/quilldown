@@ -143,8 +143,17 @@ def _slugify(text: str) -> str:
 
 def compute_stats(doc: dict) -> dict:
     validate_document(doc)
-    s = dict(headings=0, paragraphs=0, codeBlocks=0, blockQuotes=0, lists=0,
-             listItems=0, tables=0, links=0, thematicBreaks=0)
+    s = {
+        "headings": 0,
+        "paragraphs": 0,
+        "codeBlocks": 0,
+        "blockQuotes": 0,
+        "lists": 0,
+        "listItems": 0,
+        "tables": 0,
+        "links": 0,
+        "thematicBreaks": 0,
+    }
 
     def walk(blocks):
         for b in blocks:
@@ -180,19 +189,19 @@ def compute_stats(doc: dict) -> dict:
     return s
 
 
-def render_docx(doc: dict) -> "Any":
+def render_docx(doc: dict) -> Any:
     """Best-effort DOCX rendering (requires the optional `python-docx` extra).
 
-    Emits real Word constructs — formatted runs (bold/italic/strike/monospace),
-    hyperlinks, ordered/unordered lists, blockquote styling and bold table
-    headers — so the output normalizes (see ``tests/doc_normalizer.py``) to the
-    same ``RenderedDoc`` as the Rust reference engine. Returns the docx
-    `Document`; callers may `.save(path)`."""
+    Emits Core Word constructs — formatted runs (bold/italic/strike/monospace),
+    hyperlinks, ordered/unordered lists, blockquote paragraphs and table
+    headers. Semantic parity is checked by ``tests/doc_normalizer.py``; rendered
+    look parity is governed separately by ``tests/doc_inspector.py`` vectors.
+    Returns the docx `Document`; callers may `.save(path)`."""
     from docx import Document as DocxDocument  # noqa: WPS433
     from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: WPS433
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
     from docx.oxml import OxmlElement  # noqa: WPS433
     from docx.oxml.ns import qn  # noqa: WPS433
-    from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
 
     validate_document(doc)
     out = DocxDocument()
@@ -376,7 +385,7 @@ def render_docx(doc: dict) -> "Any":
         for b in blocks:
             k = b["kind"]
             if k == "heading":
-                p = out.add_paragraph(style="Heading %d" % min(b["level"], 9))
+                p = out.add_paragraph(style=f"Heading {min(b['level'], 9)}")
                 render_inlines(p, b["content"])
                 add_heading_bookmark(p, _plain_text(b["content"]))
             elif k == "paragraph":
@@ -442,10 +451,10 @@ def render_docx(doc: dict) -> "Any":
     return out
 
 
-def _normalize_strict_ooxml(document: "Any") -> None:
+def _normalize_strict_ooxml(document: Any) -> None:
     """Patch python-docx template defaults that fail strict validation."""
-    from docx.oxml.ns import qn  # noqa: WPS433
     from docx.opc.packuri import PackURI  # noqa: WPS433
+    from docx.oxml.ns import qn  # noqa: WPS433
 
     settings = document.part.settings.element
     zoom = settings.find(qn("w:zoom"))
@@ -475,7 +484,7 @@ def _normalize_strict_ooxml(document: "Any") -> None:
         )
 
 
-def _paragraph_alignment(align: list[str], index: int, wd_align) -> "Any":
+def _paragraph_alignment(align: list[str], index: int, wd_align) -> Any:
     value = align[index] if index < len(align) else "none"
     return {
         "left": wd_align.LEFT,
