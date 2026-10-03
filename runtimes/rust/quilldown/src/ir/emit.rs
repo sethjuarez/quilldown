@@ -40,9 +40,18 @@ struct Style {
     bold: bool,
     italic: bool,
     strike: bool,
+    quote: bool,
+    subscript: bool,
 }
 
 impl Style {
+    fn for_depth(depth: usize) -> Self {
+        Style {
+            quote: depth > 0,
+            ..Style::default()
+        }
+    }
+
     /// Apply the accumulated flags to a fresh run (text is added by the caller).
     fn apply(self, mut r: Run) -> Run {
         if self.bold {
@@ -53,6 +62,12 @@ impl Style {
         }
         if self.strike {
             r = r.strike();
+        }
+        if self.quote {
+            r = r.color(styles::QUOTE_TEXT_COLOR);
+        }
+        if self.subscript {
+            r.run_property = r.run_property.vert_align(VertAlignType::SubScript);
         }
         r
     }
@@ -119,8 +134,25 @@ impl EmitState {
 /// One emitted top-level flow object. Boxed so the enum stays small (the two `docx-rs` builders
 /// differ greatly in size).
 enum Flow {
+    /// Plain body paragraph, tracked separately so a following block can zero its default
+    /// space-after before the explicit spacer paragraph, matching the direct renderer.
+    Body(Box<Paragraph>),
     Para(Box<Paragraph>),
     Table(Box<Table>),
+    Gap,
+}
+
+fn push_gap(flows: &mut Vec<Flow>) {
+    match flows.last() {
+        None | Some(Flow::Gap) => return,
+        Some(Flow::Body(_)) => {
+            if let Some(Flow::Body(p)) = flows.pop() {
+                flows.push(Flow::Body(Box::new(p.line_spacing(styles::tight_after()))));
+            }
+        }
+        _ => {}
+    }
+    flows.push(Flow::Gap);
 }
 
 /// Emit a portable [`Document`] into a `docx-rs` [`Docx`] builder.
@@ -129,23 +161,50 @@ enum Flow {
 /// `docx.build().pack(..)`. Errors are reserved for future legalization failures — Core emission
 /// is total, so this currently always returns `Ok`, but the fallible signature keeps the
 /// operation symmetric with the direct renderer and forward-compatible.
+///
+/// Supported [`ConvertOptions`] are intentionally narrower than the direct renderer: page setup,
+/// theme, `page_numbers`, and `highlight_code` (currently only the no-highlight/plain-code shape).
+/// TOC, captions, images, endnotes, native math, and semantic table-header-row injection remain
+/// direct-renderer/post-pack features.
 pub fn emit(doc: &Document, opts: &ConvertOptions) -> Result<Docx, ConvertError> {
     let mut state = EmitState::new();
     let mut flows = Vec::new();
     emit_blocks(&doc.blocks, opts, 0, &mut state, &mut flows);
+    if matches!(flows.first(), Some(Flow::Gap)) {
+        flows.remove(0);
+    }
+    if matches!(flows.last(), Some(Flow::Gap)) {
+        flows.pop();
+    }
 
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
+    if opts.page_numbers {
+        docx = docx.footer(page_number_footer());
+    }
     // Invariant: register every numbering *before* the paragraphs that reference it.
     for numbering in std::mem::take(&mut state.numberings) {
         docx = docx.add_numbering(numbering);
     }
     for flow in flows {
         docx = match flow {
+            Flow::Body(p) => docx.add_paragraph(*p),
             Flow::Para(p) => docx.add_paragraph(*p),
             Flow::Table(t) => docx.add_table(*t),
+            Flow::Gap => docx.add_paragraph(styles::block_gap_paragraph()),
         };
     }
     Ok(docx)
+}
+
+fn page_number_footer() -> Footer {
+    let para = Paragraph::new()
+        .align(AlignmentType::Center)
+        .line_spacing(styles::tight_after())
+        .add_run(Run::new().add_text("Page "))
+        .add_page_num(PageNum::new())
+        .add_run(Run::new().add_text(" of "))
+        .add_num_pages(NumPages::new());
+    Footer::new().add_paragraph(para)
 }
 
 /// Emit a sequence of blocks at block-quote nesting `depth`.
@@ -181,24 +240,58 @@ fn emit_block(
                 .keep_next(true)
                 .keep_lines(true)
                 .add_bookmark_start(bid, slug);
-            p = emit_inlines(p, content, Style::default(), theme);
+            p = emit_inlines(p, content, Style::for_depth(depth), theme);
             p = p.add_bookmark_end(bid);
-            flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+            if depth > 0 {
+                p = quote_style(p, depth);
+            }
+            flows.push(Flow::Para(Box::new(p)));
         }
         Block::Paragraph { content } => {
-            let mut p = Paragraph::new().line_spacing(styles::body_spacing());
-            p = emit_inlines(p, content, Style::default(), theme);
-            flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+            let mut p = Paragraph::new();
+            p = emit_inlines(p, content, Style::for_depth(depth), theme);
+            if depth > 0 {
+                flows.push(Flow::Para(Box::new(quote_style(p, depth))));
+            } else {
+                flows.push(Flow::Body(Box::new(p)));
+            }
         }
         Block::CodeBlock { code, .. } => {
-            flows.push(Flow::Table(Box::new(emit_code_block(code, opts))));
+            push_gap(flows);
+            let mut t = emit_code_block(code, opts);
+            if depth > 0 {
+                t = t.indent(quote_indent(depth));
+            }
+            flows.push(Flow::Table(Box::new(t)));
+            push_gap(flows);
         }
-        Block::BlockQuote { blocks } => emit_blocks(blocks, opts, depth + 1, state, flows),
+        Block::BlockQuote { blocks } => {
+            let top_level = depth == 0;
+            if top_level {
+                push_gap(flows);
+            }
+            emit_blocks(blocks, opts, depth + 1, state, flows);
+            if top_level {
+                push_gap(flows);
+            }
+        }
         Block::List(list) => emit_list(list, opts, depth, 0, state, flows),
-        Block::Table(table) => flows.push(Flow::Table(Box::new(emit_table(table, opts)))),
-        Block::ThematicBreak => flows.push(Flow::Table(Box::new(horizontal_rule(
-            opts.page.content_width_dxa(),
-        )))),
+        Block::Table(table) => {
+            push_gap(flows);
+            let mut t = emit_table(table, opts, depth);
+            if depth > 0 {
+                t = t.indent(quote_indent(depth));
+            }
+            flows.push(Flow::Table(Box::new(t)));
+            push_gap(flows);
+        }
+        Block::ThematicBreak => {
+            push_gap(flows);
+            flows.push(Flow::Table(Box::new(horizontal_rule(
+                opts.page.content_width_dxa(),
+            ))));
+            push_gap(flows);
+        }
     }
 }
 
@@ -257,8 +350,11 @@ fn emit_list(
                             .numbering(NumberingId::new(num_id), IndentLevel::new(level))
                     };
                     marker_used = true;
-                    p = emit_inlines(p, content, Style::default(), theme);
-                    flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+                    p = emit_inlines(p, content, Style::for_depth(depth), theme);
+                    if depth > 0 {
+                        p = quote_border(p);
+                    }
+                    flows.push(Flow::Para(Box::new(p)));
                 }
                 Block::List(sub) => emit_list(sub, opts, depth, level + 1, state, flows),
                 other => emit_block(other, opts, depth, state, flows),
@@ -287,14 +383,20 @@ fn emit_code_block(code: &str, opts: &ConvertOptions) -> Table {
 }
 
 /// Emit a GFM table: a bold, shaded header row plus body rows, with per-column alignment.
-fn emit_table(table: &IrTable, opts: &ConvertOptions) -> Table {
+fn emit_table(table: &IrTable, opts: &ConvertOptions, depth: usize) -> Table {
     let theme = &opts.theme;
     let mut rows = Vec::new();
     if !table.head.is_empty() {
-        rows.push(emit_table_row(&table.head, &table.align, true, theme));
+        rows.push(emit_table_row(
+            &table.head,
+            &table.align,
+            true,
+            theme,
+            depth,
+        ));
     }
     for row in &table.rows {
-        rows.push(emit_table_row(row, &table.align, false, theme));
+        rows.push(emit_table_row(row, &table.align, false, theme, depth));
     }
     Table::new(rows)
         .width(opts.page.content_width_dxa(), WidthType::Dxa)
@@ -309,6 +411,7 @@ fn emit_table_row(
     align: &[Align],
     is_header: bool,
     theme: &Theme,
+    depth: usize,
 ) -> TableRow {
     let mut tcs = Vec::new();
     for (col, cell) in cells.iter().enumerate() {
@@ -318,7 +421,7 @@ fn emit_table_row(
         }
         let style = Style {
             bold: is_header,
-            ..Style::default()
+            ..Style::for_depth(depth)
         };
         para = emit_inlines(para, cell, style, theme);
         let mut tc = TableCell::new().add_paragraph(para);
@@ -363,7 +466,15 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                 },
                 theme,
             ),
-            Inline::Subscript(c) => emit_inlines(p, c, style, theme),
+            Inline::Subscript(c) => emit_inlines(
+                p,
+                c,
+                Style {
+                    subscript: true,
+                    ..style
+                },
+                theme,
+            ),
             Inline::Code(c) => p.add_run(mono_run(c, theme.mono_font)),
             Inline::Link { href, content } => {
                 p.add_hyperlink(build_link(href, content, style, theme))
@@ -371,11 +482,30 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
             // The Core emit path has no OMML/image embedding (that lives on the reference
             // engine's byte path); render the math source and image alt as plain runs so the
             // IR path stays lossless-to-text while carrying the structured node.
-            Inline::Math { latex, .. } => p.add_run(style.apply(Run::new()).add_text(latex)),
-            Inline::Image { alt, .. } => p.add_run(style.apply(Run::new()).add_text(alt)),
-            Inline::FootnoteReference { label } => {
-                p.add_run(style.apply(Run::new()).add_text(format!("[^{label}]")))
-            }
+            Inline::Math { latex, .. } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(latex),
+            ),
+            Inline::Image { alt, .. } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(alt),
+            ),
+            Inline::FootnoteReference { label } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(format!("[^{label}]")),
+            ),
             Inline::SoftBreak => p.add_run(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => p.add_run(Run::new().add_break(BreakType::TextWrapping)),
         };
@@ -433,14 +563,41 @@ fn collect_runs(content: &[Inline], style: Style, theme: &Theme, out: &mut Vec<R
                 theme,
                 out,
             ),
-            Inline::Subscript(c) => collect_runs(c, style, theme, out),
+            Inline::Subscript(c) => collect_runs(
+                c,
+                Style {
+                    subscript: true,
+                    ..style
+                },
+                theme,
+                out,
+            ),
             Inline::Code(c) => out.push(mono_run(c, theme.mono_font)),
             Inline::Link { content, .. } => collect_runs(content, style, theme, out),
-            Inline::Math { latex, .. } => out.push(style.apply(Run::new()).add_text(latex)),
-            Inline::Image { alt, .. } => out.push(style.apply(Run::new()).add_text(alt)),
-            Inline::FootnoteReference { label } => {
-                out.push(style.apply(Run::new()).add_text(format!("[^{label}]")))
-            }
+            Inline::Math { latex, .. } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(latex),
+            ),
+            Inline::Image { alt, .. } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(alt),
+            ),
+            Inline::FootnoteReference { label } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(format!("[^{label}]")),
+            ),
             Inline::SoftBreak => out.push(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => out.push(Run::new().add_break(BreakType::TextWrapping)),
         }
@@ -480,19 +637,23 @@ fn mono_run(text: &str, mono_font: &str) -> Run {
         .add_text(text)
 }
 
-/// Indent a paragraph by the cumulative block-quote depth, so quoted content reads as distinct
-/// and nested quotes step further in.
-fn quote_indent(p: Paragraph, depth: usize) -> Paragraph {
-    if depth == 0 {
-        p
-    } else {
-        p.indent(
-            Some(styles::QUOTE_INDENT_DXA * depth as i32),
-            None,
-            None,
-            None,
-        )
-    }
+fn quote_style(p: Paragraph, depth: usize) -> Paragraph {
+    quote_border(p.indent(Some(quote_indent(depth)), None, None, None))
+}
+
+fn quote_border(mut p: Paragraph) -> Paragraph {
+    let border = ParagraphBorder::new(ParagraphBorderPosition::Left)
+        .size(styles::QUOTE_BORDER_SIZE)
+        .space(styles::QUOTE_BORDER_SPACE)
+        .color(styles::QUOTE_BORDER_COLOR);
+    p.property = p
+        .property
+        .set_borders(ParagraphBorders::with_empty().set(border));
+    p
+}
+
+fn quote_indent(depth: usize) -> i32 {
+    styles::QUOTE_INDENT_DXA * depth as i32
 }
 
 /// Light single-line borders on every edge and gridline, matching the direct renderer's tables.
