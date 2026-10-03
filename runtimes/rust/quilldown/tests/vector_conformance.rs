@@ -309,6 +309,9 @@ fn count_blocks(blocks: &[Block], stats: &mut Stats) {
                 stats.block_quotes += 1;
                 count_blocks(blocks, stats);
             }
+            Block::Alert { blocks, .. } => {
+                count_blocks(blocks, stats);
+            }
             Block::List(list) => {
                 stats.lists += 1;
                 for item in &list.items {

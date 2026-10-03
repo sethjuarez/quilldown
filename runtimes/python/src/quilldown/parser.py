@@ -7,6 +7,7 @@ dicts in the spec's wire shape; the runtime wraps them with the generated
 """
 from __future__ import annotations
 
+import html
 import re
 
 from markdown_it import MarkdownIt
@@ -380,7 +381,7 @@ class _DRun:
     its leftmost bytes, a closer its rightmost).
     """
 
-    __slots__ = ("marker", "per_char", "toks", "tok", "lo", "hi", "open", "close", "removed")
+    __slots__ = ("close", "hi", "lo", "marker", "open", "per_char", "removed", "tok", "toks")
 
     def __init__(self, marker, per_char, toks, tok, length, open_, close_):
         self.marker = marker
@@ -588,7 +589,7 @@ def _strip_front_matter(src: str, delimiter: str = "---") -> str:
     original source unchanged when there is no valid front matter (opening line
     not exactly the delimiter, or no closing delimiter line).
     """
-    s = src[1:] if src.startswith("\ufeff") else src
+    s = src.removeprefix("\ufeff")
     if not s.startswith(delimiter):
         return src
     start = len(delimiter)
@@ -693,9 +694,9 @@ def _blocks(nodes) -> list:
     out = []
     for n in nodes:
         if n.type == "blockquote":
-            alert = _alert_body(n)
+            alert = _alert_block(n)
             if alert is not None:
-                out.extend(alert)
+                out.append(alert)
                 continue
         b = _block(n)
         if b is not None:
@@ -721,16 +722,14 @@ _ALERT_LINE_RE = re.compile(
 )
 
 
-def _alert_body(bq):
-    """If `bq` is a GFM alert, return its unwrapped body blocks; else ``None``.
+def _alert_block(bq):
+    """If `bq` is a GFM alert, return its structured alert block; else ``None``.
 
     comrak turns `> [!TYPE] ...` into an ``Alert`` node whose body is the
-    remaining quoted content -- the `[!TYPE]` marker line (and any title after
-    it) are consumed. ``ir::lower`` has no ``Alert`` arm, so its generic block
-    fallback recurses into the alert, promoting the body to the parent level.
-    markdown-it has no alert extension and keeps a plain ``block_quote`` whose
-    first paragraph opens with the literal `[!TYPE]`; we detect that and
-    reproduce comrak's unwrap-and-drop-marker legalization.
+    remaining quoted content -- the `[!TYPE]` marker line is consumed and any
+    title after it is carried separately. markdown-it has no alert extension and
+    keeps a plain ``block_quote`` whose first paragraph opens with the literal
+    marker; detect that and project the same structured IR shape.
     """
     kids = list(bq.children)
     if not kids or kids[0].type != "paragraph":
@@ -741,7 +740,8 @@ def _alert_body(bq):
     # Position check: the marker must open the first inline line (the trimmed
     # tokenized content), so a marker buried later in quote text is not an alert.
     first_line = (inline.content or "").split("\n", 1)[0]
-    if not _ALERT_RE.match(first_line):
+    match = _ALERT_RE.match(first_line)
+    if not match:
         return None
     # Whitespace-exactness check: the raw source line must carry exactly `> `
     # (one space) before the marker, which markdown-it's trimming hides.
@@ -752,6 +752,7 @@ def _alert_body(bq):
         return None
 
     body: list = []
+    title = _unescape_alert_title(first_line[match.end() :].strip())
     # Drop the marker line: inline tokens up to and including the first line
     # break. Lower the remainder with a fresh autolink cursor, mirroring comrak
     # parsing the alert body as its own inline container.
@@ -767,7 +768,15 @@ def _alert_body(bq):
         body.append({"kind": "paragraph", "content": _inlines(rest)[0]})
     # Sibling blocks after the marker paragraph are promoted unchanged.
     body.extend(_blocks(kids[1:]))
-    return body
+    block = {"kind": "alert", "alert_type": match.group(1).lower(), "blocks": body}
+    if title:
+        block["title"] = title
+    return block
+
+
+def _unescape_alert_title(title: str) -> str:
+    title = html.unescape(title)
+    return re.sub(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])", r"\1", title)
 
 
 def _block(n):

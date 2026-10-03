@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::model::{Align, Block, Document, FootnoteDefinition, Inline};
+use super::model::{AlertType, Align, Block, Document, FootnoteDefinition, Inline};
 
 #[derive(Deserialize, Serialize)]
 pub struct SpecDocument {
@@ -30,6 +30,12 @@ pub enum SpecBlock {
         code: String,
     },
     BlockQuote {
+        blocks: Vec<SpecBlock>,
+    },
+    Alert {
+        alert_type: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
         blocks: Vec<SpecBlock>,
     },
     List {
@@ -181,6 +187,18 @@ impl SpecBlock {
                     .map(SpecBlock::into_model)
                     .collect::<Result<Vec<_>, _>>()?,
             },
+            SpecBlock::Alert {
+                alert_type,
+                title,
+                blocks,
+            } => Block::Alert {
+                alert_type: alert_type_from_str(&alert_type)?,
+                title,
+                blocks: blocks
+                    .into_iter()
+                    .map(SpecBlock::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
             SpecBlock::List {
                 ordered,
                 start,
@@ -312,6 +330,15 @@ impl From<&Block> for SpecBlock {
             Block::BlockQuote { blocks } => SpecBlock::BlockQuote {
                 blocks: blocks.iter().map(SpecBlock::from).collect(),
             },
+            Block::Alert {
+                alert_type,
+                title,
+                blocks,
+            } => SpecBlock::Alert {
+                alert_type: alert_type_str(*alert_type).to_string(),
+                title: title.clone(),
+                blocks: blocks.iter().map(SpecBlock::from).collect(),
+            },
             Block::List(list) => SpecBlock::List {
                 ordered: list.ordered,
                 start: list.start,
@@ -336,6 +363,27 @@ impl From<&Block> for SpecBlock {
             },
             Block::ThematicBreak => SpecBlock::ThematicBreak,
         }
+    }
+}
+
+fn alert_type_str(alert_type: AlertType) -> &'static str {
+    match alert_type {
+        AlertType::Note => "note",
+        AlertType::Tip => "tip",
+        AlertType::Important => "important",
+        AlertType::Warning => "warning",
+        AlertType::Caution => "caution",
+    }
+}
+
+fn alert_type_from_str(alert_type: &str) -> Result<AlertType, String> {
+    match alert_type {
+        "note" => Ok(AlertType::Note),
+        "tip" => Ok(AlertType::Tip),
+        "important" => Ok(AlertType::Important),
+        "warning" => Ok(AlertType::Warning),
+        "caution" => Ok(AlertType::Caution),
+        other => Err(format!("unknown alert type '{other}'")),
     }
 }
 

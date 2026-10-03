@@ -512,6 +512,44 @@ const LowerVectors = #[
     }
   },
   #{
+    name: "alert-lower",
+    stage: "callable",
+    input: #{ markdown: "> [!WARNING] Contract risk\n> Review **pricing** before signing.\n" },
+    expected: #{
+      blocks: #[
+        #{
+          alert_type: "warning",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "Review ",
+                  kind: "text"
+                },
+                #{
+                  data: #[
+                    #{
+                      data: "pricing",
+                      kind: "text"
+                    }
+                  ],
+                  kind: "strong"
+                },
+                #{
+                  data: " before signing.",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ],
+          kind: "alert",
+          title: "Contract risk"
+        }
+      ]
+    }
+  },
+  #{
     name: "thematic_break-lower",
     stage: "callable",
     input: #{ markdown: "before\n\n---\n\nafter\n" },
@@ -1450,37 +1488,50 @@ const LowerVectors = #[
     }
   },
   #{
-    name: "alert_note_unwrap-lower",
+    name: "alert_note-lower",
     stage: "callable",
     input: #{ markdown: "> [!NOTE]\n> This is a note.\n" },
     expected: #{
       blocks: #[
         #{
-          content: #[
+          alert_type: "note",
+          blocks: #[
             #{
-              data: "This is a note.",
-              kind: "text"
+              content: #[
+                #{
+                  data: "This is a note.",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
             }
           ],
-          kind: "paragraph"
+          kind: "alert"
         }
       ]
     }
   },
   #{
-    name: "alert_title_dropped-lower",
+    name: "alert_title-lower",
     stage: "callable",
-    input: #{ markdown: "> [!TIP] a title here\n> body text\n" },
+    input: #{ markdown: "> [!TIP] a &amp; \\[title\\]\n> body text\n" },
     expected: #{
       blocks: #[
         #{
-          content: #[
+          alert_type: "tip",
+          blocks: #[
             #{
-              data: "body text",
-              kind: "text"
+              content: #[
+                #{
+                  data: "body text",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
             }
           ],
-          kind: "paragraph"
+          kind: "alert",
+          title: "a & [title]"
         }
       ]
     }
@@ -4091,6 +4142,196 @@ const RenderVectors = #[
                   ],
                   borders: null,
                   fill: null,
+                  span: 1,
+                  trailingGap: 160,
+                  vMerge: null,
+                  width: null
+                }
+              ],
+              header: false
+            }
+          ],
+          width: #{
+            type: "dxa",
+            w: 9360
+          }
+        }
+      ],
+      page: #{
+        footer: null,
+        header: null,
+        height: 15840,
+        landscape: false,
+        margins: #{
+          bottom: 1440,
+          footer: 720,
+          header: 720,
+          left: 1440,
+          right: 1440,
+          top: 1440
+        },
+        width: 12240
+      },
+      trailingGap: 0
+    }
+  },
+  #{
+    name: "render_alert",
+    stage: "callable",
+    input: #{ doc: #{
+      blocks: #[
+        #{
+          alert_type: "warning",
+          blocks: #[
+            #{
+              content: #[
+                #{
+                  data: "Review ",
+                  kind: "text"
+                },
+                #{
+                  data: #[
+                    #{
+                      data: "pricing",
+                      kind: "text"
+                    }
+                  ],
+                  kind: "strong"
+                },
+                #{
+                  data: " before signing.",
+                  kind: "text"
+                }
+              ],
+              kind: "paragraph"
+            }
+          ],
+          kind: "alert",
+          title: "Contract risk"
+        }
+      ]
+    } },
+    expected: #{
+      body: #[
+        #{
+          align: null,
+          borders: #{
+            left: #{
+              color: "9A6700",
+              size: 24,
+              space: 0,
+              style: "single"
+            }
+          },
+          cellMargins: #{
+            bottom: 40,
+            left: 108,
+            right: 108,
+            top: 40
+          },
+          columns: #[],
+          gapBefore: 0,
+          kind: "table",
+          rows: #[
+            #{
+              cells: #[
+                #{
+                  blocks: #[
+                    #{
+                      align: null,
+                      borders: null,
+                      fill: null,
+                      gapBefore: 0,
+                      headingLevel: null,
+                      indent: #{
+                        firstLine: 0,
+                        hanging: 0,
+                        left: 0,
+                        right: 0
+                      },
+                      keepLines: false,
+                      keepNext: false,
+                      kind: "paragraph",
+                      line: 259,
+                      lineRule: "auto",
+                      list: null,
+                      runs: #[
+                        #{
+                          bold: true,
+                          color: "9A6700",
+                          font: "Aptos",
+                          italic: false,
+                          link: null,
+                          size: 24,
+                          strike: false,
+                          text: "Contract risk",
+                          underline: null,
+                          vertAlign: null
+                        }
+                      ],
+                      style: "normal"
+                    },
+                    #{
+                      align: null,
+                      borders: null,
+                      fill: null,
+                      gapBefore: 160,
+                      headingLevel: null,
+                      indent: #{
+                        firstLine: 0,
+                        hanging: 0,
+                        left: 0,
+                        right: 0
+                      },
+                      keepLines: false,
+                      keepNext: false,
+                      kind: "paragraph",
+                      line: 259,
+                      lineRule: "auto",
+                      list: null,
+                      runs: #[
+                        #{
+                          bold: false,
+                          color: null,
+                          font: "Aptos",
+                          italic: false,
+                          link: null,
+                          size: 24,
+                          strike: false,
+                          text: "Review ",
+                          underline: null,
+                          vertAlign: null
+                        },
+                        #{
+                          bold: true,
+                          color: null,
+                          font: "Aptos",
+                          italic: false,
+                          link: null,
+                          size: 24,
+                          strike: false,
+                          text: "pricing",
+                          underline: null,
+                          vertAlign: null
+                        },
+                        #{
+                          bold: false,
+                          color: null,
+                          font: "Aptos",
+                          italic: false,
+                          link: null,
+                          size: 24,
+                          strike: false,
+                          text: " before signing.",
+                          underline: null,
+                          vertAlign: null
+                        }
+                      ],
+                      style: "normal"
+                    }
+                  ],
+                  borders: null,
+                  fill: "FFF8C5",
                   span: 1,
                   trailingGap: 160,
                   vMerge: null,

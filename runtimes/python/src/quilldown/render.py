@@ -77,6 +77,12 @@ def validate_document(doc: dict) -> None:
         elif kind == "block_quote":
             for i, child in enumerate(block.get("blocks", [])):
                 validate_block(child, f"{path}.blocks[{i}]", False)
+        elif kind == "alert":
+            require_keys(block, ("alert_type", "blocks"), path)
+            if block["alert_type"] not in ("note", "tip", "important", "warning", "caution"):
+                fail(f"{path}.alert_type contains unsupported alert type")
+            for i, child in enumerate(block.get("blocks", [])):
+                validate_block(child, f"{path}.blocks[{i}]", False)
         elif kind == "list":
             for i, item in enumerate(block.get("items", [])):
                 validate_block(item, f"{path}.items[{i}]", False)
@@ -217,6 +223,13 @@ def render_docx(doc: dict) -> Any:
     QUOTE_BORDER_COLOR = "8B949E"
     QUOTE_TEXT_COLOR = "57606A"
     CONTENT_WIDTH_DXA = 9360
+    ALERT_PALETTE = {
+        "note": ("0969DA", "DDF4FF", "NOTE"),
+        "tip": ("1A7F37", "DAFBE1", "TIP"),
+        "important": ("8250DF", "FBEFFF", "IMPORTANT"),
+        "warning": ("9A6700", "FFF8C5", "WARNING"),
+        "caution": ("CF222E", "FFEBE9", "CAUTION"),
+    }
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
     last_flow: str | None = None
@@ -664,8 +677,13 @@ def render_docx(doc: dict) -> Any:
 
     def add_data_table(block: dict) -> None:
         push_gap()
+        add_data_table_to(out, block)
+        mark_flow("table")
+        push_gap()
+
+    def add_data_table_to(container, block: dict):
         header = block["head"]["cells"]
-        table = out.add_table(rows=1, cols=max(1, len(header)))
+        table = container.add_table(rows=1, cols=max(1, len(header)))
         _set_table_width(table)
         _set_table_borders(table, {side: (TABLE_BORDER_COLOR, 2) for side in ("top", "left", "bottom", "right", "insideH", "insideV")})
         _set_table_margins(table, 40, 108, 40, 108)
@@ -685,8 +703,117 @@ def render_docx(doc: dict) -> Any:
                 p.alignment = _paragraph_alignment(block.get("align", []), i, WD_ALIGN_PARAGRAPH)
                 render_inlines(p, cell["content"])
         _clear_table_geometry_defaults(table)
+        return table
+
+    def add_alert(block: dict) -> None:
+        push_gap()
+        add_alert_to(out, block)
         mark_flow("table")
         push_gap()
+
+    def add_alert_to(container, block: dict):
+        accent, fill, default_title = ALERT_PALETTE.get(
+            block.get("alert_type", "note"), ALERT_PALETTE["note"]
+        )
+        table = container.add_table(rows=1, cols=1)
+        _set_table_width(table)
+        _set_table_borders(table, {"left": (accent, 24)})
+        _set_table_margins(table, 40, 108, 40, 108)
+        cell = table.rows[0].cells[0]
+        _shade_cell(cell, fill)
+        title = cell.paragraphs[0]
+        title_run = title.add_run(block.get("title") or default_title)
+        title_run.bold = True
+        title_run.font.color.rgb = RGBColor.from_string(accent)
+        add_blocks_to_cell(cell, block.get("blocks", []))
+        _clear_table_geometry_defaults(table)
+        return table
+
+    def add_cell_gap(cell) -> None:
+        p = cell.add_paragraph()
+        _set_paragraph_spacing(p, after=0, line=160, rule="exact")
+
+    def add_code_table_to(container, code: str):
+        table = container.add_table(rows=1, cols=1)
+        _set_table_width(table)
+        _set_table_borders(table, {side: ("000000", 2) for side in ("top", "left", "bottom", "right", "insideH", "insideV")})
+        _set_table_margins(table, 80, 120, 80, 120)
+        code_cell = table.rows[0].cells[0]
+        _shade_cell(code_cell, CODE_FILL)
+        for index, line in enumerate(code.removesuffix("\n").split("\n")):
+            p = code_cell.paragraphs[0] if index == 0 else code_cell.add_paragraph()
+            _set_paragraph_spacing(p, after=0, line=240)
+            run = p.add_run(line)
+            run.font.name = CODE_FONT
+            run.font.size = Pt(10)
+        _clear_table_geometry_defaults(table)
+        return table
+
+    def add_rule_to(container):
+        table = container.add_table(rows=1, cols=1)
+        _set_table_width(table)
+        _set_table_borders(table, {"bottom": (TABLE_BORDER_COLOR, 4)})
+        _clear_table_geometry_defaults(table)
+        return table
+
+    def add_blocks_to_cell(cell, blocks: list[dict], *, quote_depth: int = 0, list_depth: int = 0) -> None:
+        for child in blocks:
+            if child["kind"] == "paragraph":
+                p = cell.add_paragraph()
+                if quote_depth:
+                    _set_paragraph_indent(p, left=360 * quote_depth)
+                    _set_quote_border(p)
+                    render_inlines(p, child["content"], base={**new_ctx(), "quote": True})
+                else:
+                    render_inlines(p, child["content"])
+            elif child["kind"] == "heading":
+                p = cell.add_paragraph(style=f"Heading {min(child['level'], 9)}")
+                render_inlines(p, child["content"], base={**new_ctx(), "quote": quote_depth > 0})
+                if quote_depth:
+                    _set_paragraph_indent(p, left=360 * quote_depth)
+                    _set_quote_border(p)
+            elif child["kind"] == "code_block":
+                add_cell_gap(cell)
+                add_code_table_to(cell, child["code"])
+                add_cell_gap(cell)
+            elif child["kind"] == "table":
+                add_cell_gap(cell)
+                add_data_table_to(cell, child)
+                add_cell_gap(cell)
+            elif child["kind"] == "thematic_break":
+                add_cell_gap(cell)
+                add_rule_to(cell)
+                add_cell_gap(cell)
+            elif child["kind"] == "block_quote":
+                if quote_depth == 0:
+                    add_cell_gap(cell)
+                add_blocks_to_cell(cell, child["blocks"], quote_depth=quote_depth + 1, list_depth=list_depth)
+                if quote_depth == 0:
+                    add_cell_gap(cell)
+            elif child["kind"] == "alert":
+                add_cell_gap(cell)
+                add_alert_to(cell, child)
+                add_cell_gap(cell)
+            elif child["kind"] == "list":
+                num_id = add_numbering(bool(child.get("ordered")), int(child.get("start", 1)), list_depth)
+                for item in child["items"]:
+                    first = True
+                    for inner in item["blocks"]:
+                        if first and inner["kind"] == "paragraph":
+                            p = cell.add_paragraph()
+                            task = item.get("task")
+                            if task is None:
+                                apply_numbering(p, num_id, list_depth)
+                            else:
+                                _set_paragraph_indent(p, left=720 * (list_depth + 1), hanging=360)
+                                p.add_run("☑\t" if task else "☐\t")
+                            _set_paragraph_spacing(p, after=0)
+                            render_inlines(p, inner["content"], base={**new_ctx(), "quote": quote_depth > 0})
+                            if quote_depth:
+                                _set_quote_border(p)
+                            first = False
+                        else:
+                            add_blocks_to_cell(cell, [inner], quote_depth=quote_depth, list_depth=list_depth + 1)
 
     def add_quote_paragraph(block: dict, depth: int) -> None:
         p = out.add_paragraph()
@@ -722,6 +849,8 @@ def render_docx(doc: dict) -> Any:
                 emit_blocks(b["blocks"], quote_depth=quote_depth + 1, list_depth=list_depth)
                 if top_level:
                     push_gap()
+            elif k == "alert":
+                add_alert(b)
             elif k == "list":
                 num_id = add_numbering(bool(b.get("ordered")), int(b.get("start", 1)), list_depth)
                 for it in b["items"]:

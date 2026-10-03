@@ -11,10 +11,10 @@
 //! [`Inline::Text`] (or their formatting is flattened) rather than dropped, mirroring how the
 //! reference engine degrades unsupported input.
 
-use comrak::nodes::{AstNode, ListType, NodeValue, TableAlignment};
+use comrak::nodes::{AlertType as ComrakAlertType, AstNode, ListType, NodeValue, TableAlignment};
 use comrak::{parse_document, Arena};
 
-use crate::ir::model::{Align, Block, Document, Inline, List, ListItem, Table};
+use crate::ir::model::{AlertType, Align, Block, Document, Inline, List, ListItem, Table};
 use crate::render::{comrak_options_pub, text_of};
 
 /// Lower a Markdown string into the portable [`Document`] IR.
@@ -78,6 +78,11 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
         NodeValue::BlockQuote => out.push(Block::BlockQuote {
             blocks: lower_blocks(node),
         }),
+        NodeValue::Alert(alert) => out.push(Block::Alert {
+            alert_type: map_alert_type(alert.alert_type),
+            title: alert.title,
+            blocks: lower_blocks(node),
+        }),
         NodeValue::List(list) => {
             out.push(Block::List(lower_list(node, list.list_type, list.start)))
         }
@@ -92,6 +97,16 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
                 lower_block(child, out);
             }
         }
+    }
+}
+
+fn map_alert_type(alert_type: ComrakAlertType) -> AlertType {
+    match alert_type {
+        ComrakAlertType::Note => AlertType::Note,
+        ComrakAlertType::Tip => AlertType::Tip,
+        ComrakAlertType::Important => AlertType::Important,
+        ComrakAlertType::Warning => AlertType::Warning,
+        ComrakAlertType::Caution => AlertType::Caution,
     }
 }
 

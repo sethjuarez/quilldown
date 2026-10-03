@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use docx_rs::*;
 
-use crate::ir::model::{Align, Block, Document, Inline, List, Table as IrTable};
+use crate::ir::model::{AlertType, Align, Block, Document, Inline, List, Table as IrTable};
 use crate::render::slugify;
 use crate::styles;
 use crate::{ConvertError, ConvertOptions, Theme};
@@ -275,6 +275,21 @@ fn emit_block(
                 push_gap(flows);
             }
         }
+        Block::Alert {
+            alert_type,
+            title,
+            blocks,
+        } => {
+            push_gap(flows);
+            flows.push(Flow::Table(Box::new(emit_alert(
+                *alert_type,
+                title.as_deref(),
+                blocks,
+                opts,
+                state,
+            ))));
+            push_gap(flows);
+        }
         Block::List(list) => emit_list(list, opts, depth, 0, state, flows),
         Block::Table(table) => {
             push_gap(flows);
@@ -380,6 +395,58 @@ fn emit_code_block(code: &str, opts: &ConvertOptions) -> Table {
     Table::new(vec![TableRow::new(vec![cell])])
         .width(opts.page.content_width_dxa(), WidthType::Dxa)
         .margins(styles::code_cell_margins())
+}
+
+/// Emit a GitHub alert/callout as a shaded single-cell table with a left accent border.
+fn emit_alert(
+    alert_type: AlertType,
+    title: Option<&str>,
+    blocks: &[Block],
+    opts: &ConvertOptions,
+    state: &mut EmitState,
+) -> Table {
+    let (accent, fill) = alert_palette(alert_type);
+    let label = title.unwrap_or_else(|| alert_type.default_title());
+    let mut cell = TableCell::new()
+        .shading(Shading::new().fill(fill))
+        .add_paragraph(
+            Paragraph::new().add_run(Run::new().bold().color(accent).add_text(label.to_string())),
+        );
+    let mut inner_flows = Vec::new();
+    emit_blocks(blocks, opts, 0, state, &mut inner_flows);
+    if matches!(inner_flows.first(), Some(Flow::Gap)) {
+        inner_flows.remove(0);
+    }
+    if matches!(inner_flows.last(), Some(Flow::Gap)) {
+        inner_flows.pop();
+    }
+    for flow in inner_flows {
+        cell = match flow {
+            Flow::Body(p) | Flow::Para(p) => cell.add_paragraph(*p),
+            Flow::Table(t) => cell.add_table(*t),
+            Flow::Gap => cell.add_paragraph(styles::block_gap_paragraph()),
+        };
+    }
+
+    use TableBorderPosition::*;
+    let left = TableBorder::new(Left)
+        .border_type(BorderType::Single)
+        .size(styles::ALERT_BORDER_SIZE)
+        .color(accent);
+    Table::new(vec![TableRow::new(vec![cell])])
+        .width(opts.page.content_width_dxa(), WidthType::Dxa)
+        .margins(styles::table_cell_margins())
+        .set_borders(TableBorders::with_empty().set(left))
+}
+
+fn alert_palette(alert_type: AlertType) -> (&'static str, &'static str) {
+    match alert_type {
+        AlertType::Note => styles::ALERT_NOTE,
+        AlertType::Tip => styles::ALERT_TIP,
+        AlertType::Important => styles::ALERT_IMPORTANT,
+        AlertType::Warning => styles::ALERT_WARNING,
+        AlertType::Caution => styles::ALERT_CAUTION,
+    }
 }
 
 /// Emit a GFM table: a bold, shaded header row plus body rows, with per-column alignment.

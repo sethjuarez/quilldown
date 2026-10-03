@@ -121,3 +121,39 @@ def test_rule_before_footnotes_does_not_trim_footnote_body() -> None:
         if block["kind"] == "paragraph" and block["runs"]
     ]
     assert "1. note text" in texts
+
+
+def test_alert_body_renders_nested_block_kinds() -> None:
+    view = rendered_view(
+        _render_bytes(
+            "> [!NOTE] Title\n"
+            "> Intro paragraph.\n"
+            ">\n"
+            "> ## Inside\n"
+            ">\n"
+            "> | A | B |\n"
+            "> | - | - |\n"
+            "> | 1 | 2 |\n"
+            ">\n"
+            "> > nested quote\n"
+            ">\n"
+            "> ---\n"
+        )
+    )
+    alert_cell = view["body"][0]["rows"][0]["cells"][0]
+    blocks = alert_cell["blocks"]
+    paragraph_texts = [
+        "".join(run["text"] for run in block["runs"])
+        for block in blocks
+        if block["kind"] == "paragraph" and block["runs"]
+    ]
+    assert "Title" in paragraph_texts
+    assert "Intro paragraph." in paragraph_texts
+    assert "Inside" in paragraph_texts
+    assert "nested quote" in paragraph_texts
+    assert any(block["kind"] == "table" and block["borders"] for block in blocks)
+    assert any(
+        block["kind"] == "table"
+        and block["borders"] == {"bottom": {"color": "BFBFBF", "size": 4, "space": 0, "style": "single"}}
+        for block in blocks
+    )

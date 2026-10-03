@@ -129,6 +129,13 @@ model BlockQuote extends Block {
   blocks: Block[];
 }
 
+model AlertBlock extends Block {
+  kind: "alert";
+  alert_type: string;
+  title?: string;
+  blocks: Block[];
+}
+
 // A list item is modeled as a `Block` variant (rather than a standalone model)
 // so it is emitted into the same generated module as `Block`. A standalone
 // model that both references `Block` and is referenced by it produces a hard
