@@ -4581,7 +4581,7 @@ async def test_vector_86_quilldown_render_render_typography():
             {
               "content": [
                 {
-                  "data": "Title",
+                  "data": "H1",
                   "kind": "text"
                 }
               ],
@@ -4648,12 +4648,52 @@ async def test_vector_86_quilldown_render_render_typography():
             {
               "content": [
                 {
-                  "data": "Sub",
+                  "data": "H2",
                   "kind": "text"
                 }
               ],
               "kind": "heading",
               "level": 2
+            },
+            {
+              "content": [
+                {
+                  "data": "H3",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 3
+            },
+            {
+              "content": [
+                {
+                  "data": "H4",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 4
+            },
+            {
+              "content": [
+                {
+                  "data": "H5",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 5
+            },
+            {
+              "content": [
+                {
+                  "data": "H6",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 6
             }
           ]
         }
@@ -4687,7 +4727,7 @@ async def test_vector_86_quilldown_render_render_typography():
                 "link": null,
                 "size": 40,
                 "strike": false,
-                "text": "Title",
+                "text": "H1",
                 "underline": null,
                 "vertAlign": null
               }
@@ -4851,12 +4891,148 @@ async def test_vector_86_quilldown_render_render_typography():
                 "link": null,
                 "size": 32,
                 "strike": false,
-                "text": "Sub",
+                "text": "H2",
                 "underline": null,
                 "vertAlign": null
               }
             ],
             "style": "heading2"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 240,
+            "headingLevel": 3,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 28,
+                "strike": false,
+                "text": "H3",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading3"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 220,
+            "headingLevel": 4,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "H4",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading4"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 200,
+            "headingLevel": 5,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 22,
+                "strike": false,
+                "text": "H5",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading5"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 200,
+            "headingLevel": 6,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "H6",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading6"
           }
         ],
         "page": {

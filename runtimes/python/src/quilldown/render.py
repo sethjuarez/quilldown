@@ -202,12 +202,116 @@ def render_docx(doc: dict) -> Any:
     from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
     from docx.oxml import OxmlElement  # noqa: WPS433
     from docx.oxml.ns import qn  # noqa: WPS433
+    from docx.shared import Inches, Pt, RGBColor  # noqa: WPS433
 
     validate_document(doc)
     out = DocxDocument()
     CODE_FONT = "Consolas"
+    BODY_FONT = "Aptos"
+    HEADING_FONT = "Aptos Display"
+    HEADING_COLOR = "2F5496"
+    LINK_COLOR = "0563C1"
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
+
+    def _clear_children(el, names: set[str]) -> None:
+        for child in list(el):
+            if child.tag in names:
+                el.remove(child)
+
+    def _append_spacing(ppr, *, before: int | None = None, after: int = 160, line: int = 259) -> None:
+        _clear_children(ppr, {qn("w:spacing")})
+        spacing = OxmlElement("w:spacing")
+        if before is not None:
+            spacing.set(qn("w:before"), str(before))
+        spacing.set(qn("w:after"), str(after))
+        spacing.set(qn("w:line"), str(line))
+        spacing.set(qn("w:lineRule"), "auto")
+        ppr.append(spacing)
+
+    def _append_run_fonts(rpr, font: str) -> None:
+        _clear_children(rpr, {qn("w:rFonts")})
+        rf = OxmlElement("w:rFonts")
+        rf.set(qn("w:ascii"), font)
+        rf.set(qn("w:hAnsi"), font)
+        rpr.append(rf)
+
+    def _append_size(rpr, half_points: int) -> None:
+        _clear_children(rpr, {qn("w:sz"), qn("w:szCs")})
+        sz = OxmlElement("w:sz")
+        sz.set(qn("w:val"), str(half_points))
+        sz_cs = OxmlElement("w:szCs")
+        sz_cs.set(qn("w:val"), str(half_points))
+        rpr.extend([sz, sz_cs])
+
+    def _append_color(rpr, color: str) -> None:
+        _clear_children(rpr, {qn("w:color")})
+        c = OxmlElement("w:color")
+        c.set(qn("w:val"), color)
+        rpr.append(c)
+
+    def apply_document_theme() -> None:
+        for section in out.sections:
+            section.top_margin = Inches(1)
+            section.bottom_margin = Inches(1)
+            section.left_margin = Inches(1)
+            section.right_margin = Inches(1)
+            section.header_distance = Inches(0.5)
+            section.footer_distance = Inches(0.5)
+
+        styles_el = out.styles.element
+        doc_defaults = styles_el.find(qn("w:docDefaults"))
+        if doc_defaults is None:
+            doc_defaults = OxmlElement("w:docDefaults")
+            styles_el.insert(0, doc_defaults)
+        rpr_default = doc_defaults.find(qn("w:rPrDefault"))
+        if rpr_default is None:
+            rpr_default = OxmlElement("w:rPrDefault")
+            doc_defaults.append(rpr_default)
+        rpr = rpr_default.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = OxmlElement("w:rPr")
+            rpr_default.append(rpr)
+        _append_run_fonts(rpr, BODY_FONT)
+        _append_size(rpr, 24)
+
+        ppr_default = doc_defaults.find(qn("w:pPrDefault"))
+        if ppr_default is None:
+            ppr_default = OxmlElement("w:pPrDefault")
+            doc_defaults.append(ppr_default)
+        ppr = ppr_default.find(qn("w:pPr"))
+        if ppr is None:
+            ppr = OxmlElement("w:pPr")
+            ppr_default.append(ppr)
+        _append_spacing(ppr)
+
+        heading_specs = [
+            (1, 40, 360),
+            (2, 32, 200),
+            (3, 28, 160),
+            (4, 24, 140),
+            (5, 22, 120),
+            (6, 20, 120),
+        ]
+        for level, half_points, before in heading_specs:
+            style = out.styles[f"Heading {level}"]
+            style.font.name = HEADING_FONT
+            style.font.size = Pt(half_points / 2)
+            style.font.bold = True
+            style.font.italic = False
+            style.font.color.rgb = RGBColor.from_string(HEADING_COLOR)
+            pf = style.paragraph_format
+            pf.space_before = Pt(before / 20)
+            pf.space_after = Pt(4)
+            pf.line_spacing = 1.08
+            pf.keep_with_next = True
+            pf.keep_together = True
+            rpr = style.element.get_or_add_rPr()
+            _append_run_fonts(rpr, HEADING_FONT)
+            _append_size(rpr, half_points)
+            _append_color(rpr, HEADING_COLOR)
+
+    apply_document_theme()
 
     def new_ctx() -> dict:
         return {"bold": False, "italic": False, "strike": False, "code": False, "link": None}
@@ -261,6 +365,17 @@ def render_docx(doc: dict) -> Any:
             rf.set(qn("w:ascii"), CODE_FONT)
             rf.set(qn("w:hAnsi"), CODE_FONT)
             rpr.append(rf)
+            sz = OxmlElement("w:sz")
+            sz.set(qn("w:val"), "20")
+            sz_cs = OxmlElement("w:szCs")
+            sz_cs.set(qn("w:val"), "20")
+            rpr.extend([sz, sz_cs])
+        if fmt.get("link"):
+            color = OxmlElement("w:color")
+            color.set(qn("w:val"), LINK_COLOR)
+            underline = OxmlElement("w:u")
+            underline.set(qn("w:val"), "single")
+            rpr.extend([color, underline])
         return rpr
 
     def _add_hyperlink(paragraph, url, text, fmt):
@@ -322,6 +437,7 @@ def render_docx(doc: dict) -> Any:
                 run.font.strike = True
             if fmt.get("code"):
                 run.font.name = CODE_FONT
+                run.font.size = Pt(10)
 
     def add_numbering(ordered: bool, start: int) -> str:
         root = out.part.numbering_part.element

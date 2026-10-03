@@ -37,7 +37,6 @@ VECTOR_ADAPTERS = {
 }
 
 VECTOR_WAIVERS = {
-    "Quilldown.render:render_typography": "Python styling port lands in u4",
     "Quilldown.render:render_tables_tasks": "Python table/task styling port lands in u5",
     "Quilldown.render:render_quotes_code_rule": "Python quote/code/rule styling port lands in u5",
 }
