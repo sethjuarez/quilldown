@@ -57,6 +57,7 @@ def test_rust_emit_conforms_to_render_vectors(tmp_path, vector):
     allowed_options = {
         "page_numbers",
         "table_of_contents",
+        "captions",
         "theme",
         "page_size",
         "orientation",
@@ -68,6 +69,8 @@ def test_rust_emit_conforms_to_render_vectors(tmp_path, vector):
         cmd.insert(2, "--page-numbers")
     if options.get("table_of_contents"):
         cmd.insert(2, "--toc")
+    if options.get("captions"):
+        cmd.insert(2, "--captions")
     for option, flag in (
         ("theme", "--theme"),
         ("page_size", "--page-size"),

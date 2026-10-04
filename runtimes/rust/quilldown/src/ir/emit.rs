@@ -20,16 +20,16 @@
 //!   registered; every anchor target has a matching heading bookmark). [`EmitState`] is the
 //!   "symbol table" that makes those invariants well-defined.
 //!
-//! Only the Core tier is emitted. Math and images reach this path as first-class IR nodes but are
-//! rendered as text fallbacks; native OMML, embedded images/SVG layers, and captions stay on the
-//! reference renderer's byte path.
+//! Only the Core tier plus portable field-based options are emitted. Math and images reach this
+//! path as first-class IR nodes but are rendered as text fallbacks; native OMML and embedded
+//! image/SVG layers stay on the reference renderer's byte path.
 
 use std::collections::HashMap;
 
 use docx_rs::*;
 
 use crate::ir::model::{AlertType, Align, Block, Document, Inline, List, Table as IrTable};
-use crate::render::slugify;
+use crate::render::{captions, slugify};
 use crate::styles;
 use crate::{ConvertError, ConvertOptions, Theme};
 
@@ -88,6 +88,9 @@ struct EmitState {
     /// Ordered-list numbering definitions to register on the [`Docx`] before any paragraph
     /// references them (the "declare before use" invariant).
     numberings: Vec<Numbering>,
+    /// Raw caption label -> unique Word bookmark name, collected before emission so forward
+    /// `[text](#label)` references can become live `REF` fields.
+    caption_labels: HashMap<String, String>,
 }
 
 impl EmitState {
@@ -97,6 +100,7 @@ impl EmitState {
             next_num_id: styles::FIRST_LIST_NUM_ID,
             heading_slugs: HashMap::new(),
             numberings: Vec::new(),
+            caption_labels: HashMap::new(),
         }
     }
 
@@ -155,6 +159,79 @@ fn push_gap(flows: &mut Vec<Flow>) {
     flows.push(Flow::Gap);
 }
 
+fn collect_caption_labels(blocks: &[Block], state: &mut EmitState) {
+    for block in blocks {
+        let Block::Paragraph { content } = block else {
+            continue;
+        };
+        let Some(cap) = captions::caption_of(&caption_text(content)) else {
+            continue;
+        };
+        let Some(label) = cap.label else {
+            continue;
+        };
+        if state.caption_labels.contains_key(&label) {
+            continue;
+        }
+        let base = captions::bookmark_name(&label);
+        let name = if !state.caption_labels.values().any(|used| used == &base) {
+            base
+        } else {
+            (2..)
+                .map(|n| format!("{base}_{n}"))
+                .find(|candidate| !state.caption_labels.values().any(|used| used == candidate))
+                .expect("suffix search always terminates")
+        };
+        state.caption_labels.insert(label, name);
+    }
+}
+
+fn emit_caption(cap: &captions::Caption, state: &mut EmitState) -> Paragraph {
+    let word = match cap.kind {
+        captions::Kind::Figure => "Figure",
+        captions::Kind::Table => "Table",
+    };
+    let mut p = Paragraph::new().style("Caption");
+    let bookmark = cap
+        .label
+        .as_ref()
+        .and_then(|label| state.caption_labels.get(label).cloned())
+        .map(|name| (state.bookmark_id(), name));
+    if let Some((id, name)) = &bookmark {
+        p = p.add_bookmark_start(*id, name.clone());
+    }
+    p = p
+        .add_run(Run::new().bold().add_text(format!("{word} ")))
+        .add_run(seq_field(word));
+    if let Some((id, _)) = bookmark {
+        p = p.add_bookmark_end(id);
+    }
+    p = p.add_run(Run::new().bold().add_text(": "));
+    if !cap.text.is_empty() {
+        p = p.add_run(Run::new().add_text(&cap.text));
+    }
+    p
+}
+
+fn seq_field(kind: &str) -> Run {
+    Run::new()
+        .bold()
+        .add_field_char(FieldCharType::Begin, true)
+        .add_instr_text(InstrText::Unsupported(format!("SEQ {kind} \\* ARABIC")))
+        .add_field_char(FieldCharType::Separate, false)
+        .add_text("1")
+        .add_field_char(FieldCharType::End, false)
+}
+
+fn ref_field(name: &str, placeholder: &str) -> Run {
+    Run::new()
+        .add_field_char(FieldCharType::Begin, true)
+        .add_instr_text(InstrText::Unsupported(format!("REF {name} \\h")))
+        .add_field_char(FieldCharType::Separate, false)
+        .add_text(placeholder)
+        .add_field_char(FieldCharType::End, false)
+}
+
 /// Emit a portable [`Document`] into a `docx-rs` [`Docx`] builder.
 ///
 /// The result is a builder (not packed bytes); callers serialize it with
@@ -163,11 +240,14 @@ fn push_gap(flows: &mut Vec<Flow>) {
 /// operation symmetric with the direct renderer and forward-compatible.
 ///
 /// Supported [`ConvertOptions`] are intentionally narrower than the direct renderer: page setup,
-/// theme, `page_numbers`, `table_of_contents`, and `highlight_code` (currently only the
-/// no-highlight/plain-code shape). Captions, images, endnotes, native math, and semantic
+/// theme, `page_numbers`, `table_of_contents`, `captions`, and `highlight_code` (currently only
+/// the no-highlight/plain-code shape). Images, endnotes, native math, and semantic
 /// table-header-row injection remain direct-renderer/post-pack features.
 pub fn emit(doc: &Document, opts: &ConvertOptions) -> Result<Docx, ConvertError> {
     let mut state = EmitState::new();
+    if opts.captions {
+        collect_caption_labels(&doc.blocks, &mut state);
+    }
     let mut flows = Vec::new();
     emit_blocks(&doc.blocks, opts, 0, &mut state, &mut flows);
     if matches!(flows.first(), Some(Flow::Gap)) {
@@ -256,7 +336,7 @@ fn emit_block(
                 .keep_next(true)
                 .keep_lines(true)
                 .add_bookmark_start(bid, slug);
-            p = emit_inlines(p, content, Style::for_depth(depth), theme);
+            p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
             p = p.add_bookmark_end(bid);
             if depth > 0 {
                 p = quote_style(p, depth);
@@ -264,8 +344,14 @@ fn emit_block(
             flows.push(Flow::Para(Box::new(p)));
         }
         Block::Paragraph { content } => {
+            if opts.captions && depth == 0 {
+                if let Some(cap) = captions::caption_of(&caption_text(content)) {
+                    flows.push(Flow::Para(Box::new(emit_caption(&cap, state))));
+                    return;
+                }
+            }
             let mut p = Paragraph::new();
-            p = emit_inlines(p, content, Style::for_depth(depth), theme);
+            p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
             if depth > 0 {
                 flows.push(Flow::Para(Box::new(quote_style(p, depth))));
             } else {
@@ -309,7 +395,7 @@ fn emit_block(
         Block::List(list) => emit_list(list, opts, depth, 0, state, flows),
         Block::Table(table) => {
             push_gap(flows);
-            let mut t = emit_table(table, opts, depth);
+            let mut t = emit_table(table, opts, depth, state);
             if depth > 0 {
                 t = t.indent(quote_indent(depth));
             }
@@ -381,7 +467,7 @@ fn emit_list(
                             .numbering(NumberingId::new(num_id), IndentLevel::new(level))
                     };
                     marker_used = true;
-                    p = emit_inlines(p, content, Style::for_depth(depth), theme);
+                    p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
                     if depth > 0 {
                         p = quote_border(p);
                     }
@@ -466,7 +552,7 @@ fn alert_palette(alert_type: AlertType) -> (&'static str, &'static str) {
 }
 
 /// Emit a GFM table: a bold, shaded header row plus body rows, with per-column alignment.
-fn emit_table(table: &IrTable, opts: &ConvertOptions, depth: usize) -> Table {
+fn emit_table(table: &IrTable, opts: &ConvertOptions, depth: usize, state: &EmitState) -> Table {
     let theme = &opts.theme;
     let mut rows = Vec::new();
     if !table.head.is_empty() {
@@ -476,10 +562,18 @@ fn emit_table(table: &IrTable, opts: &ConvertOptions, depth: usize) -> Table {
             true,
             theme,
             depth,
+            state,
         ));
     }
     for row in &table.rows {
-        rows.push(emit_table_row(row, &table.align, false, theme, depth));
+        rows.push(emit_table_row(
+            row,
+            &table.align,
+            false,
+            theme,
+            depth,
+            state,
+        ));
     }
     Table::new(rows)
         .width(opts.page.content_width_dxa(), WidthType::Dxa)
@@ -495,6 +589,7 @@ fn emit_table_row(
     is_header: bool,
     theme: &Theme,
     depth: usize,
+    state: &EmitState,
 ) -> TableRow {
     let mut tcs = Vec::new();
     for (col, cell) in cells.iter().enumerate() {
@@ -506,7 +601,7 @@ fn emit_table_row(
             bold: is_header,
             ..Style::for_depth(depth)
         };
-        para = emit_inlines(para, cell, style, theme);
+        para = emit_inlines(para, cell, style, theme, state);
         let mut tc = TableCell::new().add_paragraph(para);
         if is_header {
             tc = tc.shading(Shading::new().fill(styles::TABLE_HEADER_FILL));
@@ -518,7 +613,13 @@ fn emit_table_row(
 
 /// Emit a flat run of inline content into `p`, recursively folding style-bearing shapes into the
 /// accumulated [`Style`] (composition-level operation). Links become native hyperlinks.
-fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Theme) -> Paragraph {
+fn emit_inlines(
+    mut p: Paragraph,
+    content: &[Inline],
+    style: Style,
+    theme: &Theme,
+    state: &EmitState,
+) -> Paragraph {
     for inline in content {
         p = match inline {
             Inline::Text(t) => p.add_run(style.apply(Run::new()).add_text(t)),
@@ -530,6 +631,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Emphasis(c) => emit_inlines(
                 p,
@@ -539,6 +641,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Strikethrough(c) => emit_inlines(
                 p,
@@ -548,6 +651,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Subscript(c) => emit_inlines(
                 p,
@@ -557,10 +661,25 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Code(c) => p.add_run(mono_run(c, theme.mono_font)),
             Inline::Link { href, content } => {
-                p.add_hyperlink(build_link(href, content, style, theme))
+                if let Some(label) = href.strip_prefix('#') {
+                    if let Some(name) = state.caption_labels.get(label) {
+                        let placeholder = caption_text(content);
+                        let shown = if placeholder.is_empty() {
+                            label
+                        } else {
+                            placeholder.as_str()
+                        };
+                        p.add_run(ref_field(name, shown))
+                    } else {
+                        p.add_hyperlink(build_link(href, content, style, theme))
+                    }
+                } else {
+                    p.add_hyperlink(build_link(href, content, style, theme))
+                }
             }
             // The Core emit path has no OMML/image embedding (that lives on the reference
             // engine's byte path); render the math source and image alt as plain runs so the
@@ -707,6 +826,30 @@ fn inline_text(content: &[Inline]) -> String {
             }
             Inline::SoftBreak => s.push(' '),
             Inline::HardBreak => {}
+        }
+    }
+    s
+}
+
+/// Text extraction for caption detection and caption REF placeholders. This deliberately mirrors
+/// the direct renderer's `text_of` helper: literal text descendants and image alt text
+/// contribute. Code, math, footnote references, and explicit breaks do not.
+fn caption_text(content: &[Inline]) -> String {
+    let mut s = String::new();
+    for inline in content {
+        match inline {
+            Inline::Text(t) => s.push_str(t),
+            Inline::Strong(c)
+            | Inline::Emphasis(c)
+            | Inline::Strikethrough(c)
+            | Inline::Subscript(c) => s.push_str(&caption_text(c)),
+            Inline::Link { content, .. } => s.push_str(&caption_text(content)),
+            Inline::Image { alt, .. } => s.push_str(alt),
+            Inline::Code(_)
+            | Inline::Math { .. }
+            | Inline::FootnoteReference { .. }
+            | Inline::SoftBreak
+            | Inline::HardBreak => {}
         }
     }
     s

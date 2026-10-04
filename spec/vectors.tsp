@@ -5744,5 +5744,514 @@ const RenderVectors = #[
       ],
       trailingGap: 160
     }
-  }
+  },
+
+  #{
+      name: "render_option_captions",
+      stage: "callable",
+      input: #{
+        doc: #{
+          blocks: #[
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "See "
+                },
+                #{
+                  kind: "link",
+                  href: "#flow",
+                  content: #[
+                    #{
+                      kind: "text",
+                      data: "the figure"
+                    }
+                  ]
+                },
+                #{
+                  kind: "text",
+                  data: " and "
+                },
+                #{
+                  kind: "link",
+                  href: "#summary",
+                  content: #[
+                    #{
+                      kind: "text",
+                      data: "the table"
+                    }
+                  ]
+                },
+                #{
+                  kind: "text",
+                  data: "."
+                }
+              ]
+            },
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "Figure: A flow diagram {#flow}"
+                }
+              ]
+            },
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "Table: Summary values {#summary}"
+                }
+              ]
+            },
+            #{
+              kind: "block_quote",
+              blocks: #[
+                #{
+                  kind: "paragraph",
+                  content: #[
+                    #{
+                      kind: "text",
+                      data: "Figure: Quoted {#quoted}"
+                    }
+                  ]
+                }
+              ]
+            },
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "Jump to "
+                },
+                #{
+                  kind: "link",
+                  href: "#quoted",
+                  content: #[
+                    #{
+                      kind: "text",
+                      data: "quoted"
+                    }
+                  ]
+                },
+                #{
+                  kind: "text",
+                  data: "."
+                }
+              ]
+            }
+          ]
+        },
+        options: #{
+          captions: true
+        }
+      },
+      expected: #{
+        page: #{
+          width: 12240,
+          height: 15840,
+          landscape: false,
+          margins: #{
+            top: 1440,
+            right: 1440,
+            bottom: 1440,
+            left: 1440,
+            header: 720,
+            footer: 720
+          },
+          header: null,
+          footer: null
+        },
+        body: #[
+          #{
+            kind: "paragraph",
+            style: "normal",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "See {REF qd_cap_flow \\h} and {REF qd_cap_summary \\h}."
+              }
+            ],
+            gapBefore: 0
+          },
+          #{
+            kind: "paragraph",
+            style: "caption",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: true,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              #{
+                bold: false,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "A flow diagram"
+              }
+            ],
+            gapBefore: 200
+          },
+          #{
+            kind: "paragraph",
+            style: "caption",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: true,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Table {SEQ Table \\* ARABIC}: "
+              },
+              #{
+                bold: false,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Summary values"
+              }
+            ],
+            gapBefore: 200
+          },
+          #{
+            kind: "paragraph",
+            style: "normal",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 360,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: #{
+              left: #{
+                style: "single",
+                size: 24,
+                space: 12,
+                color: "8B949E"
+              }
+            },
+            fill: null,
+            runs: #[
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: "57606A",
+                vertAlign: null,
+                link: null,
+                text: "Figure: Quoted {#quoted}"
+              }
+            ],
+            gapBefore: 320
+          },
+          #{
+            kind: "paragraph",
+            style: "normal",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Jump to "
+              },
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: "single",
+                font: "Aptos",
+                size: 24,
+                color: "0563C1",
+                vertAlign: null,
+                link: "#quoted",
+                text: "quoted"
+              },
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "."
+              }
+            ],
+            gapBefore: 320
+          }
+        ],
+        trailingGap: 160
+      }
+    },
+
+  #{
+      name: "render_option_captions_images",
+      stage: "callable",
+      input: #{
+        doc: #{
+          blocks: #[
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "See "
+                },
+                #{
+                  kind: "link",
+                  href: "#flow",
+                  content: #[
+                    #{
+                      kind: "image",
+                      src: "thumb.png",
+                      alt: "thumb",
+                      title: ""
+                    }
+                  ]
+                },
+                #{
+                  kind: "text",
+                  data: "."
+                }
+              ]
+            },
+            #{
+              kind: "paragraph",
+              content: #[
+                #{
+                  kind: "text",
+                  data: "Figure: See "
+                },
+                #{
+                  kind: "image",
+                  src: "diagram.png",
+                  alt: "diagram",
+                  title: ""
+                },
+                #{
+                  kind: "text",
+                  data: " here {#flow}"
+                }
+              ]
+            }
+          ]
+        },
+        options: #{
+          captions: true
+        }
+      },
+      expected: #{
+        page: #{
+          width: 12240,
+          height: 15840,
+          landscape: false,
+          margins: #{
+            top: 1440,
+            right: 1440,
+            bottom: 1440,
+            left: 1440,
+            header: 720,
+            footer: 720
+          },
+          header: null,
+          footer: null
+        },
+        body: #[
+          #{
+            kind: "paragraph",
+            style: "normal",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "See {REF qd_cap_flow \\h}."
+              }
+            ],
+            gapBefore: 0
+          },
+          #{
+            kind: "paragraph",
+            style: "caption",
+            headingLevel: null,
+            list: null,
+            align: null,
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: true,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              #{
+                bold: false,
+                italic: true,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 18,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "See diagram here"
+              }
+            ],
+            gapBefore: 200
+          }
+        ],
+        trailingGap: 160
+      }
+    }
 ];

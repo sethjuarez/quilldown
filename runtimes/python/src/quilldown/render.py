@@ -282,7 +282,64 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     }
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
+    caption_labels: dict[str, str] = {}
     last_flow: str | None = None
+
+    def inline_plain_text(inlines: list[dict]) -> str:
+        text = []
+        for inl in inlines:
+            kind = inl.get("kind")
+            if kind == "text":
+                text.append(inl.get("data", ""))
+            elif kind in {"strong", "emphasis", "strikethrough", "subscript"}:
+                text.append(inline_plain_text(inl.get("data", [])))
+            elif kind == "link":
+                text.append(inline_plain_text(inl.get("content", [])))
+            elif kind == "image":
+                text.append(inl.get("alt", ""))
+        return "".join(text)
+
+    def caption_of_text(text: str) -> dict | None:
+        if ":" not in text:
+            return None
+        head, rest = text.split(":", 1)
+        lowered = head.strip().lower()
+        if lowered not in {"figure", "table"}:
+            return None
+        body = rest.strip()
+        label = None
+        open_at = body.rfind("{#")
+        if open_at >= 0 and body.endswith("}"):
+            candidate = body[open_at + 2 : -1]
+            if candidate:
+                label = candidate
+                body = body[:open_at].strip()
+        return {"kind": "Figure" if lowered == "figure" else "Table", "text": body, "label": label}
+
+    def caption_bookmark_name(label: str) -> str:
+        slug = "".join(ch if ch.isascii() and ch.isalnum() else "_" for ch in label)[:32]
+        return f"qd_cap_{slug}"
+
+    def collect_caption_labels() -> None:
+        if not options.get("captions"):
+            return
+        used: set[str] = set()
+        for block in doc.get("blocks", []):
+            if block.get("kind") != "paragraph":
+                continue
+            caption = caption_of_text(inline_plain_text(block.get("content", [])))
+            if not caption or not caption.get("label") or caption["label"] in caption_labels:
+                continue
+            base = caption_bookmark_name(caption["label"])
+            name = base
+            suffix = 2
+            while name in used:
+                name = f"{base}_{suffix}"
+                suffix += 1
+            used.add(name)
+            caption_labels[caption["label"]] = name
+
+    collect_caption_labels()
 
     def _clear_children(el, names: set[str]) -> None:
         for child in list(el):
@@ -482,27 +539,51 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             _append_size(rpr, half_points)
             _append_color(rpr, HEADING_COLOR)
 
+        caption_style = out.styles["Caption"]
+        caption_style.font.name = BODY_FONT
+        caption_style.font.size = Pt(9)
+        caption_style.font.bold = False
+        caption_style.font.italic = True
+        caption_style.font.color.rgb = None
+        caption_style.paragraph_format.space_after = Pt(8)
+        caption_style.paragraph_format.line_spacing = 1.08
+        rpr = caption_style.element.get_or_add_rPr()
+        _append_run_fonts(rpr, BODY_FONT)
+        _append_size(rpr, 18)
+        _clear_children(rpr, {qn("w:b"), qn("w:color")})
+
     apply_document_theme()
 
-    def _add_field(paragraph, instr: str, *, cached: str = "1", dirty: bool = False) -> None:
+    def _add_field(
+        paragraph,
+        instr: str,
+        *,
+        cached: str = "1",
+        dirty: bool = False,
+        bold: bool = False,
+    ) -> None:
         begin = paragraph.add_run()
+        begin.bold = bold
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "begin")
         if dirty:
             fld.set(qn("w:dirty"), "true")
         begin._r.append(fld)
         instr_run = paragraph.add_run()
+        instr_run.bold = bold
         instr_el = OxmlElement("w:instrText")
         instr_el.set(qn("xml:space"), "preserve")
         instr_el.text = f" {instr} "
         instr_run._r.append(instr_el)
         separate = paragraph.add_run()
+        separate.bold = bold
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "separate")
         separate._r.append(fld)
         if cached:
-            paragraph.add_run(cached)
+            paragraph.add_run(cached).bold = bold
         end = paragraph.add_run()
+        end.bold = bold
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "end")
         end._r.append(fld)
@@ -613,8 +694,13 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             elif k == "subscript":
                 runs.extend(flatten(inl["data"], ctx))
             elif k == "link":
-                c = dict(ctx); c["link"] = inl.get("href")
-                runs.extend(flatten(inl["content"], c))
+                href = inl.get("href")
+                if href and href.startswith("#") and href[1:] in caption_labels:
+                    c = dict(ctx); c["ref"] = caption_labels[href[1:]]
+                    runs.append((inline_plain_text(inl.get("content", [])) or href[1:], c))
+                else:
+                    c = dict(ctx); c["link"] = href
+                    runs.extend(flatten(inl["content"], c))
             elif k == "soft_break":
                 runs.append((" ", dict(ctx)))
             elif k == "hard_break":
@@ -700,6 +786,48 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         paragraph._p.insert(paragraph._p.index(ppr) + 1, start)
         paragraph._p.append(end)
 
+    def _bookmark_start(paragraph, name: str) -> tuple[str, Any]:
+        nonlocal bookmark_id
+        bid = str(bookmark_id)
+        bookmark_id += 1
+        start = OxmlElement("w:bookmarkStart")
+        start.set(qn("w:id"), bid)
+        start.set(qn("w:name"), name)
+        ppr = paragraph._p.get_or_add_pPr()
+        paragraph._p.insert(paragraph._p.index(ppr) + 1, start)
+        return bid, start
+
+    def _bookmark_end(paragraph, bid: str) -> None:
+        end = OxmlElement("w:bookmarkEnd")
+        end.set(qn("w:id"), bid)
+        paragraph._p.append(end)
+
+    def _add_ref_field(paragraph, bookmark_name: str, placeholder: str) -> None:
+        _add_field(paragraph, f"REF {bookmark_name} \\h", cached=placeholder, dirty=True)
+
+    def add_caption(block: dict) -> bool:
+        nonlocal last_flow
+        caption = caption_of_text(inline_plain_text(block.get("content", [])))
+        if not caption:
+            return False
+        p = out.add_paragraph(style="Caption")
+        _append_spacing(p._p.get_or_add_pPr(), before=40, after=160)
+        bookmark = caption_labels.get(caption["label"]) if caption.get("label") else None
+        bookmark_id_value = None
+        if bookmark:
+            bookmark_id_value, _ = _bookmark_start(p, bookmark)
+        lead = p.add_run(f"{caption['kind']} ")
+        lead.bold = True
+        _add_field(p, f"SEQ {caption['kind']} \\* ARABIC", cached="1", dirty=True, bold=True)
+        if bookmark_id_value:
+            _bookmark_end(p, bookmark_id_value)
+        colon = p.add_run(": ")
+        colon.bold = True
+        if caption["text"]:
+            p.add_run(caption["text"])
+        mark_flow("para")
+        return True
+
     def render_inlines(paragraph, inlines, base=None):
         for text, fmt in flatten(inlines, base or new_ctx()):
             if fmt.get("image"):
@@ -708,7 +836,11 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 if fmt.get("link"):
                     if not _add_hyperlinked_image(paragraph, fmt["link"], image):
                         if fmt["link"].startswith("#"):
-                            _add_anchor_link(paragraph, fmt["link"][1:], alt_text, fmt)
+                            label = fmt["link"][1:]
+                            if label in caption_labels:
+                                _add_ref_field(paragraph, caption_labels[label], alt_text or label)
+                            else:
+                                _add_anchor_link(paragraph, label, alt_text, fmt)
                         else:
                             _add_hyperlink(paragraph, fmt["link"], alt_text, fmt)
                 elif not _add_image_run(paragraph, image):
@@ -716,9 +848,16 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 continue
             if fmt.get("link"):
                 if fmt["link"].startswith("#"):
-                    _add_anchor_link(paragraph, fmt["link"][1:], text, fmt)
+                    label = fmt["link"][1:]
+                    if label in caption_labels:
+                        _add_ref_field(paragraph, caption_labels[label], text or label)
+                    else:
+                        _add_anchor_link(paragraph, label, text, fmt)
                 else:
                     _add_hyperlink(paragraph, fmt["link"], text, fmt)
+                continue
+            if fmt.get("ref"):
+                _add_ref_field(paragraph, fmt["ref"], text)
                 continue
             run = paragraph.add_run(text)
             if fmt.get("bold"):
@@ -1083,6 +1222,8 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             elif k == "paragraph":
                 if quote_depth:
                     add_quote_paragraph(b, quote_depth)
+                elif options.get("captions") and list_depth == 0 and add_caption(b):
+                    pass
                 else:
                     render_inlines(out.add_paragraph(), b["content"])
                     mark_flow("body")
@@ -1115,6 +1256,14 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                             if quote_depth:
                                 _set_quote_border(p)
                             first = False
+                            mark_flow("para")
+                        elif ib["kind"] == "paragraph":
+                            p = out.add_paragraph()
+                            _set_paragraph_indent(p, left=720 * (list_depth + 1))
+                            _append_spacing(p._p.get_or_add_pPr(), before=160, after=160)
+                            render_inlines(p, ib["content"])
+                            if quote_depth:
+                                _set_quote_border(p)
                             mark_flow("para")
                         else:
                             emit_blocks([ib], quote_depth=quote_depth, list_depth=list_depth + 1)

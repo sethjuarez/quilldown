@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,11 @@ def _render_rust(md_path: Path, out_path: Path, *args: str) -> None:
         raise AssertionError(
             f"quilldown CLI failed: {' '.join(cmd)}\nstdout:\n{error.stdout}\nstderr:\n{error.stderr}"
         ) from error
+
+
+def _document_xml(path: Path) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return zf.read("word/document.xml").decode("utf-8")
 
 
 # Core families whose IR is faithfully preserved and which both engines render
@@ -200,4 +206,48 @@ def test_doc_parity_with_cli_toc(tmp_path: Path) -> None:
     py_view = rendered_view(py_docx)
     assert rust_view["body"][0]["runs"][0]["text"] == "Contents"
     assert rust_view["body"][2]["runs"][0]["text"] == r'{TOC \o "1-3" \h}'
+    assert py_view == rust_view
+
+
+def test_doc_parity_with_cli_captions(tmp_path: Path) -> None:
+    md = (
+        "See [the **figure**](#flow), [](#flow), [![thumb](thumb.png)](#flow), "
+        "and [the table](#summary).\n\n"
+        "Figure: A flow diagram {#flow}\n\n"
+        "Figure: The `foo` widget {#widget}\n\n"
+        "Figure: See ![diagram](diagram.png) here {#diagram}\n\n"
+        "Table: Summary values {#summary}\n\n"
+        "- item\n\n"
+        "    Figure: Inside a list {#li}\n\n"
+        "Jump to [li](#li).\n\n"
+        "> Figure: Quoted {#quoted}\n\n"
+        "Jump to [quoted](#quoted).\n"
+    )
+    md_path = tmp_path / "captions.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "captions.rust.docx"
+    _render_rust(md_path, rust_docx, "--captions")
+
+    py_docx = tmp_path / "captions.py.docx"
+    render_docx(lower(md).save(), {"captions": True}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    rust_view = rendered_view(rust_docx)
+    py_view = rendered_view(py_docx)
+    body_text = [run["text"] for paragraph in rust_view["body"] for run in paragraph.get("runs", [])]
+    assert r"{REF qd_cap_flow \h}" in body_text[0]
+    assert r"{REF qd_cap_summary \h}" in body_text[0]
+    assert body_text[0].count(r"{REF qd_cap_flow \h}") == 3
+    assert r"Figure {SEQ Figure \* ARABIC}: " in body_text
+    assert "A flow diagram" in body_text
+    assert "The  widget" in body_text
+    assert "See diagram here" in body_text
+    assert r"Table {SEQ Table \* ARABIC}: " in body_text
+    assert "Summary values" in body_text
+    assert "Figure: Inside a list {#li}" in body_text
+    for xml in (_document_xml(rust_docx), _document_xml(py_docx)):
+        assert ">flow</w:t>" in xml
+        assert ">thumb</w:t>" in xml
     assert py_view == rust_view

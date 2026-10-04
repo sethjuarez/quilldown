@@ -37,6 +37,7 @@ fn main() {
             "--no-highlight" => opts.highlight_code = false,
             "--page-numbers" => opts.page_numbers = true,
             "--toc" | "--table-of-contents" => opts.table_of_contents = true,
+            "--captions" => opts.captions = true,
             "--theme" => {
                 let Some(theme) = args.next() else {
                     eprintln!("emit_oracle: {arg} requires a theme");
@@ -71,7 +72,7 @@ fn main() {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "usage: emit_oracle [--no-highlight] [--page-numbers] [--toc] [--theme default|github|solarized] \\\n\
+                    "usage: emit_oracle [--no-highlight] [--page-numbers] [--toc] [--captions] [--theme default|github|solarized] \\\n\
                      [--page-size letter|a4|legal] [--orientation portrait|landscape] [--margin inches] \\\n\
                      [-o out.docx] [input.ir.json]\n\
                      Reads spec-wire IR JSON from the file argument, or stdin when omitted,\n\

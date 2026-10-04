@@ -4065,7 +4065,530 @@ async def test_vector_85_quilldown_render_render_alert():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_86_quilldown_render_render_option_page_geometry():
+async def test_vector_86_quilldown_render_render_option_captions():
+    vector_json = r"""
+    {
+      "name": "render_option_captions",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "See "
+                },
+                {
+                  "kind": "link",
+                  "href": "#flow",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "the figure"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": " and "
+                },
+                {
+                  "kind": "link",
+                  "href": "#summary",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "the table"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Figure: A flow diagram {#flow}"
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Table: Summary values {#summary}"
+                }
+              ]
+            },
+            {
+              "kind": "block_quote",
+              "blocks": [
+                {
+                  "kind": "paragraph",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "Figure: Quoted {#quoted}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Jump to "
+                },
+                {
+                  "kind": "link",
+                  "href": "#quoted",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "quoted"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "captions": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See {REF qd_cap_flow \\h} and {REF qd_cap_summary \\h}."
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "A flow diagram"
+              }
+            ],
+            "gapBefore": 200
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Table {SEQ Table \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Summary values"
+              }
+            ],
+            "gapBefore": 200
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 360,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": {
+              "left": {
+                "style": "single",
+                "size": 24,
+                "space": 12,
+                "color": "8B949E"
+              }
+            },
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": "57606A",
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure: Quoted {#quoted}"
+              }
+            ],
+            "gapBefore": 320
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Jump to "
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": "single",
+                "font": "Aptos",
+                "size": 24,
+                "color": "0563C1",
+                "vertAlign": null,
+                "link": "#quoted",
+                "text": "quoted"
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "."
+              }
+            ],
+            "gapBefore": 320
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_87_quilldown_render_render_option_captions_images():
+    vector_json = r"""
+    {
+      "name": "render_option_captions_images",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "See "
+                },
+                {
+                  "kind": "link",
+                  "href": "#flow",
+                  "content": [
+                    {
+                      "kind": "image",
+                      "src": "thumb.png",
+                      "alt": "thumb",
+                      "title": ""
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Figure: See "
+                },
+                {
+                  "kind": "image",
+                  "src": "diagram.png",
+                  "alt": "diagram",
+                  "title": ""
+                },
+                {
+                  "kind": "text",
+                  "data": " here {#flow}"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "captions": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See {REF qd_cap_flow \\h}."
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See diagram here"
+              }
+            ],
+            "gapBefore": 200
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_88_quilldown_render_render_option_page_geometry():
     vector_json = r"""
     {
       "name": "render_option_page_geometry",
@@ -4260,7 +4783,7 @@ async def test_vector_86_quilldown_render_render_option_page_geometry():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_87_quilldown_render_render_option_page_numbers():
+async def test_vector_89_quilldown_render_render_option_page_numbers():
     vector_json = r"""
     {
       "name": "render_option_page_numbers",
@@ -4379,7 +4902,7 @@ async def test_vector_87_quilldown_render_render_option_page_numbers():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_88_quilldown_render_render_option_table_of_contents():
+async def test_vector_90_quilldown_render_render_option_table_of_contents():
     vector_json = r"""
     {
       "name": "render_option_table_of_contents",
@@ -4891,7 +5414,7 @@ async def test_vector_88_quilldown_render_render_option_table_of_contents():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_89_quilldown_render_render_option_theme_solarized():
+async def test_vector_91_quilldown_render_render_option_theme_solarized():
     vector_json = r"""
     {
       "name": "render_option_theme_solarized",
@@ -5166,7 +5689,7 @@ async def test_vector_89_quilldown_render_render_option_theme_solarized():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_90_quilldown_render_render_options_theme_page_numbers():
+async def test_vector_92_quilldown_render_render_options_theme_page_numbers():
     vector_json = r"""
     {
       "name": "render_options_theme_page_numbers",
@@ -5480,7 +6003,7 @@ async def test_vector_90_quilldown_render_render_options_theme_page_numbers():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_91_quilldown_render_render_quotes_code_rule():
+async def test_vector_93_quilldown_render_render_quotes_code_rule():
     vector_json = r"""
     {
       "name": "render_quotes_code_rule",
@@ -5811,7 +6334,7 @@ async def test_vector_91_quilldown_render_render_quotes_code_rule():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_92_quilldown_render_render_tables_tasks():
+async def test_vector_94_quilldown_render_render_tables_tasks():
     vector_json = r"""
     {
       "name": "render_tables_tasks",
@@ -6245,7 +6768,7 @@ async def test_vector_92_quilldown_render_render_tables_tasks():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_93_quilldown_render_render_typography():
+async def test_vector_95_quilldown_render_render_typography():
     vector_json = r"""
     {
       "name": "render_typography",
