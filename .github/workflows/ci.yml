@@ -69,7 +69,7 @@ jobs:
         run: git diff --exit-code -- runtimes/python spec
       - name: conformance (pytest)
         working-directory: runtimes/python
-        run: uv run pytest -q
+        run: uv run pytest -q -rs
       - name: build and smoke-test wheel
         working-directory: runtimes/python
         run: |
@@ -107,6 +107,7 @@ jobs:
         working-directory: runtimes/python
         env:
           QUILLDOWN_CLI: ${{ github.workspace }}/target/release/quilldown
+          QUILLDOWN_EXPECT_CLI_PARITY: "1"
           QUILLDOWN_EMIT_ORACLE: ${{ github.workspace }}/target/release/examples/emit_oracle
           QUILLDOWN_EXPECT_RUST_RENDER_VECTORS: "1"
         run: uv run pytest tests/test_doc_parity.py tests/test_rust_render_vectors.py -q

@@ -90,7 +90,7 @@ jobs:
       - name: Validate Python release package
         working-directory: runtimes/python
         run: |
-          uv run pytest -q
+          uv run pytest -q -rs
           uv build --out-dir dist
           uv venv .venv-wheel-test
           uv pip install --python .venv-wheel-test/bin/python dist/*.whl "python-docx>=1.1"
