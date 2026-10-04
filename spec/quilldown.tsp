@@ -196,6 +196,7 @@ model RenderOptions {
   orientation?: string;
   margin?: float64;
   page_numbers?: boolean;
+  table_of_contents?: boolean;
 }
 
 // Deterministic emit diagnostics — the observable contract for `emit`. The

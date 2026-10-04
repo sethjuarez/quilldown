@@ -402,8 +402,7 @@ class _Inspector:
                 out.extend(self.runs(child, base, target))
             elif tag == _w("fldSimple"):
                 if not self.fields:
-                    instr = (_wa(child, "instr") or "").split()
-                    self._emit(out, "{" + (instr[0] if instr else "") + "}", base, link)
+                    self._emit(out, _field_token(_wa(child, "instr") or ""), base, link)
             elif tag in (_w("ins"), _w("smartTag"), _w("sdt"), _w("sdtContent"), _w("customXml")):
                 out.extend(self.runs(child, base, link))
         return out
@@ -428,8 +427,7 @@ class _Inspector:
                 elif kind == "end" and self.fields:
                     frame = self.fields.pop()
                     if not self.fields:
-                        words = frame["instr"].split()
-                        self._emit(out, "{" + (words[0] if words else "") + "}", props, link)
+                        self._emit(out, _field_token(frame["instr"]), props, link)
             elif tag == _w("instrText") and self.fields:
                 self.fields[-1]["instr"] += child.text or ""
             elif self.fields:
@@ -691,3 +689,8 @@ def rendered_view(source: Any) -> dict:
     body = inspector.pkg.document.find(_w("body"))
     blocks, trailing = inspector.blocks(body) if body is not None else ([], 0)
     return {"page": inspector.page(), "body": blocks, "trailingGap": trailing}
+
+
+def _field_token(instr: str) -> str:
+    normalized = " ".join(instr.split())
+    return "{" + normalized + "}" if normalized else "{}"

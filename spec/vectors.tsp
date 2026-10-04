@@ -5239,5 +5239,510 @@ const RenderVectors = #[
       ],
       trailingGap: 160
     }
+  },
+
+  #{
+    name: "render_option_table_of_contents",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            content: #[
+              #{
+                data: "One",
+                kind: "text"
+              }
+            ],
+            kind: "heading",
+            level: 1
+          },
+          #{
+            content: #[
+              #{
+                data: "Body",
+                kind: "text"
+              }
+            ],
+            kind: "paragraph"
+          },
+          #{
+            content: #[
+              #{
+                data: "Two",
+                kind: "text"
+              }
+            ],
+            kind: "heading",
+            level: 2
+          },
+          #{
+            content: #[
+              #{
+                data: "More",
+                kind: "text"
+              }
+            ],
+            kind: "paragraph"
+          },
+          #{
+            content: #[
+              #{
+                data: "Three",
+                kind: "text"
+              }
+            ],
+            kind: "heading",
+            level: 3
+          },
+          #{
+            content: #[
+              #{
+                data: "End",
+                kind: "text"
+              }
+            ],
+            kind: "paragraph"
+          },
+          #{
+            content: #[
+              #{
+                data: "Four",
+                kind: "text"
+              }
+            ],
+            kind: "heading",
+            level: 4
+          },
+          #{
+            content: #[
+              #{
+                data: "Not in TOC",
+                kind: "text"
+              }
+            ],
+            kind: "paragraph"
+          }
+        ]
+      },
+      options: #{
+        table_of_contents: true
+      }
+    },
+    expected: #{
+      page: #{
+        width: 12240,
+        height: 15840,
+        landscape: false,
+        margins: #{
+          top: 1440,
+          right: 1440,
+          bottom: 1440,
+          left: 1440,
+          header: 720,
+          footer: 720
+        },
+        header: null,
+        footer: null
+      },
+      body: #[
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 28,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "Contents"
+            }
+          ],
+          gapBefore: 0
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[],
+          gapBefore: 160
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "{TOC \\o \"1-3\" \\h}"
+            }
+          ],
+          gapBefore: 160
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "\n"
+            }
+          ],
+          gapBefore: 160
+        },
+        #{
+          kind: "paragraph",
+          style: "heading1",
+          headingLevel: 1,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: true,
+          keepLines: true,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos Display",
+              size: 40,
+              color: "2F5496",
+              vertAlign: null,
+              link: null,
+              text: "One"
+            }
+          ],
+          gapBefore: 520
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "Body"
+            }
+          ],
+          gapBefore: 80
+        },
+        #{
+          kind: "paragraph",
+          style: "heading2",
+          headingLevel: 2,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: true,
+          keepLines: true,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos Display",
+              size: 32,
+              color: "2F5496",
+              vertAlign: null,
+              link: null,
+              text: "Two"
+            }
+          ],
+          gapBefore: 360
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "More"
+            }
+          ],
+          gapBefore: 80
+        },
+        #{
+          kind: "paragraph",
+          style: "heading3",
+          headingLevel: 3,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: true,
+          keepLines: true,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos Display",
+              size: 28,
+              color: "2F5496",
+              vertAlign: null,
+              link: null,
+              text: "Three"
+            }
+          ],
+          gapBefore: 320
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "End"
+            }
+          ],
+          gapBefore: 80
+        },
+        #{
+          kind: "paragraph",
+          style: "heading4",
+          headingLevel: 4,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: true,
+          keepLines: true,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos Display",
+              size: 24,
+              color: "2F5496",
+              vertAlign: null,
+              link: null,
+              text: "Four"
+            }
+          ],
+          gapBefore: 300
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "Not in TOC"
+            }
+          ],
+          gapBefore: 80
+        }
+      ],
+      trailingGap: 160
+    }
   }
 ];

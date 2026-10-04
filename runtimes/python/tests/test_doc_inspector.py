@@ -205,7 +205,7 @@ def test_nested_fields_render_outer_token_only():
         + '<w:r><w:t>yes</w:t></w:r>' + fld("end") + '<w:r><w:t>!</w:t></w:r></w:p>'
     )
     runs = rendered_view(_docx(body))["body"][0]["runs"]
-    assert "".join(r["text"] for r in runs) == "{IF}!"
+    assert "".join(r["text"] for r in runs) == '{IF = 1 "yes"}!'
 
 
 def test_field_spanning_paragraphs_suppresses_cached_result():
@@ -215,7 +215,7 @@ def test_field_spanning_paragraphs_suppresses_cached_result():
         '<w:p><w:r><w:t>cached 2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
     )
     texts = ["".join(r["text"] for r in p["runs"]) for p in rendered_view(_docx(body))["body"]]
-    assert texts == ["", "{TOC}"]
+    assert texts == ["", r"{TOC \o}"]
 
 
 def _two_col_table(a: int, b: int, merged: bool = False) -> str:

@@ -163,9 +163,9 @@ fn push_gap(flows: &mut Vec<Flow>) {
 /// operation symmetric with the direct renderer and forward-compatible.
 ///
 /// Supported [`ConvertOptions`] are intentionally narrower than the direct renderer: page setup,
-/// theme, `page_numbers`, and `highlight_code` (currently only the no-highlight/plain-code shape).
-/// TOC, captions, images, endnotes, native math, and semantic table-header-row injection remain
-/// direct-renderer/post-pack features.
+/// theme, `page_numbers`, `table_of_contents`, and `highlight_code` (currently only the
+/// no-highlight/plain-code shape). Captions, images, endnotes, native math, and semantic
+/// table-header-row injection remain direct-renderer/post-pack features.
 pub fn emit(doc: &Document, opts: &ConvertOptions) -> Result<Docx, ConvertError> {
     let mut state = EmitState::new();
     let mut flows = Vec::new();
@@ -184,6 +184,16 @@ pub fn emit(doc: &Document, opts: &ConvertOptions) -> Result<Docx, ConvertError>
     // Invariant: register every numbering *before* the paragraphs that reference it.
     for numbering in std::mem::take(&mut state.numberings) {
         docx = docx.add_numbering(numbering);
+    }
+    if opts.table_of_contents {
+        docx = docx.add_paragraph(table_of_contents_title());
+        docx = docx.add_table_of_contents(
+            TableOfContents::new()
+                .heading_styles_range(1, 3)
+                .hyperlink()
+                .dirty(),
+        );
+        docx = docx.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
     }
     for flow in flows {
         docx = match flow {
@@ -205,6 +215,12 @@ fn page_number_footer() -> Footer {
         .add_run(Run::new().add_text(" of "))
         .add_num_pages(NumPages::new());
     Footer::new().add_paragraph(para)
+}
+
+fn table_of_contents_title() -> Paragraph {
+    Paragraph::new()
+        .line_spacing(styles::body_spacing())
+        .add_run(Run::new().bold().size(28).add_text("Contents"))
 }
 
 /// Emit a sequence of blocks at block-quote nesting `depth`.

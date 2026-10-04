@@ -54,11 +54,20 @@ def test_rust_emit_conforms_to_render_vectors(tmp_path, vector):
     # look parity is about document structure/styling, not highlighter palettes.
     cmd = [oracle, "--no-highlight", str(ir_path), "-o", str(out_path)]
     options = vector["input"].get("options") or {}
-    allowed_options = {"page_numbers", "theme", "page_size", "orientation", "margin"}
+    allowed_options = {
+        "page_numbers",
+        "table_of_contents",
+        "theme",
+        "page_size",
+        "orientation",
+        "margin",
+    }
     unknown_options = set(options) - allowed_options
     assert not unknown_options, f"{vector['name']}: unmapped render options: {sorted(unknown_options)}"
     if options.get("page_numbers"):
         cmd.insert(2, "--page-numbers")
+    if options.get("table_of_contents"):
+        cmd.insert(2, "--toc")
     for option, flag in (
         ("theme", "--theme"),
         ("page_size", "--page-size"),

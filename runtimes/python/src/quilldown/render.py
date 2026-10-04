@@ -484,10 +484,12 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
 
     apply_document_theme()
 
-    def _add_field(paragraph, instr: str) -> None:
+    def _add_field(paragraph, instr: str, *, cached: str = "1", dirty: bool = False) -> None:
         begin = paragraph.add_run()
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "begin")
+        if dirty:
+            fld.set(qn("w:dirty"), "true")
         begin._r.append(fld)
         instr_run = paragraph.add_run()
         instr_el = OxmlElement("w:instrText")
@@ -498,7 +500,31 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "separate")
         separate._r.append(fld)
-        paragraph.add_run("1")
+        if cached:
+            paragraph.add_run(cached)
+        end = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "end")
+        end._r.append(fld)
+
+    def _begin_field(paragraph, instr: str, *, dirty: bool = False) -> None:
+        begin = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "begin")
+        if dirty:
+            fld.set(qn("w:dirty"), "true")
+        begin._r.append(fld)
+        instr_run = paragraph.add_run()
+        instr_el = OxmlElement("w:instrText")
+        instr_el.set(qn("xml:space"), "preserve")
+        instr_el.text = f" {instr} "
+        instr_run._r.append(instr_el)
+        separate = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "separate")
+        separate._r.append(fld)
+
+    def _end_field(paragraph) -> None:
         end = paragraph.add_run()
         fld = OxmlElement("w:fldChar")
         fld.set(qn("w:fldCharType"), "end")
@@ -518,6 +544,42 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
 
     if options.get("page_numbers"):
         add_page_number_footer()
+
+    def add_page_break(paragraph) -> None:
+        br = OxmlElement("w:br")
+        br.set(qn("w:type"), "page")
+        run = paragraph.add_run()
+        run._r.append(br)
+
+    def add_table_of_contents() -> None:
+        title = out.add_paragraph()
+        _set_paragraph_spacing(title, after=160)
+        run = title.add_run("Contents")
+        run.bold = True
+        run.font.size = Pt(14)
+
+        toc_begin = out.add_paragraph()
+        _set_paragraph_spacing(toc_begin, after=160)
+        _begin_field(toc_begin, r'TOC \o "1-3" \h', dirty=True)
+
+        toc_end = out.add_paragraph()
+        _set_paragraph_spacing(toc_end, after=160)
+        _end_field(toc_end)
+
+        breaker = out.add_paragraph()
+        add_page_break(breaker)
+
+        body = out._element.body
+        sdt = OxmlElement("w:sdt")
+        sdt_content = OxmlElement("w:sdtContent")
+        sdt.append(sdt_content)
+        for paragraph in [toc_begin, toc_end]:
+            body.remove(paragraph._p)
+            sdt_content.append(paragraph._p)
+        title._p.addnext(sdt)
+
+    if options.get("table_of_contents"):
+        add_table_of_contents()
 
     def new_ctx() -> dict:
         return {

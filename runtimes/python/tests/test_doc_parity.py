@@ -181,3 +181,23 @@ def test_doc_parity_with_cli_render_options(tmp_path: Path) -> None:
     assert rust_view["page"]["margins"]["left"] == 720
     assert rust_view["page"]["footer"][0]["runs"][0]["text"] == "Page {PAGE} of {NUMPAGES}"
     assert py_view == rust_view
+
+
+def test_doc_parity_with_cli_toc(tmp_path: Path) -> None:
+    md = "# One\n\nBody\n\n## Two\n\nMore\n\n### Three\n\nEnd\n\n#### Four\n\nNot in TOC\n"
+    md_path = tmp_path / "toc.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "toc.rust.docx"
+    _render_rust(md_path, rust_docx, "--toc")
+
+    py_docx = tmp_path / "toc.py.docx"
+    render_docx(lower(md).save(), {"table_of_contents": True}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    rust_view = rendered_view(rust_docx)
+    py_view = rendered_view(py_docx)
+    assert rust_view["body"][0]["runs"][0]["text"] == "Contents"
+    assert rust_view["body"][2]["runs"][0]["text"] == r'{TOC \o "1-3" \h}'
+    assert py_view == rust_view

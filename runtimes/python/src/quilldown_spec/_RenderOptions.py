@@ -29,6 +29,8 @@ class RenderOptions:
 
     page_numbers : Optional[bool]
 
+    table_of_contents : Optional[bool]
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
@@ -39,6 +41,7 @@ class RenderOptions:
     orientation: str | None = None
     margin: float | None = None
     page_numbers: bool | None = None
+    table_of_contents: bool | None = None
 
     @staticmethod
     def load(data: Any, context: LoadContext | None = None) -> "RenderOptions":
@@ -73,6 +76,8 @@ class RenderOptions:
             instance.margin = data["margin"]
         if data is not None and "page_numbers" in data:
             instance.page_numbers = data["page_numbers"]
+        if data is not None and "table_of_contents" in data:
+            instance.table_of_contents = data["table_of_contents"]
         if context is not None:
             instance = context.process_output(instance)
         return instance
@@ -103,6 +108,8 @@ class RenderOptions:
             result["margin"] = obj.margin
         if obj.page_numbers is not None:
             result["page_numbers"] = obj.page_numbers
+        if obj.table_of_contents is not None:
+            result["table_of_contents"] = obj.table_of_contents
 
         if context is not None:
             result = context.process_dict(result)
