@@ -86,13 +86,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spec/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v5
+      - name: generate TypeSpec outputs
+        working-directory: spec
+        run: |
+          npm ci
+          npm run generate
       - name: build quilldown CLI (parity oracle)
         run: cargo build --release -p quilldown-cli
+      - name: build Rust IR emit oracle
+        run: cargo build --release -p quilldown --example emit_oracle
       - name: document parity (pytest)
         working-directory: runtimes/python
         env:
           QUILLDOWN_CLI: ${{ github.workspace }}/target/release/quilldown
-        run: uv run pytest tests/test_doc_parity.py -q
+          QUILLDOWN_EMIT_ORACLE: ${{ github.workspace }}/target/release/examples/emit_oracle
+          QUILLDOWN_EXPECT_RUST_RENDER_VECTORS: "1"
+        run: uv run pytest tests/test_doc_parity.py tests/test_rust_render_vectors.py -q
