@@ -4065,7 +4065,596 @@ async def test_vector_85_quilldown_render_render_alert():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_86_quilldown_render_render_options_theme_page_numbers():
+async def test_vector_86_quilldown_render_render_option_page_geometry():
+    vector_json = r"""
+    {
+      "name": "render_option_page_geometry",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Body",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            }
+          ]
+        },
+        "options": {
+          "page_size": "legal",
+          "orientation": "landscape",
+          "margin": 1.25
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 20160,
+          "height": 12240,
+          "landscape": true,
+          "margins": {
+            "top": 1800,
+            "right": 1800,
+            "bottom": 1800,
+            "left": 1800,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Body"
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "table",
+            "width": {
+              "w": 16560,
+              "type": "dxa"
+            },
+            "columns": [],
+            "align": null,
+            "borders": {
+              "top": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "left": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "bottom": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "right": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideH": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideV": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              }
+            },
+            "cellMargins": {
+              "top": 80,
+              "left": 120,
+              "bottom": 80,
+              "right": 120
+            },
+            "rows": [
+              {
+                "header": false,
+                "cells": [
+                  {
+                    "width": null,
+                    "span": 1,
+                    "vMerge": null,
+                    "fill": "F2F2F2",
+                    "borders": null,
+                    "blocks": [
+                      {
+                        "kind": "paragraph",
+                        "style": "normal",
+                        "headingLevel": null,
+                        "list": null,
+                        "align": null,
+                        "line": 240,
+                        "lineRule": "auto",
+                        "indent": {
+                          "left": 0,
+                          "right": 0,
+                          "firstLine": 0,
+                          "hanging": 0
+                        },
+                        "keepNext": false,
+                        "keepLines": false,
+                        "borders": null,
+                        "fill": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "italic": false,
+                            "strike": false,
+                            "underline": null,
+                            "font": "Consolas",
+                            "size": 20,
+                            "color": null,
+                            "vertAlign": null,
+                            "link": null,
+                            "text": "x = 1"
+                          }
+                        ],
+                        "gapBefore": 0
+                      }
+                    ],
+                    "trailingGap": 0
+                  }
+                ]
+              }
+            ],
+            "gapBefore": 160
+          }
+        ],
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_87_quilldown_render_render_option_page_numbers():
+    vector_json = r"""
+    {
+      "name": "render_option_page_numbers",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Body",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            }
+          ]
+        },
+        "options": {
+          "page_numbers": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": [
+            {
+              "kind": "paragraph",
+              "style": "normal",
+              "headingLevel": null,
+              "list": null,
+              "align": "center",
+              "line": 259,
+              "lineRule": "auto",
+              "indent": {
+                "left": 0,
+                "right": 0,
+                "firstLine": 0,
+                "hanging": 0
+              },
+              "keepNext": false,
+              "keepLines": false,
+              "borders": null,
+              "fill": null,
+              "runs": [
+                {
+                  "bold": false,
+                  "italic": false,
+                  "strike": false,
+                  "underline": null,
+                  "font": "Aptos",
+                  "size": 24,
+                  "color": null,
+                  "vertAlign": null,
+                  "link": null,
+                  "text": "Page {PAGE} of {NUMPAGES}"
+                }
+              ],
+              "gapBefore": 0
+            }
+          ]
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Body"
+              }
+            ],
+            "gapBefore": 0
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_88_quilldown_render_render_option_theme_solarized():
+    vector_json = r"""
+    {
+      "name": "render_option_theme_solarized",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Solarized",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 1
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "data": "link",
+                      "kind": "text"
+                    }
+                  ],
+                  "href": "https://example.com",
+                  "kind": "link"
+                },
+                {
+                  "data": " and ",
+                  "kind": "text"
+                },
+                {
+                  "data": "code",
+                  "kind": "code"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            }
+          ]
+        },
+        "options": {
+          "theme": "solarized"
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "heading1",
+            "headingLevel": 1,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 40,
+                "color": "268BD2",
+                "vertAlign": null,
+                "link": null,
+                "text": "Solarized"
+              }
+            ],
+            "gapBefore": 360
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": "single",
+                "font": "Aptos",
+                "size": 24,
+                "color": "268BD2",
+                "vertAlign": null,
+                "link": "https://example.com",
+                "text": "link"
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": " and "
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Consolas",
+                "size": 20,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "code"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "table",
+            "width": {
+              "w": 9360,
+              "type": "dxa"
+            },
+            "columns": [],
+            "align": null,
+            "borders": {
+              "top": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "left": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "bottom": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "right": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideH": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideV": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              }
+            },
+            "cellMargins": {
+              "top": 80,
+              "left": 120,
+              "bottom": 80,
+              "right": 120
+            },
+            "rows": [
+              {
+                "header": false,
+                "cells": [
+                  {
+                    "width": null,
+                    "span": 1,
+                    "vMerge": null,
+                    "fill": "FDF6E3",
+                    "borders": null,
+                    "blocks": [
+                      {
+                        "kind": "paragraph",
+                        "style": "normal",
+                        "headingLevel": null,
+                        "list": null,
+                        "align": null,
+                        "line": 240,
+                        "lineRule": "auto",
+                        "indent": {
+                          "left": 0,
+                          "right": 0,
+                          "firstLine": 0,
+                          "hanging": 0
+                        },
+                        "keepNext": false,
+                        "keepLines": false,
+                        "borders": null,
+                        "fill": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "italic": false,
+                            "strike": false,
+                            "underline": null,
+                            "font": "Consolas",
+                            "size": 20,
+                            "color": null,
+                            "vertAlign": null,
+                            "link": null,
+                            "text": "x = 1"
+                          }
+                        ],
+                        "gapBefore": 0
+                      }
+                    ],
+                    "trailingGap": 0
+                  }
+                ]
+              }
+            ],
+            "gapBefore": 160
+          }
+        ],
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_89_quilldown_render_render_options_theme_page_numbers():
     vector_json = r"""
     {
       "name": "render_options_theme_page_numbers",
@@ -4379,7 +4968,7 @@ async def test_vector_86_quilldown_render_render_options_theme_page_numbers():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_87_quilldown_render_render_quotes_code_rule():
+async def test_vector_90_quilldown_render_render_quotes_code_rule():
     vector_json = r"""
     {
       "name": "render_quotes_code_rule",
@@ -4710,7 +5299,7 @@ async def test_vector_87_quilldown_render_render_quotes_code_rule():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_88_quilldown_render_render_tables_tasks():
+async def test_vector_91_quilldown_render_render_tables_tasks():
     vector_json = r"""
     {
       "name": "render_tables_tasks",
@@ -5144,7 +5733,7 @@ async def test_vector_88_quilldown_render_render_tables_tasks():
     await run_vector("Quilldown", "render", vector, False, _SEAM)
 
 
-async def test_vector_89_quilldown_render_render_typography():
+async def test_vector_92_quilldown_render_render_typography():
     vector_json = r"""
     {
       "name": "render_typography",
