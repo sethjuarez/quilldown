@@ -19,11 +19,26 @@ class RenderOptions:
     ----------
     strict : Optional[bool]
 
+    theme : Optional[str]
+
+    page_size : Optional[str]
+
+    orientation : Optional[str]
+
+    margin : Optional[float]
+
+    page_numbers : Optional[bool]
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
 
     strict: bool | None = None
+    theme: str | None = None
+    page_size: str | None = None
+    orientation: str | None = None
+    margin: float | None = None
+    page_numbers: bool | None = None
 
     @staticmethod
     def load(data: Any, context: LoadContext | None = None) -> "RenderOptions":
@@ -48,6 +63,16 @@ class RenderOptions:
 
         if data is not None and "strict" in data:
             instance.strict = data["strict"]
+        if data is not None and "theme" in data:
+            instance.theme = data["theme"]
+        if data is not None and "page_size" in data:
+            instance.page_size = data["page_size"]
+        if data is not None and "orientation" in data:
+            instance.orientation = data["orientation"]
+        if data is not None and "margin" in data:
+            instance.margin = data["margin"]
+        if data is not None and "page_numbers" in data:
+            instance.page_numbers = data["page_numbers"]
         if context is not None:
             instance = context.process_output(instance)
         return instance
@@ -68,6 +93,16 @@ class RenderOptions:
 
         if obj.strict is not None:
             result["strict"] = obj.strict
+        if obj.theme is not None:
+            result["theme"] = obj.theme
+        if obj.page_size is not None:
+            result["page_size"] = obj.page_size
+        if obj.orientation is not None:
+            result["orientation"] = obj.orientation
+        if obj.margin is not None:
+            result["margin"] = obj.margin
+        if obj.page_numbers is not None:
+            result["page_numbers"] = obj.page_numbers
 
         if context is not None:
             result = context.process_dict(result)

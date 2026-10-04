@@ -4365,4 +4365,311 @@ const RenderVectors = #[
       trailingGap: 0
     }
   },
+
+  #{
+    name: "render_options_theme_page_numbers",
+    stage: "callable",
+    input: #{
+      doc: #{
+        blocks: #[
+          #{
+            kind: "heading",
+            level: 1,
+            content: #[
+              #{
+                kind: "text",
+                data: "GitHub"
+              }
+            ]
+          },
+          #{
+            kind: "paragraph",
+            content: #[
+              #{
+                kind: "link",
+                href: "https://example.com",
+                content: #[
+                  #{
+                    kind: "text",
+                    data: "link"
+                  }
+                ]
+              },
+              #{
+                kind: "text",
+                data: " and "
+              },
+              #{
+                kind: "code",
+                data: "code"
+              }
+            ]
+          },
+          #{
+            kind: "code_block",
+            code: "x = 1\n"
+          }
+        ]
+      },
+      options: #{
+        theme: "github",
+        page_size: "a4",
+        orientation: "landscape",
+        margin: 0.5,
+        page_numbers: true
+      }
+    },
+    expected: #{
+      page: #{
+        width: 16838,
+        height: 11906,
+        landscape: true,
+        margins: #{
+          top: 720,
+          right: 720,
+          bottom: 720,
+          left: 720,
+          header: 720,
+          footer: 720
+        },
+        header: null,
+        footer: #[
+          #{
+            kind: "paragraph",
+            style: "normal",
+            headingLevel: null,
+            list: null,
+            align: "center",
+            line: 259,
+            lineRule: "auto",
+            indent: #{
+              left: 0,
+              right: 0,
+              firstLine: 0,
+              hanging: 0
+            },
+            keepNext: false,
+            keepLines: false,
+            borders: null,
+            fill: null,
+            runs: #[
+              #{
+                bold: false,
+                italic: false,
+                strike: false,
+                underline: null,
+                font: "Aptos",
+                size: 24,
+                color: null,
+                vertAlign: null,
+                link: null,
+                text: "Page {PAGE} of {NUMPAGES}"
+              }
+            ],
+            gapBefore: 0
+          }
+        ]
+      },
+      body: #[
+        #{
+          kind: "paragraph",
+          style: "heading1",
+          headingLevel: 1,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: true,
+          keepLines: true,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: true,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos Display",
+              size: 40,
+              color: "0969DA",
+              vertAlign: null,
+              link: null,
+              text: "GitHub"
+            }
+          ],
+          gapBefore: 360
+        },
+        #{
+          kind: "paragraph",
+          style: "normal",
+          headingLevel: null,
+          list: null,
+          align: null,
+          line: 259,
+          lineRule: "auto",
+          indent: #{
+            left: 0,
+            right: 0,
+            firstLine: 0,
+            hanging: 0
+          },
+          keepNext: false,
+          keepLines: false,
+          borders: null,
+          fill: null,
+          runs: #[
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: "single",
+              font: "Aptos",
+              size: 24,
+              color: "0969DA",
+              vertAlign: null,
+              link: "https://example.com",
+              text: "link"
+            },
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Aptos",
+              size: 24,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: " and "
+            },
+            #{
+              bold: false,
+              italic: false,
+              strike: false,
+              underline: null,
+              font: "Consolas",
+              size: 20,
+              color: null,
+              vertAlign: null,
+              link: null,
+              text: "code"
+            }
+          ],
+          gapBefore: 80
+        },
+        #{
+          kind: "table",
+          width: #{
+            w: 15398,
+            type: "dxa"
+          },
+          columns: #[],
+          align: null,
+          borders: #{
+            top: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            },
+            left: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            },
+            bottom: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            },
+            right: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            },
+            insideH: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            },
+            insideV: #{
+              style: "single",
+              size: 2,
+              space: 0,
+              color: "000000"
+            }
+          },
+          cellMargins: #{
+            top: 80,
+            left: 120,
+            bottom: 80,
+            right: 120
+          },
+          rows: #[
+            #{
+              header: false,
+              cells: #[
+                #{
+                  width: null,
+                  span: 1,
+                  vMerge: null,
+                  fill: "F6F8FA",
+                  borders: null,
+                  blocks: #[
+                    #{
+                      kind: "paragraph",
+                      style: "normal",
+                      headingLevel: null,
+                      list: null,
+                      align: null,
+                      line: 240,
+                      lineRule: "auto",
+                      indent: #{
+                        left: 0,
+                        right: 0,
+                        firstLine: 0,
+                        hanging: 0
+                      },
+                      keepNext: false,
+                      keepLines: false,
+                      borders: null,
+                      fill: null,
+                      runs: #[
+                        #{
+                          bold: false,
+                          italic: false,
+                          strike: false,
+                          underline: null,
+                          font: "Consolas",
+                          size: 20,
+                          color: null,
+                          vertAlign: null,
+                          link: null,
+                          text: "x = 1"
+                        }
+                      ],
+                      gapBefore: 0
+                    }
+                  ],
+                  trailingGap: 0
+                }
+              ]
+            }
+          ],
+          gapBefore: 160
+        }
+      ],
+      trailingGap: 0
+    }
+  },
 ];

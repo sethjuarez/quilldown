@@ -28,7 +28,8 @@ class Runtime:
 
     def render(self, doc: Document, options: RenderOptions | None = None):
         doc_dict = doc.save() if isinstance(doc, Document) else doc
-        return render_docx(doc_dict)
+        opts = options.save() if isinstance(options, RenderOptions) else options
+        return render_docx(doc_dict, opts)
 
     async def render_async(self, doc: Document, options: RenderOptions | None = None):
         return self.render(doc, options)

@@ -7,7 +7,7 @@ from io import BytesIO
 from doc_inspector import rendered_view
 
 from quilldown import Runtime, validate_document
-from quilldown_spec import Document
+from quilldown_spec import Document, RenderOptions
 
 _RUNTIME = Runtime()
 
@@ -20,13 +20,15 @@ def _lower(resolved_input, context):
 def _emit(resolved_input, context):
     validate_document(resolved_input["doc"])
     doc = Document.load(resolved_input["doc"])
-    return _RUNTIME.emit(doc).save()
+    options = RenderOptions.load(resolved_input["options"]) if "options" in resolved_input else None
+    return _RUNTIME.emit(doc, options).save()
 
 
 def _render(resolved_input, context):
     validate_document(resolved_input["doc"])
+    options = RenderOptions.load(resolved_input["options"]) if "options" in resolved_input else None
     buf = BytesIO()
-    _RUNTIME.render(Document.load(resolved_input["doc"])).save(buf)
+    _RUNTIME.render(Document.load(resolved_input["doc"]), options).save(buf)
     return rendered_view(buf.getvalue())
 
 

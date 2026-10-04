@@ -43,6 +43,10 @@ cd runtimes/python
 uv run python -c "import sys,json; sys.path.insert(0,'tests'); from doc_inspector import rendered_view; print(json.dumps(rendered_view(r'..\\..\\rendered\\render_one.docx'), indent=2, sort_keys=True))"
 ```
 
+Pass the same render options to `emit_oracle` when deriving option-bearing render
+vectors, for example `--theme github --page-size a4 --orientation landscape
+--margin 0.5 --page-numbers`.
+
 Keep authored Markdown and generated IR byte-stable (`\n`, not host text-mode
 line ending translation) unless a vector is intentionally about CRLF
 preservation. The current render vectors use `--no-highlight` because syntax

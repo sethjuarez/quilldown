@@ -181,13 +181,21 @@ model Document {
   footnotes?: FootnoteDefinition[];
 }
 
-// Reserved option bags (Core tier uses no options yet).
+// Lowering options. Core currently has only strict diagnostics.
 model ConvertOptions {
   strict?: boolean;
 }
 
+// Render options shared by emit/render runtimes. String fields intentionally
+// mirror the Rust CLI option names: theme default|github|solarized, page_size
+// letter|a4|legal, orientation portrait|landscape. Margin is inches.
 model RenderOptions {
   strict?: boolean;
+  theme?: string;
+  page_size?: string;
+  orientation?: string;
+  margin?: float64;
+  page_numbers?: boolean;
 }
 
 // Deterministic emit diagnostics — the observable contract for `emit`. The

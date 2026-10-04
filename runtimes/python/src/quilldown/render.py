@@ -199,7 +199,7 @@ def compute_stats(doc: dict) -> dict:
     return s
 
 
-def render_docx(doc: dict) -> Any:
+def render_docx(doc: dict, options: dict | None = None) -> Any:
     """Best-effort DOCX rendering (requires the optional `python-docx` extra).
 
     Emits Core Word constructs — formatted runs (bold/italic/strike/monospace),
@@ -208,26 +208,71 @@ def render_docx(doc: dict) -> Any:
     look parity is governed separately by ``tests/doc_inspector.py`` vectors.
     Returns the docx `Document`; callers may `.save(path)`."""
     from docx import Document as DocxDocument  # noqa: WPS433
+    from docx.enum.section import WD_ORIENT  # noqa: WPS433
     from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: WPS433
     from docx.image.image import Image as DocxImage  # noqa: WPS433
     from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
     from docx.oxml import OxmlElement  # noqa: WPS433
     from docx.oxml.ns import qn  # noqa: WPS433
-    from docx.shared import Inches, Pt, RGBColor  # noqa: WPS433
+    from docx.shared import Inches, Pt, RGBColor, Twips  # noqa: WPS433
 
     validate_document(doc)
+    options = options or {}
     out = DocxDocument()
-    CODE_FONT = "Consolas"
-    BODY_FONT = "Aptos"
-    HEADING_FONT = "Aptos Display"
-    HEADING_COLOR = "2F5496"
-    LINK_COLOR = "0563C1"
-    CODE_FILL = "F2F2F2"
+    THEMES = {
+        "default": {
+            "body_font": "Aptos",
+            "heading_font": "Aptos Display",
+            "heading_color": "2F5496",
+            "mono_font": "Consolas",
+            "link_color": "0563C1",
+            "code_fill": "F2F2F2",
+        },
+        "github": {
+            "body_font": "Aptos",
+            "heading_font": "Aptos Display",
+            "heading_color": "0969DA",
+            "mono_font": "Consolas",
+            "link_color": "0969DA",
+            "code_fill": "F6F8FA",
+        },
+        "solarized": {
+            "body_font": "Aptos",
+            "heading_font": "Aptos Display",
+            "heading_color": "268BD2",
+            "mono_font": "Consolas",
+            "link_color": "268BD2",
+            "code_fill": "FDF6E3",
+        },
+    }
+    theme = THEMES.get(str(options.get("theme", "default")).strip().lower(), THEMES["default"])
+    CODE_FONT = theme["mono_font"]
+    BODY_FONT = theme["body_font"]
+    HEADING_FONT = theme["heading_font"]
+    HEADING_COLOR = theme["heading_color"]
+    LINK_COLOR = theme["link_color"]
+    CODE_FILL = theme["code_fill"]
     TABLE_BORDER_COLOR = "BFBFBF"
     TABLE_HEADER_FILL = "D9D9D9"
     QUOTE_BORDER_COLOR = "8B949E"
     QUOTE_TEXT_COLOR = "57606A"
-    CONTENT_WIDTH_DXA = 9360
+    PAGE_SIZES = {
+        "letter": (12240, 15840),
+        "a4": (11906, 16838),
+        "legal": (12240, 20160),
+    }
+    page_w, page_h = PAGE_SIZES.get(
+        str(options.get("page_size", "letter")).strip().lower(), PAGE_SIZES["letter"]
+    )
+    if str(options.get("orientation", "portrait")).strip().lower() == "landscape":
+        page_w, page_h = page_h, page_w
+        landscape = True
+    else:
+        landscape = False
+    raw_margin = options.get("margin", 1.0)
+    margin = max(float(raw_margin if raw_margin is not None else 1.0), 0.0)
+    margin_dxa = round(margin * 1440)
+    CONTENT_WIDTH_DXA = max(page_w - (margin_dxa * 2), 0)
     ALERT_PALETTE = {
         "note": ("0969DA", "DDF4FF", "NOTE"),
         "tip": ("1A7F37", "DAFBE1", "TIP"),
@@ -372,10 +417,16 @@ def render_docx(doc: dict) -> Any:
 
     def apply_document_theme() -> None:
         for section in out.sections:
-            section.top_margin = Inches(1)
-            section.bottom_margin = Inches(1)
-            section.left_margin = Inches(1)
-            section.right_margin = Inches(1)
+            section.page_width = Twips(page_w)
+            section.page_height = Twips(page_h)
+            if landscape:
+                section.orientation = WD_ORIENT.LANDSCAPE
+            else:
+                section.orientation = WD_ORIENT.PORTRAIT
+            section.top_margin = Twips(margin_dxa)
+            section.bottom_margin = Twips(margin_dxa)
+            section.left_margin = Twips(margin_dxa)
+            section.right_margin = Twips(margin_dxa)
             section.header_distance = Inches(0.5)
             section.footer_distance = Inches(0.5)
 
@@ -432,6 +483,41 @@ def render_docx(doc: dict) -> Any:
             _append_color(rpr, HEADING_COLOR)
 
     apply_document_theme()
+
+    def _add_field(paragraph, instr: str) -> None:
+        begin = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "begin")
+        begin._r.append(fld)
+        instr_run = paragraph.add_run()
+        instr_el = OxmlElement("w:instrText")
+        instr_el.set(qn("xml:space"), "preserve")
+        instr_el.text = f" {instr} "
+        instr_run._r.append(instr_el)
+        separate = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "separate")
+        separate._r.append(fld)
+        paragraph.add_run("1")
+        end = paragraph.add_run()
+        fld = OxmlElement("w:fldChar")
+        fld.set(qn("w:fldCharType"), "end")
+        end._r.append(fld)
+
+    def add_page_number_footer() -> None:
+        for section in out.sections:
+            footer = section.footer
+            p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+            p.style = out.styles["Normal"]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _set_paragraph_spacing(p, after=0)
+            p.add_run("Page ")
+            _add_field(p, "PAGE")
+            p.add_run(" of ")
+            _add_field(p, "NUMPAGES")
+
+    if options.get("page_numbers"):
+        add_page_number_footer()
 
     def new_ctx() -> dict:
         return {
