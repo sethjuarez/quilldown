@@ -18,6 +18,7 @@ highlights tagged fences, while Python currently renders code uniformly.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import zipfile
@@ -79,11 +80,14 @@ def _document_xml(path: Path) -> str:
         return zf.read("word/document.xml").decode("utf-8")
 
 
+def _omml_fragments(path: Path) -> list[str]:
+    return re.findall(r"<m:oMath[\s\S]*?</m:oMath>", _document_xml(path))
+
+
 # Core families whose IR is faithfully preserved and which both engines render
-# to the same Word-level view. Images and math are deliberately excluded: they
-# are legalized away in the Core IR (image -> alt text, math -> text/code) so the
-# Python renderer cannot recover them, while the Rust CLI reconstructs them on
-# its out-of-band byte path. Those need IR-level preservation first (see ROADMAP).
+# to the same Word-level view. Images are deliberately excluded: they are
+# embedded by the Rust CLI on its out-of-band byte path, while Python still only
+# embeds already-preserved image nodes.
 CASES = {
     "headings": "# Heading One\n\nBody text.\n\n## Heading Two\n\n### Heading Three\n",
     "inline_formatting": (
@@ -251,3 +255,44 @@ def test_doc_parity_with_cli_captions(tmp_path: Path) -> None:
         assert ">flow</w:t>" in xml
         assert ">thumb</w:t>" in xml
     assert py_view == rust_view
+
+
+def test_doc_parity_with_cli_math(tmp_path: Path) -> None:
+    md = (
+        "Inline $E=mc^2$, $\\frac{a}{b}$, $\\sum_{i=1}^n i^2$, "
+        "$\\vec{v}$, $\\hat{x}$, $\\tilde{z}$, $\\overline{x}$, $\\overrightarrow{AB}$, "
+        "$\\sin(x)$, $\\lim_{x\\to0}\\frac{\\sin x}{x}=1$, and $\\text{rate}$.\n\n"
+        "$$\\sqrt{x}$$\n\n"
+        "$$\\begin{aligned}a&=b\\\\c&=d\\end{aligned}$$\n\n"
+        "$$\\begin{aligned}1&=1\\\\2&=2\\end{aligned}$$\n\n"
+        "$$\\begin{matrix}1&2\\\\3&4\\end{matrix}$$\n\n"
+        "Fallback $a \\& b$ and $\\begin{cases}a&b\\end{cases}$.\n\n"
+        "```math\n"
+        "\\int_0^1 x dx\n"
+        "```\n"
+    )
+    md_path = tmp_path / "math.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "math.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "math.py.docx"
+    render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    rust_xml = _document_xml(rust_docx)
+    py_xml = _document_xml(py_docx)
+    for xml in (rust_xml, py_xml):
+        assert "<m:oMath" in xml
+        assert "<m:sSup>" in xml
+        assert "<m:f>" in xml
+        assert "<m:rad>" in xml
+        assert "<m:nary>" in xml
+        assert "<m:acc>" in xml
+        assert "<m:eqArr>" in xml
+        assert "<m:limLow>" in xml
+        assert '<m:sty m:val="p"/>' in xml
+    assert _omml_fragments(py_docx) == _omml_fragments(rust_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)

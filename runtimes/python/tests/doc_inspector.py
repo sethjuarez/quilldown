@@ -51,6 +51,7 @@ R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PR = "http://schemas.openxmlformats.org/package/2006/relationships"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
 _RUN_KEYS = ("bold", "italic", "strike", "underline", "font", "size", "color", "vertAlign", "link")
 _BORDER_SIDES = ("top", "left", "bottom", "right", "insideH", "insideV")
@@ -403,6 +404,8 @@ class _Inspector:
             elif tag == _w("fldSimple"):
                 if not self.fields:
                     self._emit(out, _field_token(_wa(child, "instr") or ""), base, link)
+            elif tag == _q(M, "oMath"):
+                self._emit(out, "{OMML}", base, link)
             elif tag in (_w("ins"), _w("smartTag"), _w("sdt"), _w("sdtContent"), _w("customXml")):
                 out.extend(self.runs(child, base, link))
         return out

@@ -8,9 +8,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
+
+from latex2mathml.converter import convert as latex_to_mathml
 
 
 def _count_links(inlines) -> int:
@@ -283,7 +287,258 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
     caption_labels: dict[str, str] = {}
+    math_embeds: list[tuple[str, str]] = []
+    render_warnings: list[str] = []
     last_flow: str | None = None
+
+    MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+
+    def _math_sentinel(index: int) -> str:
+        return f"\ue000QDMATH{index}\ue000"
+
+    def _tag_name(node: ET.Element) -> str:
+        return node.tag.rsplit("}", 1)[-1]
+
+    def _elem_children(node: ET.Element) -> list[ET.Element]:
+        return [child for child in list(node) if isinstance(child.tag, str)]
+
+    def _xml_escape(text: str) -> str:
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
+    def _node_text(node: ET.Element | None) -> str:
+        return "".join(node.itertext()) if node is not None else ""
+
+    def _accent_char(text: str) -> str:
+        return {"―": "_", "‾": "_"}.get(text, text)
+
+    def _is_operator_limit_base(node: ET.Element | None) -> bool:
+        if node is None or _tag_name(node) != "mo":
+            return False
+        return len(_node_text(node).strip()) > 1
+
+    def _omml_token(node: ET.Element) -> str:
+        text = _node_text(node)
+        tag = _tag_name(node)
+        if tag == "mi" and text == "":
+            return ""
+        upright = tag == "mtext" or (tag in {"mi", "mo"} and len(text.strip()) > 1)
+        rpr = '<m:rPr><m:sty m:val="p"/></m:rPr>' if upright else ""
+        return f"<m:r>{rpr}<m:t>{_xml_escape(text)}</m:t></m:r>"
+
+    def _nary_char(node: ET.Element | None) -> str | None:
+        if node is None or _tag_name(node) != "mo":
+            return None
+        text = _node_text(node).strip()
+        if len(text) != 1:
+            return None
+        return text if text in "∑∏∐∫∬∭⨌∮∯∰⋃⋂⋁⋀⨆⨅⨁⨂⨀⨄" else None
+
+    def _nary_parts(node: ET.Element, *, display: bool) -> dict | None:
+        children = _elem_children(node)
+        chr_ = _nary_char(children[0] if children else None)
+        if chr_ is None:
+            return None
+        tag = _tag_name(node)
+        if tag in {"msubsup", "munderover"}:
+            return {
+                "chr": chr_,
+                "sub": _omml_opt(children, 1, display=display),
+                "sup": _omml_opt(children, 2, display=display),
+                "has_sub": True,
+                "has_sup": True,
+            }
+        if tag == "munder":
+            return {
+                "chr": chr_,
+                "sub": _omml_opt(children, 1, display=display),
+                "sup": "",
+                "has_sub": True,
+                "has_sup": False,
+            }
+        if tag == "mover":
+            return {
+                "chr": chr_,
+                "sub": "",
+                "sup": _omml_opt(children, 1, display=display),
+                "has_sub": False,
+                "has_sup": True,
+            }
+        return None
+
+    def _omml_nary(parts: dict, body: str, *, display: bool) -> str:
+        lim_loc = "undOvr" if display else "subSup"
+        pr = (
+            f'<m:naryPr><m:chr m:val="{_xml_escape(parts["chr"])}"/>'
+            f'<m:limLoc m:val="{lim_loc}"/>'
+        )
+        if not parts["has_sub"]:
+            pr += '<m:subHide m:val="1"/>'
+        if not parts["has_sup"]:
+            pr += '<m:supHide m:val="1"/>'
+        pr += "</m:naryPr>"
+        return f'<m:nary>{pr}<m:sub>{parts["sub"]}</m:sub><m:sup>{parts["sup"]}</m:sup><m:e>{body}</m:e></m:nary>'
+
+    def _omml_children(node: ET.Element, *, display: bool) -> str:
+        children = _elem_children(node)
+        out = []
+        i = 0
+        while i < len(children):
+            parts = _nary_parts(children[i], display=display)
+            if parts:
+                if i + 1 < len(children) and _tag_name(children[i + 1]) != "mo":
+                    out.append(_omml_nary(parts, _omml_convert(children[i + 1], display=display), display=display))
+                    i += 2
+                else:
+                    out.append(_omml_nary(parts, "", display=display))
+                    i += 1
+                continue
+            out.append(_omml_convert(children[i], display=display))
+            i += 1
+        return "".join(out)
+
+    def _omml_opt(children: list[ET.Element], index: int, *, display: bool) -> str:
+        return _omml_convert(children[index], display=display) if index < len(children) else ""
+
+    def _omml_convert(node: ET.Element, *, display: bool) -> str:
+        tag = _tag_name(node)
+        if tag in {"mi", "mn", "mo", "mtext"}:
+            return _omml_token(node)
+        if tag in {"math", "mrow", "mstyle", "mpadded"}:
+            return _omml_children(node, display=display)
+        children = _elem_children(node)
+        if tag == "mfrac":
+            num = _omml_opt(children, 0, display=display)
+            den = _omml_opt(children, 1, display=display)
+            return f"<m:f><m:num><m:e>{num}</m:e></m:num><m:den><m:e>{den}</m:e></m:den></m:f>"
+        if tag == "msqrt":
+            inner = _omml_children(node, display=display)
+            return f'<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>{inner}</m:e></m:rad>'
+        if tag == "mroot":
+            base = _omml_opt(children, 0, display=display)
+            index = _omml_opt(children, 1, display=display)
+            return f"<m:rad><m:deg>{index}</m:deg><m:e>{base}</m:e></m:rad>"
+        if tag == "msup":
+            if _is_operator_limit_base(children[0] if children else None):
+                base = _omml_opt(children, 0, display=display)
+                sup = _omml_opt(children, 1, display=display)
+                return f"<m:limUpp><m:e>{base}</m:e><m:lim>{sup}</m:lim></m:limUpp>"
+            base = _omml_opt(children, 0, display=display)
+            sup = _omml_opt(children, 1, display=display)
+            return f"<m:sSup><m:e>{base}</m:e><m:sup>{sup}</m:sup></m:sSup>"
+        if tag == "msub":
+            if _is_operator_limit_base(children[0] if children else None):
+                base = _omml_opt(children, 0, display=display)
+                sub = _omml_opt(children, 1, display=display)
+                return f"<m:limLow><m:e>{base}</m:e><m:lim>{sub}</m:lim></m:limLow>"
+            base = _omml_opt(children, 0, display=display)
+            sub = _omml_opt(children, 1, display=display)
+            return f"<m:sSub><m:e>{base}</m:e><m:sub>{sub}</m:sub></m:sSub>"
+        if tag == "msubsup":
+            parts = _nary_parts(node, display=display)
+            if parts:
+                return _omml_nary(parts, "", display=display)
+            base = _omml_opt(children, 0, display=display)
+            sub = _omml_opt(children, 1, display=display)
+            sup = _omml_opt(children, 2, display=display)
+            return f"<m:sSubSup><m:e>{base}</m:e><m:sub>{sub}</m:sub><m:sup>{sup}</m:sup></m:sSubSup>"
+        if tag in {"munder", "mover", "munderover"}:
+            parts = _nary_parts(node, display=display)
+            if parts:
+                return _omml_nary(parts, "", display=display)
+            base = _omml_opt(children, 0, display=display)
+            sub = _omml_opt(children, 1, display=display)
+            sup = _omml_opt(children, 2, display=display)
+            if tag == "munder":
+                return f"<m:limLow><m:e>{base}</m:e><m:lim>{sub}</m:lim></m:limLow>"
+            if tag == "mover":
+                over = children[1] if len(children) > 1 else None
+                if over is not None and _tag_name(over) == "mo" and (
+                    node.get("accent") == "true"
+                    or over.get("accent") == "true"
+                    or over.get("stretchy") == "true"
+                    or _node_text(over) in {"→", "~"}
+                ):
+                    chr_ = _xml_escape(_accent_char(_node_text(over)))
+                    return f'<m:acc><m:accPr><m:chr m:val="{chr_}"/></m:accPr><m:e>{base}</m:e></m:acc>'
+                return f"<m:limUpp><m:e>{base}</m:e><m:lim>{sub}</m:lim></m:limUpp>"
+            return f"<m:sSubSup><m:e>{base}</m:e><m:sub>{sub}</m:sub><m:sup>{sup}</m:sup></m:sSubSup>"
+        if tag == "mtable":
+            rows = []
+            for row in [child for child in children if _tag_name(child) == "mtr"]:
+                mtds = [cell for cell in _elem_children(row) if _tag_name(cell) == "mtd"]
+                if mtds:
+                    tail = _node_text(mtds[-1]).strip()
+                    if tail.startswith("(") and tail.endswith(")") and tail[1:-1].isdigit():
+                        mtds = mtds[:-1]
+                cells = "".join(_omml_children(cell, display=display) for cell in mtds)
+                rows.append(f"<m:e>{cells}</m:e>")
+            return f"<m:eqArr>{''.join(rows)}</m:eqArr>"
+        if tag == "mspace":
+            return ""
+        return _omml_children(node, display=display)
+
+    def _latex_to_omml(latex: str, *, display: bool) -> str | None:
+        if "\\begin{cases}" in latex or "\\&" in latex:
+            return None
+        try:
+            normalized = (
+                latex.replace("\\begin{aligned}", "\\begin{align}")
+                .replace("\\end{aligned}", "\\end{align}")
+                .replace("\\begin{align*}", "\\begin{align}")
+                .replace("\\end{align*}", "\\end{align}")
+            )
+            mathml = latex_to_mathml(normalized, display="block" if display else "inline")
+            if "PARSE ERROR" in mathml:
+                return None
+            root = ET.fromstring(mathml)
+            inner = _omml_convert(root, display=display)
+        except Exception:  # noqa: BLE001
+            return None
+        if not inner.strip():
+            return None
+        return f'<m:oMath xmlns:m="{MATH_NS}">{inner}</m:oMath>'
+
+    def _warn_math_fallback(reason: str) -> None:
+        if not any(w.startswith("math:") for w in render_warnings):
+            render_warnings.append(f"math: rendered as literal LaTeX source ({reason})")
+
+    def _add_math_literal_run(paragraph, latex: str):
+        run = paragraph.add_run(latex)
+        run.font.name = CODE_FONT
+        run.italic = True
+        run.font.size = Pt(10)
+        return run
+
+    def _inject_math(docx_bytes: bytes) -> bytes:
+        if not math_embeds:
+            return docx_bytes
+        src = BytesIO(docx_bytes)
+        out_buf = BytesIO()
+        with zipfile.ZipFile(src, "r") as zin, zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename == "word/document.xml":
+                    document = data.decode("utf-8")
+                    for sentinel, omml in math_embeds:
+                        pos = document.find(sentinel)
+                        if pos < 0:
+                            continue
+                        before = document[:pos]
+                        starts = [before.rfind("<w:r>"), before.rfind("<w:r ")]
+                        start = max(starts)
+                        rel_end = document[pos:].find("</w:r>")
+                        if start < 0 or rel_end < 0:
+                            continue
+                        end = pos + rel_end + len("</w:r>")
+                        document = document[:start] + omml + document[end:]
+                    data = document.encode("utf-8")
+                zout.writestr(item, data)
+        return out_buf.getvalue()
 
     def inline_plain_text(inlines: list[dict]) -> str:
         text = []
@@ -709,7 +964,8 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 c = dict(ctx); c["image"] = inl
                 runs.append(("", c))
             elif k == "math":
-                runs.append((inl.get("latex") or "", dict(ctx)))
+                c = dict(ctx); c["math"] = inl
+                runs.append(("", c))
             elif k == "footnote_reference":
                 runs.append((f"[^{inl.get('label', '')}]", dict(ctx)))
         return runs
@@ -858,6 +1114,17 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 continue
             if fmt.get("ref"):
                 _add_ref_field(paragraph, fmt["ref"], text)
+                continue
+            if fmt.get("math"):
+                math = fmt["math"]
+                omml = _latex_to_omml(math.get("latex") or "", display=bool(math.get("display")))
+                if omml is None:
+                    _warn_math_fallback("unsupported LaTeX construct")
+                    _add_math_literal_run(paragraph, math.get("latex") or "")
+                else:
+                    sentinel = _math_sentinel(len(math_embeds))
+                    math_embeds.append((sentinel, omml))
+                    paragraph.add_run(sentinel)
                 continue
             run = paragraph.add_run(text)
             if fmt.get("bold"):
@@ -1225,7 +1492,15 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 elif options.get("captions") and list_depth == 0 and add_caption(b):
                     pass
                 else:
-                    render_inlines(out.add_paragraph(), b["content"])
+                    p = out.add_paragraph()
+                    if (
+                        quote_depth == 0
+                        and len(b["content"]) == 1
+                        and b["content"][0].get("kind") == "math"
+                        and b["content"][0].get("display")
+                    ):
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    render_inlines(p, b["content"])
                     mark_flow("body")
             elif k == "code_block":
                 add_code_block(b["code"])
@@ -1288,6 +1563,22 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         mark_flow("body")
     trim_trailing_gap()
     _normalize_strict_ooxml(out)
+    _original_save = out.save
+
+    def _save_with_math_splice(path_or_stream) -> None:
+        if not math_embeds:
+            _original_save(path_or_stream)
+            return
+        buf = BytesIO()
+        _original_save(buf)
+        data = _inject_math(buf.getvalue())
+        if hasattr(path_or_stream, "write"):
+            path_or_stream.write(data)
+        else:
+            Path(path_or_stream).write_bytes(data)
+
+    out.quilldown_warnings = render_warnings  # type: ignore[attr-defined]
+    out.save = _save_with_math_splice  # type: ignore[method-assign]
     return out
 
 

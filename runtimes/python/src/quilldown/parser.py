@@ -787,6 +787,13 @@ def _block(n):
         return {"kind": "paragraph", "content": _inline_children(n)}
     if t == "fence":
         info = (n.info or "").strip()
+        if info and info.split()[0] == "math":
+            return {
+                "kind": "paragraph",
+                "content": [
+                    {"kind": "math", "latex": _raw_fenced_content(n) or n.content, "display": True}
+                ],
+            }
         block = {"kind": "code_block", "code": _raw_fenced_content(n) or n.content}
         if info:
             block["language"] = info.split()[0]
@@ -833,6 +840,8 @@ def _raw_display_math_content(n) -> str:
         return ""
     open_line = _SRC_LINES_RAW[n.map[0]]
     after_opener = open_line.split("$$", 1)[1] if "$$" in open_line else ""
+    if "$$" in after_opener:
+        after_opener = after_opener.rsplit("$$", 1)[0]
     start = n.map[0] + 1
     end = max(start, n.map[1] - 1)
     return after_opener + "".join(_SRC_LINES_RAW[start:end])

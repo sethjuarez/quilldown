@@ -1875,9 +1875,14 @@ const LowerVectors = #[
     expected: #{
       blocks: #[
         #{
-          code: "x^2 + y^2\n",
-          kind: "code_block",
-          language: "math"
+          content: #[
+            #{
+              display: true,
+              kind: "math",
+              latex: "x^2 + y^2\n"
+            }
+          ],
+          kind: "paragraph"
         }
       ]
     }

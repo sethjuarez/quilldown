@@ -70,10 +70,19 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
                 .next()
                 .filter(|s| !s.is_empty())
                 .map(str::to_string);
-            out.push(Block::CodeBlock {
-                language,
-                code: cb.literal.clone(),
-            });
+            if language.as_deref() == Some("math") {
+                out.push(Block::Paragraph {
+                    content: vec![Inline::Math {
+                        latex: cb.literal.clone(),
+                        display: true,
+                    }],
+                });
+            } else {
+                out.push(Block::CodeBlock {
+                    language,
+                    code: cb.literal.clone(),
+                });
+            }
         }
         NodeValue::BlockQuote => out.push(Block::BlockQuote {
             blocks: lower_blocks(node),
@@ -312,6 +321,21 @@ mod tests {
                 Inline::Math { latex, display } if latex == "E = mc^2" && !*display
             )),
             "inline math must lower to an Inline::Math node, not text"
+        );
+    }
+
+    #[test]
+    fn preserves_fenced_math_as_display_math_node() {
+        let doc = lower("```math\nx^2 + y^2\n```\n");
+        let Block::Paragraph { content } = &doc.blocks[0] else {
+            panic!("expected a paragraph");
+        };
+        assert_eq!(
+            content,
+            &vec![Inline::Math {
+                latex: "x^2 + y^2\n".into(),
+                display: true,
+            }]
         );
     }
 
