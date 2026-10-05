@@ -186,17 +186,25 @@ model ConvertOptions {
   strict?: boolean;
 }
 
-// Render options shared by emit/render runtimes. String fields intentionally
-// mirror the Rust CLI option names: theme default|github|solarized, page_size
-// letter|a4|legal, orientation portrait|landscape. Margin is inches.
+// Render options shared by emit/render runtimes. Field names mirror Rust
+// ConvertOptions (not necessarily CLI flags: CLI `--no-*` flags invert the
+// positive booleans here). Margin is inches; image_dpi is rasterization DPI.
 model RenderOptions {
   strict?: boolean;
+  image_dpi?: float64;
+  embed_svg?: boolean;
+  svg_light_mode?: boolean;
+  max_image_width_px?: uint32;
+  base_dir?: string;
+  highlight_code?: boolean;
   theme?: string;
   page_size?: string;
   orientation?: string;
   margin?: float64;
   page_numbers?: boolean;
   table_of_contents?: boolean;
+  language?: string;
+  allow_remote_images?: boolean;
   captions?: boolean;
 }
 

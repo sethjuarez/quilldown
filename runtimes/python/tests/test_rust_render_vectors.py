@@ -50,13 +50,19 @@ def test_rust_emit_conforms_to_render_vectors(tmp_path, vector):
     out_path = tmp_path / f"{vector['name']}.docx"
     ir_path.write_text(json.dumps(vector["input"]["doc"]), encoding="utf-8")
 
-    # Render vectors are intentionally derived without syntax highlighting so
-    # look parity is about document structure/styling, not highlighter palettes.
-    cmd = [oracle, "--no-highlight", str(ir_path), "-o", str(out_path)]
+    cmd = [oracle, str(ir_path), "-o", str(out_path)]
     options = vector["input"].get("options") or {}
     allowed_options = {
+        "image_dpi",
+        "embed_svg",
+        "svg_light_mode",
+        "max_image_width_px",
+        "base_dir",
+        "highlight_code",
         "page_numbers",
         "table_of_contents",
+        "language",
+        "allow_remote_images",
         "captions",
         "theme",
         "page_size",
@@ -65,17 +71,30 @@ def test_rust_emit_conforms_to_render_vectors(tmp_path, vector):
     }
     unknown_options = set(options) - allowed_options
     assert not unknown_options, f"{vector['name']}: unmapped render options: {sorted(unknown_options)}"
+    # Existing render vectors were recorded as a no-highlight structural baseline;
+    # opt into highlighting only when a vector says so explicitly.
+    if "highlight_code" not in options:
+        cmd.insert(2, "--no-highlight")
     if options.get("page_numbers"):
         cmd.insert(2, "--page-numbers")
     if options.get("table_of_contents"):
         cmd.insert(2, "--toc")
+    if options.get("allow_remote_images"):
+        cmd.insert(2, "--allow-remote-images")
     if options.get("captions"):
         cmd.insert(2, "--captions")
     for option, flag in (
+        ("image_dpi", "--image-dpi"),
+        ("embed_svg", "--embed-svg"),
+        ("svg_light_mode", "--svg-light-mode"),
+        ("max_image_width_px", "--max-image-width-px"),
+        ("base_dir", "--base-dir"),
+        ("highlight_code", "--highlight-code"),
         ("theme", "--theme"),
         ("page_size", "--page-size"),
         ("orientation", "--orientation"),
         ("margin", "--margin"),
+        ("language", "--language"),
     ):
         if option in options:
             cmd.extend([flag, str(options[option])])

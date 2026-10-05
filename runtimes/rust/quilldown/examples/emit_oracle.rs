@@ -34,9 +34,49 @@ fn main() {
                 };
                 output = Some(PathBuf::from(path));
             }
+            "--highlight-code" => opts.highlight_code = parse_bool_arg(&mut args, &arg),
             "--no-highlight" => opts.highlight_code = false,
+            "--image-dpi" | "--dpi" => {
+                let Some(dpi) = args.next() else {
+                    eprintln!("emit_oracle: {arg} requires a DPI value");
+                    std::process::exit(2);
+                };
+                opts.image_dpi = dpi.parse::<f32>().unwrap_or_else(|_| {
+                    eprintln!("emit_oracle: invalid DPI '{dpi}'");
+                    std::process::exit(2);
+                });
+            }
+            "--embed-svg" => opts.embed_svg = parse_bool_arg(&mut args, &arg),
+            "--no-embed-svg" => opts.embed_svg = false,
+            "--svg-light-mode" => opts.svg_light_mode = parse_bool_arg(&mut args, &arg),
+            "--no-svg-light-mode" => opts.svg_light_mode = false,
+            "--max-image-width-px" => {
+                let Some(width) = args.next() else {
+                    eprintln!("emit_oracle: {arg} requires a pixel width");
+                    std::process::exit(2);
+                };
+                opts.max_image_width_px = width.parse::<u32>().unwrap_or_else(|_| {
+                    eprintln!("emit_oracle: invalid max image width '{width}'");
+                    std::process::exit(2);
+                });
+            }
+            "--base-dir" => {
+                let Some(path) = args.next() else {
+                    eprintln!("emit_oracle: {arg} requires a path");
+                    std::process::exit(2);
+                };
+                opts.base_dir = Some(PathBuf::from(path));
+            }
             "--page-numbers" => opts.page_numbers = true,
             "--toc" | "--table-of-contents" => opts.table_of_contents = true,
+            "--language" => {
+                let Some(language) = args.next() else {
+                    eprintln!("emit_oracle: {arg} requires a BCP-47 language tag");
+                    std::process::exit(2);
+                };
+                opts.language = language;
+            }
+            "--allow-remote-images" => opts.allow_remote_images = true,
             "--captions" => opts.captions = true,
             "--theme" => {
                 let Some(theme) = args.next() else {
@@ -72,8 +112,10 @@ fn main() {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "usage: emit_oracle [--no-highlight] [--page-numbers] [--toc] [--captions] [--theme default|github|solarized] \\\n\
+                    "usage: emit_oracle [--highlight-code true|false] [--page-numbers] [--toc] [--captions] [--theme default|github|solarized] \\\n\
                      [--page-size letter|a4|legal] [--orientation portrait|landscape] [--margin inches] \\\n\
+                     [--image-dpi n] [--embed-svg true|false] [--svg-light-mode true|false] [--max-image-width-px n] \\\n\
+                     [--base-dir path] [--language tag] [--allow-remote-images] \\\n\
                      [-o out.docx] [input.ir.json]\n\
                      Reads spec-wire IR JSON from the file argument, or stdin when omitted,\n\
                      and writes a packed .docx to -o/--output (or stdout when omitted)."
@@ -146,6 +188,21 @@ fn main() {
                     eprintln!("emit_oracle: cannot write stdout: {e}");
                     std::process::exit(1);
                 });
+        }
+    }
+}
+
+fn parse_bool_arg(args: &mut impl Iterator<Item = String>, flag: &str) -> bool {
+    let Some(value) = args.next() else {
+        eprintln!("emit_oracle: {flag} requires true or false");
+        std::process::exit(2);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" => true,
+        "false" => false,
+        other => {
+            eprintln!("emit_oracle: invalid boolean '{other}' for {flag}");
+            std::process::exit(2);
         }
     }
 }

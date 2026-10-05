@@ -57,6 +57,7 @@ If `-o` is omitted, output defaults to the input path with a `.docx` extension.
 | `--language <BCP-47>` | Proofing language (front-matter `language:` overrides; `""` unsets) | `en-US` |
 | `--no-highlight` | Uniform monospace code (no colors/language labels) | off (highlight on) |
 | `--dpi <N>` | DPI when rasterizing SVG diagrams to PNG | `192` (2×) |
+| `--max-image-width-px <N>` | Maximum rendered image width in pixels | `600` |
 | `--base-dir <DIR>` | Resolve relative image paths against this dir | input's dir |
 | `--no-embed-svg` | Skip original SVG (`<asvg>`) layer, embed only the PNG | on |
 | `--no-svg-light-mode` | Embed SVGs with authored colors (skip light remap) | remap on |
