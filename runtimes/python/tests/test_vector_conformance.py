@@ -14,6 +14,7 @@ import json
 import os
 
 import pytest
+
 from vector_runner import run_vector
 
 # Run every generated test on pytest-asyncio's event loop so awaitable adapters
