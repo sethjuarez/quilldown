@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.3.1...quilldown-python-v0.4.0) (2026-10-05)
+
+
+### Features
+
+* **ir:** preserve gfm alert callouts ([183c787](https://github.com/sethjuarez/quilldown/commit/183c787ffc6bb2be631f7945ea14c0c21a3a88f0))
+* **render:** add captions parity ([fa44f66](https://github.com/sethjuarez/quilldown/commit/fa44f66a56fc3ce2bd462480903ab3c74a514334))
+* **render:** add image policy parity ([9578a13](https://github.com/sethjuarez/quilldown/commit/9578a13634c49ba3737baac4132269348bc4de02))
+* **render:** add metadata parity ([6da817a](https://github.com/sethjuarez/quilldown/commit/6da817abe204c5693c31753656ccf04b841210d6))
+* **render:** add native math parity ([d377e62](https://github.com/sethjuarez/quilldown/commit/d377e62bc22066afe25e153742d78890ab214149))
+* **render:** add python code highlighting ([d00476c](https://github.com/sethjuarez/quilldown/commit/d00476cec6fbeac430ddfc36d20c5545976c2403))
+* **render:** add svg parity ([5582464](https://github.com/sethjuarez/quilldown/commit/558246420cfb581b2544751039e0261ecee44565))
+* **render:** add toc parity ([32994af](https://github.com/sethjuarez/quilldown/commit/32994afdd5bc9288bd1720cc00da27db80d14fa5))
+* **render:** complete option surface parity ([35e791c](https://github.com/sethjuarez/quilldown/commit/35e791c90e70446acd6fbf8d79b05103012e2ccb))
+* **render:** complete Python DOCX parity ([2a52f02](https://github.com/sethjuarez/quilldown/commit/2a52f025e5f6dab5f608d16508dce667cf3ab6dc))
+* **render:** support page and theme options ([9750f44](https://github.com/sethjuarez/quilldown/commit/9750f44d6e9c46851b28eaf6d8e68fe1dfdd3e82))
+
+
+### Bug Fixes
+
+* **python:** embed png image runs ([bc52198](https://github.com/sethjuarez/quilldown/commit/bc52198713a757905213031b6f18810f95226a5e))
+* **python:** match rust block styling ([0eed6a5](https://github.com/sethjuarez/quilldown/commit/0eed6a5e5501d59187ffbe54c89038f52934a6fe))
+* **python:** match rust typography styling ([c426cd3](https://github.com/sethjuarez/quilldown/commit/c426cd30181d30bf827230be803beb05284e10bd))
+
 ## [0.3.1](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.3.0...quilldown-python-v0.3.1) (2026-09-25)
 
 
