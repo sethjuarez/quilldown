@@ -12,8 +12,6 @@ prebuilt artifacts are deliberately not auto-discovered because this suite is
 meant to compare against today's Rust source. If neither is available the module
 is skipped so the pure-Python suite still runs offline.
 
-Syntax-highlighted fenced code is intentionally outside this parity suite: Rust
-highlights tagged fences, while Python currently renders code uniformly.
 """
 from __future__ import annotations
 
@@ -311,6 +309,70 @@ def test_doc_parity_with_cli_math(tmp_path: Path) -> None:
         assert "<m:limLow>" in xml
         assert '<m:sty m:val="p"/>' in xml
     assert _omml_fragments(py_docx) == _omml_fragments(rust_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_highlighted_code(tmp_path: Path) -> None:
+    md = "```rust\nfn main() {\n    let x = 1;\n}\n```\n"
+    md_path = tmp_path / "highlight.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "highlight.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "highlight.py.docx"
+    render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_no_highlight(tmp_path: Path) -> None:
+    md = "```rust\nfn main() {\n    let x = 1;\n}\n```\n"
+    md_path = tmp_path / "no-highlight.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "no-highlight.rust.docx"
+    _render_rust(md_path, rust_docx, "--no-highlight")
+
+    py_docx = tmp_path / "no-highlight.py.docx"
+    render_docx(lower(md).save(), {"highlight_code": False}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_solarized_highlight(tmp_path: Path) -> None:
+    md = "```rust\nfn main() {\n    let x = 1;\n}\n```\n"
+    md_path = tmp_path / "highlight-solarized.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "highlight-solarized.rust.docx"
+    _render_rust(md_path, rust_docx, "--theme", "solarized")
+
+    py_docx = tmp_path / "highlight-solarized.py.docx"
+    render_docx(lower(md).save(), {"theme": "solarized"}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_empty_highlighted_code(tmp_path: Path) -> None:
+    md = "```rust\n```\n"
+    md_path = tmp_path / "highlight-empty.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "highlight-empty.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "highlight-empty.py.docx"
+    render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
     assert rendered_view(py_docx) == rendered_view(rust_docx)
 
 

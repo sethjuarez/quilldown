@@ -17,6 +17,19 @@ from xml.etree import ElementTree as ET
 
 import resvg
 from latex2mathml.converter import convert as latex_to_mathml
+from pygments import lex
+from pygments.lexers import get_lexer_by_name
+from pygments.token import (
+    Comment,
+    Keyword,
+    Name,
+    Number,
+    Operator,
+    Punctuation,
+    String,
+    Token,
+)
+from pygments.util import ClassNotFound
 
 
 def _count_links(inlines) -> int:
@@ -251,7 +264,8 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             "code_fill": "FDF6E3",
         },
     }
-    theme = THEMES.get(str(options.get("theme", "default")).strip().lower(), THEMES["default"])
+    theme_name = str(options.get("theme", "default")).strip().lower()
+    theme = THEMES.get(theme_name, THEMES["default"])
     CODE_FONT = theme["mono_font"]
     BODY_FONT = theme["body_font"]
     HEADING_FONT = theme["heading_font"]
@@ -1215,6 +1229,92 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
         return run
 
+    def _language_token(info: str | None) -> str | None:
+        if not info:
+            return None
+        for token in re.split(r"[\s,]+", info):
+            if token:
+                return token
+        return None
+
+    def _highlight_color(token_type) -> str:
+        if theme_name == "solarized":
+            if token_type in Keyword:
+                return "268BD2"
+            if token_type in Operator:
+                return "859900"
+            if token_type in Name.Function or token_type in Name.Class:
+                return "B58900"
+            if token_type in Number:
+                return "6C71C4"
+            if token_type in String:
+                return "2AA198"
+            if token_type in Comment:
+                return "93A1A1"
+            return "657B83"
+        if token_type in Keyword or token_type in Operator:
+            return "A71D5D"
+        if token_type in Name.Function or token_type in Name.Class:
+            return "795DA3"
+        if token_type in Number:
+            return "0086B3"
+        if token_type in String:
+            return "183691"
+        if token_type in Comment:
+            return "969896"
+        if token_type in Punctuation or token_type in Token.Text:
+            return "323232"
+        return "323232"
+
+    def _highlight_lines(code: str, language: str | None) -> list[list[tuple[str, str]]] | None:
+        if not language:
+            return None
+        if not code:
+            return []
+        try:
+            lexer = get_lexer_by_name(language)
+        except ClassNotFound:
+            return None
+        lines = [[]]
+        for token_type, text in lex(code, lexer):
+            parts = text.split("\n")
+            for index, part in enumerate(parts):
+                if index:
+                    lines.append([])
+                if part:
+                    color = _highlight_color(token_type)
+                    lines[-1].append((color, part))
+        if lines and not lines[-1] and not code.endswith("\n"):
+            lines.pop()
+        return lines
+
+    def _add_code_label(cell, label: str):
+        p = cell.paragraphs[0]
+        _set_paragraph_spacing(p, after=0, line=240)
+        run = p.add_run(label.upper())
+        run.bold = True
+        run.font.name = CODE_FONT
+        run.font.size = Pt(8)
+        run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
+
+    def _add_code_line(cell, line: str, *, first: bool = False, spans: list[tuple[str, str]] | None = None):
+        p = cell.paragraphs[0] if first else cell.add_paragraph()
+        _set_paragraph_spacing(p, after=0, line=240)
+        if spans is not None:
+            if not spans:
+                run = p.add_run("")
+                run.font.name = CODE_FONT
+                run.font.size = Pt(10)
+            for color, text in spans:
+                run = p.add_run(text)
+                run.font.name = CODE_FONT
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor.from_string(color)
+            return
+        run = p.add_run(line)
+        run.font.name = CODE_FONT
+        run.font.size = Pt(10)
+
     def _percent_decode(payload: str) -> bytes:
         out_bytes = bytearray()
         i = 0
@@ -1533,7 +1633,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             out._element.body.remove(out.paragraphs[-1]._p)
             last_flow = None
 
-    def add_code_block(code: str) -> None:
+    def add_code_block(code: str, language: str | None = None) -> None:
         push_gap()
         table = out.add_table(rows=1, cols=1)
         _set_table_width(table)
@@ -1541,13 +1641,20 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         _set_table_margins(table, 80, 120, 80, 120)
         cell = table.rows[0].cells[0]
         _shade_cell(cell, CODE_FILL)
+        highlight_enabled = options.get("highlight_code", True)
+        label = _language_token(language)
+        highlighted = _highlight_lines(code.removesuffix("\n"), label) if highlight_enabled else None
+        first_line = True
+        if highlight_enabled and label:
+            _add_code_label(cell, label)
+            first_line = False
         lines = code.removesuffix("\n").split("\n")
-        for index, line in enumerate(lines):
-            p = cell.paragraphs[0] if index == 0 else cell.add_paragraph()
-            _set_paragraph_spacing(p, after=0, line=240)
-            run = p.add_run(line)
-            run.font.name = CODE_FONT
-            run.font.size = Pt(10)
+        if highlighted is not None:
+            for index, spans in enumerate(highlighted):
+                _add_code_line(cell, "", first=first_line and index == 0, spans=spans)
+        else:
+            for index, line in enumerate(lines):
+                _add_code_line(cell, line, first=first_line and index == 0)
         _clear_table_geometry_defaults(table)
         mark_flow("table")
         push_gap()
@@ -1619,19 +1726,27 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         p = cell.add_paragraph()
         _set_paragraph_spacing(p, after=0, line=160, rule="exact")
 
-    def add_code_table_to(container, code: str):
+    def add_code_table_to(container, code: str, language: str | None = None):
         table = container.add_table(rows=1, cols=1)
         _set_table_width(table)
         _set_table_borders(table, {side: ("000000", 2) for side in ("top", "left", "bottom", "right", "insideH", "insideV")})
         _set_table_margins(table, 80, 120, 80, 120)
         code_cell = table.rows[0].cells[0]
         _shade_cell(code_cell, CODE_FILL)
-        for index, line in enumerate(code.removesuffix("\n").split("\n")):
-            p = code_cell.paragraphs[0] if index == 0 else code_cell.add_paragraph()
-            _set_paragraph_spacing(p, after=0, line=240)
-            run = p.add_run(line)
-            run.font.name = CODE_FONT
-            run.font.size = Pt(10)
+        highlight_enabled = options.get("highlight_code", True)
+        label = _language_token(language)
+        highlighted = _highlight_lines(code.removesuffix("\n"), label) if highlight_enabled else None
+        first_line = True
+        if highlight_enabled and label:
+            _add_code_label(code_cell, label)
+            first_line = False
+        lines = code.removesuffix("\n").split("\n")
+        if highlighted is not None:
+            for index, spans in enumerate(highlighted):
+                _add_code_line(code_cell, "", first=first_line and index == 0, spans=spans)
+        else:
+            for index, line in enumerate(lines):
+                _add_code_line(code_cell, line, first=first_line and index == 0)
         _clear_table_geometry_defaults(table)
         return table
 
@@ -1660,7 +1775,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                     _set_quote_border(p)
             elif child["kind"] == "code_block":
                 add_cell_gap(cell)
-                add_code_table_to(cell, child["code"])
+                add_code_table_to(cell, child["code"], child.get("language"))
                 add_cell_gap(cell)
             elif child["kind"] == "table":
                 add_cell_gap(cell)
@@ -1737,7 +1852,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                     render_inlines(p, b["content"])
                     mark_flow("body")
             elif k == "code_block":
-                add_code_block(b["code"])
+                add_code_block(b["code"], b.get("language"))
             elif k == "block_quote":
                 top_level = quote_depth == 0
                 if top_level:
