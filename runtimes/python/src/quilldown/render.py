@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import math
 import re
 import zipfile
 from io import BytesIO
@@ -233,7 +234,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     from docx.opc.constants import RELATIONSHIP_TYPE as RT  # noqa: WPS433
     from docx.oxml import OxmlElement  # noqa: WPS433
     from docx.oxml.ns import qn  # noqa: WPS433
-    from docx.shared import Inches, Pt, RGBColor, Twips  # noqa: WPS433
+    from docx.shared import Emu, Inches, Pt, RGBColor, Twips  # noqa: WPS433
 
     validate_document(doc)
     options = options or {}
@@ -1247,19 +1248,21 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         for text, fmt in flatten(inlines, base or new_ctx()):
             if fmt.get("image"):
                 image = fmt["image"]
-                alt_text = "[" + (image.get("alt") or "") + "]"
+                alt = image.get("alt") or ""
+                alt_text = "[" + (alt if alt != "" else image.get("src", "")) + "]"
                 if fmt.get("link"):
                     if not _add_hyperlinked_image(paragraph, fmt["link"], image):
+                        fallback_fmt = {"italic": True, "link": fmt.get("link")}
                         if fmt["link"].startswith("#"):
                             label = fmt["link"][1:]
                             if label in caption_labels:
                                 _add_ref_field(paragraph, caption_labels[label], alt_text or label)
                             else:
-                                _add_anchor_link(paragraph, label, alt_text, fmt)
+                                _add_anchor_link(paragraph, label, alt_text, fallback_fmt)
                         else:
-                            _add_hyperlink(paragraph, fmt["link"], alt_text, fmt)
+                            _add_hyperlink(paragraph, fmt["link"], alt_text, fallback_fmt)
                 elif not _add_image_run(paragraph, image):
-                    _add_styled_text_run(paragraph, alt_text, fmt)
+                    _add_styled_text_run(paragraph, alt_text, {"italic": True})
                 continue
             if fmt.get("link"):
                 if fmt["link"].startswith("#"):
@@ -1547,26 +1550,47 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 return {"source": png, "svg": svg, "width_px": width, "height_px": height}
             return {"source": BytesIO(data)}
         if src.startswith(("http://", "https://")):
+            reason = (
+                "remote image fetching requires building with the 'remote-images' feature"
+                if options.get("allow_remote_images")
+                else "remote images are disabled; set allow_remote_images to embed them"
+            )
+            render_warnings.append(f"could not embed image '{src}': {reason}")
             return None
         path = Path(src)
+        if not path.is_absolute():
+            path = Path(options.get("base_dir") or ".") / path
         if path.exists() and path.is_file():
-            data = path.read_bytes()
+            try:
+                data = path.read_bytes()
+            except OSError as error:
+                render_warnings.append(f"could not embed image '{src}': {path}: {error}")
+                return None
             if path.suffix.lower() == ".svg" or _sniff_svg(data):
                 rasterized = _rasterize_svg(data)
                 if rasterized is None:
+                    render_warnings.append(f"could not embed image '{src}': failed to rasterize SVG")
                     return None
                 png, svg, width, height = rasterized
                 return {"source": png, "svg": svg, "width_px": width, "height_px": height}
             return {"source": str(path)}
+        render_warnings.append(f"could not embed image '{src}': {path}: file not found")
         return None
 
-    def _image_width(image_source: dict[str, Any]):
+    def _fit_image_px(width: int, height: int) -> tuple[int, int]:
+        max_width = int(options.get("max_image_width_px", 600) or 600)
+        if width <= 0 or width <= max_width:
+            return max(width, 1), max(height, 1)
+        ratio = max_width / width
+        return max_width, max(math.floor(height * ratio + 0.5), 1)
+
+    def _image_size(image_source: dict[str, Any]):
         if "width_px" in image_source:
-            content_width_px = CONTENT_WIDTH_DXA / 15
-            max_width_px = float(options.get("max_image_width_px", 600) or 600)
-            width_px = min(float(image_source["width_px"]), max_width_px, content_width_px)
-            width_inches = width_px / 96
-            return Inches(width_inches)
+            width_px, height_px = _fit_image_px(
+                round(float(image_source["width_px"])),
+                round(float(image_source["height_px"])),
+            )
+            return Emu(width_px * 9525), Emu(height_px * 9525)
         source = image_source["source"]
         if isinstance(source, BytesIO):
             source.seek(0)
@@ -1576,12 +1600,10 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             if isinstance(source, BytesIO):
                 source.seek(0)
             return None
-        dpi = img.horz_dpi or 72
-        native_inches = img.px_width / dpi
-        width_inches = min(native_inches, CONTENT_WIDTH_DXA / 1440)
+        width_px, height_px = _fit_image_px(int(img.px_width), int(img.px_height))
         if isinstance(source, BytesIO):
             source.seek(0)
-        return Inches(width_inches)
+        return Emu(width_px * 9525), Emu(height_px * 9525)
 
     def _blip_rid(run) -> str | None:
         blips = list(run._r.iter(qn("a:blip")))
@@ -1606,14 +1628,16 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         if image_source is None:
             return None
         source = image_source["source"]
-        width = _image_width(image_source)
+        size = _image_size(image_source)
         try:
             run = paragraph.add_run()
-            if width is None:
+            if size is None:
                 run.add_picture(source)
             else:
-                run.add_picture(source, width=width)
-        except Exception:  # noqa: BLE001
+                width, height = size
+                run.add_picture(source, width=width, height=height)
+        except Exception as error:  # noqa: BLE001
+            render_warnings.append(f"could not embed image '{image.get('src') or ''}': {error}")
             return None
         _set_image_alt(run, image)
         if options.get("embed_svg", True) and image_source.get("svg"):

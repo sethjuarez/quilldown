@@ -195,10 +195,18 @@ def test_unavailable_images_fall_back_to_alt_text() -> None:
     assert view["body"][0]["runs"][0]["text"] == "[chart]"
 
 
-def test_large_png_images_are_clamped_to_content_width() -> None:
+def test_large_png_images_are_clamped_to_default_max_image_width() -> None:
     view = rendered_view(_render_bytes(f"![wide]({_png_data_url(1600, 10)})\n"))
     image = view["body"][0]["runs"][0]["image"]
-    assert image["cx"] == 5943600
+    assert image["cx"] == 5715000
+    assert image["cy"] == 38100
+
+
+def test_clamped_png_image_dimensions_use_exact_emu_per_pixel() -> None:
+    view = rendered_view(_render_bytes(f"![wide]({_png_data_url(1600, 35)})\n"))
+    image = view["body"][0]["runs"][0]["image"]
+    assert image["cx"] == 5715000
+    assert image["cy"] == 123825
 
 
 def test_linked_unavailable_images_keep_hyperlink_on_fallback() -> None:

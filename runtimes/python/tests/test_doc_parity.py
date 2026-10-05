@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import os
 import re
+import struct
 import subprocess
 import sys
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -96,6 +98,25 @@ def _svg_data_url(svg: str) -> str:
     import base64
 
     return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _png(width: int = 1, height: int = 1) -> bytes:
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        )
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row = b"\x00" + (b"\xff\x00\x00" * width)
+    raw = row * height
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+def _one_pixel_png() -> bytes:
+    return _png()
 
 
 # Core families whose IR is faithfully preserved and which both engines render
@@ -457,6 +478,129 @@ def test_doc_parity_with_cli_empty_proofing_language(tmp_path: Path) -> None:
     assert rendered_view(py_docx) == rendered_view(rust_docx)
     for docx in (rust_docx, py_docx):
         assert "<w:lang " not in _zip_text(docx, "word/styles.xml")
+
+
+def test_doc_parity_with_cli_local_image_base_dir_and_alt(tmp_path: Path) -> None:
+    image_dir = tmp_path / "assets"
+    image_dir.mkdir()
+    (image_dir / "chart.png").write_bytes(_one_pixel_png())
+    md = '![Chart alt](assets/chart.png "Chart title")\n'
+    md_path = tmp_path / "local-image.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "local-image.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "local-image.py.docx"
+    render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path)}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    for docx in (rust_docx, py_docx):
+        xml = _document_xml(docx)
+        assert 'descr="Chart alt"' in xml
+        assert 'name="Chart alt"' in xml
+
+
+def test_doc_parity_with_cli_image_title_alt_fallback(tmp_path: Path) -> None:
+    (tmp_path / "chart.png").write_bytes(_one_pixel_png())
+    md = '![](chart.png "Chart title")\n'
+    md_path = tmp_path / "image-title.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "image-title.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "image-title.py.docx"
+    render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path)}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    for docx in (rust_docx, py_docx):
+        xml = _document_xml(docx)
+        assert 'descr="Chart title"' in xml
+        assert 'name="Chart title"' not in xml
+
+
+def test_doc_parity_with_cli_raster_image_fit_policy(tmp_path: Path) -> None:
+    (tmp_path / "wide.png").write_bytes(_png(800, 400))
+    md = "![wide](wide.png)\n"
+    md_path = tmp_path / "wide-image.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "wide-image.rust.docx"
+    _render_rust(md_path, rust_docx, "--margin", "1.5")
+
+    py_docx = tmp_path / "wide-image.py.docx"
+    render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path), "margin": 1.5}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    image = rendered_view(py_docx)["body"][0]["runs"][0]["image"]
+    assert image["cx"] == 5715000
+    assert image["cy"] == 2857500
+
+
+def test_doc_parity_with_cli_raster_image_half_pixel_fit_rounding(tmp_path: Path) -> None:
+    (tmp_path / "half.png").write_bytes(_png(1200, 5))
+    md = "![half](half.png)\n"
+    md_path = tmp_path / "half-image.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "half-image.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "half-image.py.docx"
+    render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path)}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    image = rendered_view(py_docx)["body"][0]["runs"][0]["image"]
+    assert image["cx"] == 5715000
+    assert image["cy"] == 28575
+
+
+def test_doc_parity_with_cli_remote_image_fallback(tmp_path: Path) -> None:
+    md = "![](https://example.com/chart.png)\n"
+    md_path = tmp_path / "remote-image.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "remote-image.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "remote-image.py.docx"
+    py_doc = render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path)})
+    py_doc.save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    assert "[https://example.com/chart.png]" in _document_xml(py_docx)
+    assert py_doc.quilldown_warnings
+
+
+def test_doc_parity_with_cli_formatted_missing_image_fallback(tmp_path: Path) -> None:
+    md = "**bold ![chart](missing.png) tail**\n\n**[![chart](missing.png)](https://example.com)**\n"
+    md_path = tmp_path / "missing-image-format.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "missing-image-format.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "missing-image-format.py.docx"
+    render_docx(markdown_to_ir(md), {"base_dir": str(tmp_path)}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    first_runs = rendered_view(py_docx)["body"][0]["runs"]
+    fallback = next(run for run in first_runs if run.get("text") == "[chart]")
+    assert fallback["bold"] is False
+    assert fallback["italic"] is True
 
 
 def test_doc_parity_with_cli_svg_layers(tmp_path: Path) -> None:
