@@ -84,6 +84,22 @@ def _omml_fragments(path: Path) -> list[str]:
     return re.findall(r"<m:oMath[\s\S]*?</m:oMath>", _document_xml(path))
 
 
+def _zip_text(path: Path, name: str) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return zf.read(name).decode("utf-8")
+
+
+def _zip_names(path: Path) -> set[str]:
+    with zipfile.ZipFile(path) as zf:
+        return set(zf.namelist())
+
+
+def _svg_data_url(svg: str) -> str:
+    import base64
+
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
 # Core families whose IR is faithfully preserved and which both engines render
 # to the same Word-level view. Images are deliberately excluded: they are
 # embedded by the Rust CLI on its out-of-band byte path, while Python still only
@@ -296,3 +312,109 @@ def test_doc_parity_with_cli_math(tmp_path: Path) -> None:
         assert '<m:sty m:val="p"/>' in xml
     assert _omml_fragments(py_docx) == _omml_fragments(rust_docx)
     assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_svg_layers(tmp_path: Path) -> None:
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">'
+        '<filter color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="1"/></filter>'
+        '<rect width="120" height="60" fill="#000"/>'
+        '<rect width="10" height="10" fill="rgb(13, 17, 23)"/>'
+        '<text x="10" y="30" fill="#ffffff">Dark</text>'
+        "</svg>"
+    )
+    md = f"![diagram]({_svg_data_url(svg)})\n"
+    md_path = tmp_path / "svg.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "svg.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "svg.py.docx"
+    render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    for docx in (rust_docx, py_docx):
+        names = _zip_names(docx)
+        document = _document_xml(docx)
+        rels = _zip_text(docx, "word/_rels/document.xml.rels")
+        types = _zip_text(docx, "[Content_Types].xml")
+        svg_names = [name for name in names if name.startswith("word/media/") and name.endswith(".svg")]
+        png_names = [name for name in names if name.startswith("word/media/") and name.endswith(".png")]
+        assert png_names
+        assert svg_names
+        assert "<asvg:svgBlip" in document
+        assert "image/svg+xml" in types
+        assert any(name.removeprefix("word/") in rels for name in svg_names)
+        svg_layer = _zip_text(docx, svg_names[0])
+        assert 'color-interpolation-filters="sRGB"' in svg_layer
+        assert "<feGaussianBlur" in svg_layer
+        assert "rgb(232, 236, 242)" in svg_layer
+        assert "#ffffff" in svg_layer
+        assert "#000000" in svg_layer
+        image = rendered_view(docx)["body"][0]["runs"][0]["image"]
+        assert image["alt"] == "diagram"
+        assert (image["cx"], image["cy"]) == (1143000, 571500)
+
+
+def test_doc_parity_with_cli_svg_without_vector_layer(tmp_path: Path) -> None:
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="8"/></svg>'
+    md = f"![icon]({_svg_data_url(svg)})\n"
+    md_path = tmp_path / "svg-no-layer.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "svg-no-layer.rust.docx"
+    _render_rust(md_path, rust_docx, "--no-embed-svg")
+
+    py_docx = tmp_path / "svg-no-layer.py.docx"
+    render_docx(lower(md).save(), {"embed_svg": False}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    for docx in (rust_docx, py_docx):
+        names = _zip_names(docx)
+        assert any(name.startswith("word/media/") and name.endswith(".png") for name in names)
+        assert not any(name.startswith("word/media/") and name.endswith(".svg") for name in names)
+        assert "<asvg:svgBlip" not in _document_xml(docx)
+        image = rendered_view(docx)["body"][0]["runs"][0]["image"]
+        assert image["alt"] == "icon"
+
+
+def test_doc_parity_with_cli_svg_reuse_and_sizing(tmp_path: Path) -> None:
+    small = _svg_data_url('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16"/></svg>')
+    absolute = _svg_data_url(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="2in" height="1in"><rect width="192" height="96"/></svg>'
+    )
+    wide = _svg_data_url(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200"><rect width="800" height="200"/></svg>'
+    )
+    md = f"![same]({small})\n\n![same]({small})\n\n![absolute]({absolute})\n\n![wide]({wide})\n"
+    md_path = tmp_path / "svg-sizing.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "svg-sizing.rust.docx"
+    _render_rust(md_path, rust_docx)
+
+    py_docx = tmp_path / "svg-sizing.py.docx"
+    render_docx(lower(md).save()).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    for docx in (rust_docx, py_docx):
+        names = _zip_names(docx)
+        document = _document_xml(docx)
+        rels = _zip_text(docx, "word/_rels/document.xml.rels")
+        svg_names = [name for name in names if name.startswith("word/media/") and name.endswith(".svg")]
+        svg_rel_ids = re.findall(r'Id="([^"]+Svg)"', rels)
+        assert len(svg_names) == len(set(svg_names))
+        assert len(svg_rel_ids) == len(set(svg_rel_ids)) == len(svg_names)
+        assert len(svg_names) in (3, 4)
+        assert document.count("<asvg:svgBlip") == 4
+        images = [paragraph["runs"][0]["image"] for paragraph in rendered_view(docx)["body"]]
+        assert [(img["cx"], img["cy"]) for img in images] == [
+            (304800, 152400),
+            (304800, 152400),
+            (1828800, 914400),
+            (5715000, 1428750),
+        ]

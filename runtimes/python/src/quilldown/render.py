@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
+import resvg
 from latex2mathml.converter import convert as latex_to_mathml
 
 
@@ -288,10 +290,14 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     heading_slugs: dict[str, int] = {}
     caption_labels: dict[str, str] = {}
     math_embeds: list[tuple[str, str]] = []
+    svg_embeds: list[dict[str, Any]] = []
     render_warnings: list[str] = []
     last_flow: str | None = None
 
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    SVG_EXT_URI = "{96DAC541-7B7A-43D3-8B79-37D633B846F1}"
+    ASVG_NS = "http://schemas.microsoft.com/office/drawing/2016/SVG/main"
+    IMAGE_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 
     def _math_sentinel(index: int) -> str:
         return f"\ue000QDMATH{index}\ue000"
@@ -538,6 +544,61 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                         document = document[:start] + omml + document[end:]
                     data = document.encode("utf-8")
                 zout.writestr(item, data)
+        return out_buf.getvalue()
+
+    def _inject_svg_layers(docx_bytes: bytes) -> bytes:
+        if not svg_embeds:
+            return docx_bytes
+        unique_embeds = []
+        seen_png_rids = set()
+        for embed in svg_embeds:
+            if embed["png_rid"] not in seen_png_rids:
+                unique_embeds.append(embed)
+                seen_png_rids.add(embed["png_rid"])
+        out_buf = BytesIO()
+        with zipfile.ZipFile(BytesIO(docx_bytes), "r") as zin, zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as zout:
+            written = set(zin.namelist())
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename == "word/document.xml":
+                    document = data.decode("utf-8")
+                    for embed in unique_embeds:
+                        png_rid = embed["png_rid"]
+                        svg_rid = f"{png_rid}Svg"
+                        replacement = (
+                            f'<a:blip r:embed="{png_rid}"><a:extLst><a:ext uri="{SVG_EXT_URI}">'
+                            f'<asvg:svgBlip xmlns:asvg="{ASVG_NS}" r:embed="{svg_rid}" />'
+                            "</a:ext></a:extLst></a:blip>"
+                        )
+                        document = document.replace(f'<a:blip r:embed="{png_rid}"/>', replacement)
+                        document = document.replace(f'<a:blip r:embed="{png_rid}" />', replacement)
+                    data = document.encode("utf-8")
+                elif item.filename == "word/_rels/document.xml.rels":
+                    rels = data.decode("utf-8")
+                    inserts = "".join(
+                        (
+                            f'<Relationship Id="{embed["png_rid"]}Svg" Type="{IMAGE_REL_TYPE}" '
+                            f'Target="media/{embed["png_rid"]}Svg.svg" />'
+                        )
+                        for embed in unique_embeds
+                    )
+                    rels = rels.replace("</Relationships>", f"{inserts}</Relationships>", 1)
+                    data = rels.encode("utf-8")
+                elif item.filename == "[Content_Types].xml":
+                    types = data.decode("utf-8")
+                    if 'Extension="svg"' not in types:
+                        types = types.replace(
+                            "</Types>",
+                            '<Default ContentType="image/svg+xml" Extension="svg" /></Types>',
+                            1,
+                        )
+                    data = types.encode("utf-8")
+                zout.writestr(item, data)
+            for embed in unique_embeds:
+                name = f'word/media/{embed["png_rid"]}Svg.svg'
+                if name not in written:
+                    zout.writestr(name, embed["svg"])
+                    written.add(name)
         return out_buf.getvalue()
 
     def inline_plain_text(inlines: list[dict]) -> str:
@@ -1154,26 +1215,175 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             run.font.color.rgb = RGBColor.from_string(QUOTE_TEXT_COLOR)
         return run
 
-    def _image_source(src: str) -> BytesIO | str | None:
-        if src.startswith("data:image/"):
+    def _percent_decode(payload: str) -> bytes:
+        out_bytes = bytearray()
+        i = 0
+        raw = payload.encode("utf-8")
+        while i < len(raw):
+            if raw[i : i + 1] == b"%" and i + 2 < len(raw):
+                try:
+                    out_bytes.append(int(raw[i + 1 : i + 3].decode("ascii"), 16))
+                    i += 3
+                    continue
+                except ValueError:
+                    pass
+            out_bytes.append(0x20 if raw[i] == ord("+") else raw[i])
+            i += 1
+        return bytes(out_bytes)
+
+    def _decode_data_url(src: str) -> tuple[bytes, bool] | None:
+        if not src.startswith("data:"):
+            return None
+        try:
+            meta, payload = src[5:].split(",", 1)
+        except ValueError:
+            return None
+        mime = meta.split(";", 1)[0].lower()
+        try:
+            if any(part.lower() == "base64" for part in meta.split(";")):
+                data = base64.b64decode(payload.strip(), validate=True)
+            else:
+                data = _percent_decode(payload)
+        except (ValueError, binascii.Error):
+            return None
+        return data, mime == "image/svg+xml"
+
+    def _sniff_svg(data: bytes) -> bool:
+        head = data[:256].decode("utf-8", errors="ignore").lstrip()
+        return head.startswith(("<svg", "<?xml"))
+
+    def _svg_light_mode(svg: str) -> str:
+        def hex_repl(match: re.Match[str]) -> str:
+            value = match.group(1)
+            if len(value) == 3:
+                r, g, b = (int(ch * 2, 16) for ch in value)
+            elif len(value) == 6:
+                r, g, b = (int(value[i : i + 2], 16) for i in (0, 2, 4))
+            else:
+                return match.group(0)
+            return _rgb_to_hex(_flip_lightness(r, g, b))
+
+        def rgb_repl(match: re.Match[str]) -> str:
+            channels = [part.strip() for part in match.group(2).split(",")]
+            if len(channels) not in (3, 4):
+                return match.group(0)
             try:
-                meta, payload = src.split(",", 1)
-            except (ValueError, binascii.Error):
-                return None
-            if ";base64" not in meta:
-                return None
+                r, g, b = (int(channels[i]) for i in range(3))
+            except ValueError:
+                return match.group(0)
+            if not all(0 <= value <= 255 for value in (r, g, b)):
+                return match.group(0)
+            flipped = _flip_lightness(r, g, b)
+            if len(channels) == 4:
+                return f"rgba({flipped[0]}, {flipped[1]}, {flipped[2]}, {channels[3]})"
+            return f"rgb({flipped[0]}, {flipped[1]}, {flipped[2]})"
+
+        svg = re.sub(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})(?![0-9a-fA-F])", hex_repl, svg)
+        return re.sub(r"\b(rgb|rgba)\(([^)]*)\)", rgb_repl, svg, flags=re.IGNORECASE)
+
+    def _flip_lightness(r: int, g: int, b: int) -> tuple[int, int, int]:
+        r_f, g_f, b_f = r / 255, g / 255, b / 255
+        max_c, min_c = max(r_f, g_f, b_f), min(r_f, g_f, b_f)
+        light = (max_c + min_c) / 2
+        delta = max_c - min_c
+        if delta == 0:
+            value = round((1 - light) * 255)
+            return value, value, value
+        sat = delta / (2 - max_c - min_c) if light > 0.5 else delta / (max_c + min_c)
+        if max_c == r_f:
+            hue = ((g_f - b_f) / delta) % 6
+        elif max_c == g_f:
+            hue = (b_f - r_f) / delta + 2
+        else:
+            hue = (r_f - g_f) / delta + 4
+        hue /= 6
+        return _hsl_to_rgb(hue, sat, 1 - light)
+
+    def _hsl_to_rgb(hue: float, sat: float, light: float) -> tuple[int, int, int]:
+        if sat == 0:
+            value = round(light * 255)
+            return value, value, value
+        q = light * (1 + sat) if light < 0.5 else light + sat - light * sat
+        p = 2 * light - q
+
+        def channel(t: float) -> int:
+            if t < 0:
+                t += 1
+            if t > 1:
+                t -= 1
+            if t < 1 / 6:
+                v = p + (q - p) * 6 * t
+            elif t < 1 / 2:
+                v = q
+            elif t < 2 / 3:
+                v = p + (q - p) * (2 / 3 - t) * 6
+            else:
+                v = p
+            return round(v * 255)
+
+        return channel(hue + 1 / 3), channel(hue), channel(hue - 1 / 3)
+
+    def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+
+    def _rasterize_svg(svg: bytes) -> tuple[BytesIO, bytes, float, float] | None:
+        source = svg
+        if options.get("svg_light_mode", True):
             try:
-                return BytesIO(base64.b64decode(payload, validate=True))
-            except binascii.Error:
+                source = _svg_light_mode(svg.decode("utf-8")).encode("utf-8")
+            except UnicodeDecodeError:
                 return None
+        dpi = float(options.get("dpi", options.get("image_dpi", 192)) or 192)
+        scale = max(dpi / 96, 0.1)
+        try:
+            svg_text = source.decode("utf-8")
+            resvg_options = resvg.usvg.Options.default()
+            resvg_options.load_system_fonts()
+            tree = resvg.usvg.Tree.from_str(svg_text, resvg_options)
+            width, height = tree.int_size()
+            png = resvg.render(
+                tree,
+                (scale, 0, 0, scale, 0, 0),
+                bg_size=(round(width * scale), round(height * scale)),
+                bg_color=(0, 0, 0, 0),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+        return BytesIO(png), source, width, height
+
+    def _image_source(src: str) -> dict[str, Any] | None:
+        data_url = _decode_data_url(src)
+        if data_url is not None:
+            data, svg_hint = data_url
+            if svg_hint or _sniff_svg(data):
+                rasterized = _rasterize_svg(data)
+                if rasterized is None:
+                    return None
+                png, svg, width, height = rasterized
+                return {"source": png, "svg": svg, "width_px": width, "height_px": height}
+            return {"source": BytesIO(data)}
         if src.startswith(("http://", "https://")):
             return None
         path = Path(src)
         if path.exists() and path.is_file():
-            return str(path)
+            data = path.read_bytes()
+            if path.suffix.lower() == ".svg" or _sniff_svg(data):
+                rasterized = _rasterize_svg(data)
+                if rasterized is None:
+                    return None
+                png, svg, width, height = rasterized
+                return {"source": png, "svg": svg, "width_px": width, "height_px": height}
+            return {"source": str(path)}
         return None
 
-    def _image_width(source: BytesIO | str):
+    def _image_width(image_source: dict[str, Any]):
+        if "width_px" in image_source:
+            content_width_px = CONTENT_WIDTH_DXA / 15
+            max_width_px = float(options.get("max_image_width_px", 600) or 600)
+            width_px = min(float(image_source["width_px"]), max_width_px, content_width_px)
+            width_inches = width_px / 96
+            return Inches(width_inches)
+        source = image_source["source"]
         if isinstance(source, BytesIO):
             source.seek(0)
         try:
@@ -1189,11 +1399,30 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             source.seek(0)
         return Inches(width_inches)
 
-    def _add_image_run(paragraph, image: dict):
-        source = _image_source(image.get("src") or "")
-        if source is None:
+    def _blip_rid(run) -> str | None:
+        blips = list(run._r.iter(qn("a:blip")))
+        if not blips:
             return None
-        width = _image_width(source)
+        return blips[0].get(qn("r:embed"))
+
+    def _set_image_alt(run, image: dict) -> None:
+        alt = image.get("alt") or ""
+        descr = alt if alt.strip() else image.get("title") or ""
+        name = alt if alt.strip() else ""
+        if not descr and not name:
+            return
+        for docpr in run._r.iter(qn("wp:docPr")):
+            if descr:
+                docpr.set("descr", descr)
+            if name:
+                docpr.set("name", name)
+
+    def _add_image_run(paragraph, image: dict):
+        image_source = _image_source(image.get("src") or "")
+        if image_source is None:
+            return None
+        source = image_source["source"]
+        width = _image_width(image_source)
         try:
             run = paragraph.add_run()
             if width is None:
@@ -1202,6 +1431,11 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 run.add_picture(source, width=width)
         except Exception:  # noqa: BLE001
             return None
+        _set_image_alt(run, image)
+        if options.get("embed_svg", True) and image_source.get("svg"):
+            rid = _blip_rid(run)
+            if rid:
+                svg_embeds.append({"png_rid": rid, "svg": image_source["svg"]})
         return run
 
     def _add_hyperlinked_image(paragraph, url: str, image: dict) -> bool:
@@ -1566,12 +1800,13 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     _original_save = out.save
 
     def _save_with_math_splice(path_or_stream) -> None:
-        if not math_embeds:
+        if not math_embeds and not svg_embeds:
             _original_save(path_or_stream)
             return
         buf = BytesIO()
         _original_save(buf)
         data = _inject_math(buf.getvalue())
+        data = _inject_svg_layers(data)
         if hasattr(path_or_stream, "write"):
             path_or_stream.write(data)
         else:

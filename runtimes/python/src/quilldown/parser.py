@@ -166,6 +166,22 @@ _MD = (
 # comrak's inline-math delimiter rule differs from every dollarmath option combo;
 # swap in a faithful rule (its block rule and config are still used).
 _MD.inline.ruler.at("math_inline", _math_inline_comrak)
+_DEFAULT_VALIDATE_LINK = _MD.validateLink
+_DEFAULT_NORMALIZE_LINK = _MD.normalizeLink
+
+
+def _validate_link(url: str) -> bool:
+    return url.lower().startswith("data:image/") or _DEFAULT_VALIDATE_LINK(url)
+
+
+def _normalize_link(url: str) -> str:
+    if url.lower().startswith("data:image/"):
+        return url
+    return _DEFAULT_NORMALIZE_LINK(url)
+
+
+_MD.validateLink = _validate_link
+_MD.normalizeLink = _normalize_link
 
 
 # comrak's flanking test (parser/inlines.rs `scan_delims`/`get_before_char`)

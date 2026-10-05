@@ -11,6 +11,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     "mdit-py-plugins>=0.4",
     "pyyaml>=6.0",
+    "resvg>=0.2.0",
 ]
 
 [project.urls]
