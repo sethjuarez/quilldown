@@ -641,9 +641,60 @@ def _strip_front_matter(src: str, delimiter: str = "---") -> str:
     return s[start:]
 
 
+def _front_matter_raw(src: str, delimiter: str = "---") -> str | None:
+    s = src.removeprefix("\ufeff")
+    if not s.startswith(delimiter):
+        return None
+    start = len(delimiter)
+    if s[start:].startswith("\n"):
+        start += 1
+    elif s[start:].startswith("\r\n"):
+        start += 2
+    else:
+        return None
+    rest = s[start:]
+    idx = -1
+    for pat in ("\n" + delimiter + "\r\n", "\n" + delimiter + "\n", "\n" + delimiter):
+        idx = rest.find(pat)
+        if idx != -1:
+            break
+    if idx == -1:
+        return None
+    return rest[:idx]
+
+
+def _parse_front_matter_metadata(src: str) -> dict:
+    raw = _front_matter_raw(src)
+    if raw is None:
+        return {}
+    meta = {}
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("---", "...")) or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if not value:
+            continue
+        key = key.strip().lower()
+        if key in {"title", "subject", "language", "lang", "date", "created"}:
+            meta[{"lang": "language", "date": "created"}.get(key, key)] = value
+        elif key in {"author", "authors", "creator"}:
+            meta["creator"] = value
+        elif key in {"description", "summary", "abstract"}:
+            meta["description"] = value
+        elif key in {"keywords", "tags"}:
+            stripped = value.strip()
+            meta["keywords"] = stripped[1:-1].strip() if stripped.startswith("[") and stripped.endswith("]") else value
+    return meta
+
+
 def markdown_to_ir(markdown: str) -> dict:
     # comrak strips a leading `---`-delimited front matter block before parsing
     # and ir::lower drops the node; mirror that so the body lowers identically.
+    metadata = _parse_front_matter_metadata(markdown)
     markdown = _strip_front_matter(markdown)
     # Seed the footnote registry with a case-insensitive refs map so label
     # matching mirrors comrak (see _CaseInsensitiveRefs).
@@ -662,6 +713,8 @@ def markdown_to_ir(markdown: str) -> dict:
     doc = {"blocks": _blocks(root.children)}
     if footnotes:
         doc["footnotes"] = footnotes
+    if metadata:
+        doc["metadata"] = metadata
     return doc
 
 

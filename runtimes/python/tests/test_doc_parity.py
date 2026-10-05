@@ -29,7 +29,7 @@ from doc_inspector import rendered_view
 from doc_normalizer import normalize_docx
 from docx_invariants import assert_strict_ooxml_invariants
 
-from quilldown import lower, render_docx
+from quilldown import lower, markdown_to_ir, render_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECT_CLI_PARITY = os.environ.get("QUILLDOWN_EXPECT_CLI_PARITY") == "1"
@@ -374,6 +374,89 @@ def test_doc_parity_with_cli_empty_highlighted_code(tmp_path: Path) -> None:
     assert_strict_ooxml_invariants(rust_docx)
     assert_strict_ooxml_invariants(py_docx)
     assert rendered_view(py_docx) == rendered_view(rust_docx)
+
+
+def test_doc_parity_with_cli_front_matter_metadata(tmp_path: Path) -> None:
+    md = (
+        "---\n"
+        "title: Quarterly Report\n"
+        "author: Seth Juarez\n"
+        "subject: Finance\n"
+        "description: Q3 results & outlook\n"
+        "keywords: [finance, report]\n"
+        "lang: fr-FR\n"
+        "date: 2024-09-30\n"
+        "---\n\n"
+        "# Body\n\nText.\n"
+    )
+    md_path = tmp_path / "metadata.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "metadata.rust.docx"
+    _render_rust(md_path, rust_docx, "--language", "de-DE")
+
+    py_docx = tmp_path / "metadata.py.docx"
+    render_docx(markdown_to_ir(md), {"language": "de-DE"}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    for docx in (rust_docx, py_docx):
+        core = _zip_text(docx, "docProps/core.xml")
+        styles = _zip_text(docx, "word/styles.xml")
+        assert "<dc:title>Quarterly Report</dc:title>" in core
+        assert "<dc:creator>Seth Juarez</dc:creator>" in core
+        assert "<dc:subject>Finance</dc:subject>" in core
+        assert "<dc:description>Q3 results &amp; outlook</dc:description>" in core
+        assert "<cp:keywords>finance, report</cp:keywords>" in core
+        assert "<dc:language>fr-FR</dc:language>" in core
+        assert core.count("<dc:title") == 1
+        assert core.count("<dc:subject") == 1
+        assert core.count("<cp:keywords") == 1
+        assert (
+            '<dcterms:created xsi:type="dcterms:W3CDTF">2024-09-30</dcterms:created>'
+            in core
+        )
+        assert '<w:lang w:val="fr-FR" />' in styles
+        assert "de-DE" not in styles
+        if '<w:szCs w:val="24"/>' in styles:
+            assert styles.index('<w:lang w:val="fr-FR" />') > styles.index('<w:szCs w:val="24"/>')
+
+
+def test_doc_parity_with_cli_configured_proofing_language(tmp_path: Path) -> None:
+    md = "# Hallo\n\nText.\n"
+    md_path = tmp_path / "proofing.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "proofing.rust.docx"
+    _render_rust(md_path, rust_docx, "--language", "de-DE")
+
+    py_docx = tmp_path / "proofing.py.docx"
+    render_docx(markdown_to_ir(md), {"language": "de-DE"}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    for docx in (rust_docx, py_docx):
+        assert '<w:lang w:val="de-DE" />' in _zip_text(docx, "word/styles.xml")
+
+
+def test_doc_parity_with_cli_empty_proofing_language(tmp_path: Path) -> None:
+    md = "# Hi\n\nText.\n"
+    md_path = tmp_path / "proofing-empty.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    rust_docx = tmp_path / "proofing-empty.rust.docx"
+    _render_rust(md_path, rust_docx, "--language", "")
+
+    py_docx = tmp_path / "proofing-empty.py.docx"
+    render_docx(markdown_to_ir(md), {"language": ""}).save(str(py_docx))
+
+    assert_strict_ooxml_invariants(rust_docx)
+    assert_strict_ooxml_invariants(py_docx)
+    assert rendered_view(py_docx) == rendered_view(rust_docx)
+    for docx in (rust_docx, py_docx):
+        assert "<w:lang " not in _zip_text(docx, "word/styles.xml")
 
 
 def test_doc_parity_with_cli_svg_layers(tmp_path: Path) -> None:

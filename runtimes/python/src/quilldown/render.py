@@ -307,6 +307,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     svg_embeds: list[dict[str, Any]] = []
     render_warnings: list[str] = []
     last_flow: str | None = None
+    metadata = doc.get("metadata") or {}
 
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
     SVG_EXT_URI = "{96DAC541-7B7A-43D3-8B79-37D633B846F1}"
@@ -329,6 +330,9 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
             .replace(">", "&gt;")
             .replace('"', "&quot;")
         )
+
+    def _xml_escape_all(text: str) -> str:
+        return _xml_escape(text).replace("'", "&apos;")
 
     def _node_text(node: ET.Element | None) -> str:
         return "".join(node.itertext()) if node is not None else ""
@@ -613,6 +617,86 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
                 if name not in written:
                     zout.writestr(name, embed["svg"])
                     written.add(name)
+        return out_buf.getvalue()
+
+    def _set_core_element(xml: str, tag: str, value: str | None) -> str:
+        if not value:
+            return xml
+        esc = _xml_escape_all(str(value))
+        open_tag = f"<{tag}>"
+        close_tag = f"</{tag}>"
+        start = xml.find(open_tag)
+        end = xml.find(close_tag)
+        if start >= 0 and end >= 0 and start + len(open_tag) <= end:
+            return xml[: start + len(open_tag)] + esc + xml[end:]
+        self_closing = f"<{tag}/>"
+        start = xml.find(self_closing)
+        if start >= 0:
+            return xml[:start] + f"{open_tag}{esc}{close_tag}" + xml[start + len(self_closing) :]
+        pos = xml.find("</cp:coreProperties>")
+        if pos >= 0:
+            return xml[:pos] + f"{open_tag}{esc}{close_tag}" + xml[pos:]
+        return xml
+
+    def _set_core_element_text(xml: str, tag: str, value: str | None) -> str:
+        if not value:
+            return xml
+        esc = _xml_escape_all(str(value))
+        close_tag = f"</{tag}>"
+        start = xml.find(f"<{tag}")
+        end = xml.find(close_tag)
+        if start >= 0 and end >= 0:
+            open_end = xml.find(">", start, end)
+            if open_end >= 0:
+                return xml[: open_end + 1] + esc + xml[end:]
+        return xml
+
+    def _set_default_lang(styles: str, language: str) -> str:
+        language = language.strip()
+        lang_el = f'<w:lang w:val="{_xml_escape(language)}" />' if language else ""
+        marker = "<w:rPrDefault>"
+        start = styles.find(marker)
+        if start < 0:
+            return styles
+        region_start = start + len(marker)
+        remainder = styles[region_start:]
+        empty = re.match(r"\s*<w:rPr\s*/>", remainder)
+        if empty:
+            at = region_start + empty.start()
+            end = region_start + empty.end()
+            return styles[:at] + f"<w:rPr>{lang_el}</w:rPr>" + styles[end:]
+        open_match = re.match(r"\s*<w:rPr(?:\s[^>]*)?>", remainder)
+        if open_match:
+            end_rel = remainder.find("</w:rPr>")
+            if end_rel >= 0:
+                inner = region_start + open_match.end()
+                end_abs = region_start + end_rel
+                current = re.sub(r"<w:lang\b[^>]*/>", "", styles[inner:end_abs], count=1)
+                if not language:
+                    return styles[:inner] + current + styles[end_abs:]
+                return styles[:inner] + current + lang_el + styles[end_abs:]
+        return styles
+
+    def _inject_metadata(docx_bytes: bytes) -> bytes:
+        language = str(metadata.get("language") or options.get("language", "en-US"))
+        out_buf = BytesIO()
+        with zipfile.ZipFile(BytesIO(docx_bytes), "r") as zin, zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename == "docProps/core.xml" and metadata:
+                    core = data.decode("utf-8")
+                    core = _set_core_element(core, "dc:title", metadata.get("title"))
+                    core = _set_core_element(core, "dc:creator", metadata.get("creator"))
+                    core = _set_core_element(core, "dc:subject", metadata.get("subject"))
+                    core = _set_core_element(core, "dc:description", metadata.get("description"))
+                    core = _set_core_element(core, "cp:keywords", metadata.get("keywords"))
+                    core = _set_core_element(core, "dc:language", metadata.get("language"))
+                    if metadata.get("created"):
+                        core = _set_core_element_text(core, "dcterms:created", metadata.get("created"))
+                    data = core.encode("utf-8")
+                elif item.filename == "word/styles.xml":
+                    data = _set_default_lang(data.decode("utf-8"), language).encode("utf-8")
+                zout.writestr(item, data)
         return out_buf.getvalue()
 
     def inline_plain_text(inlines: list[dict]) -> str:
@@ -1915,13 +1999,11 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
     _original_save = out.save
 
     def _save_with_math_splice(path_or_stream) -> None:
-        if not math_embeds and not svg_embeds:
-            _original_save(path_or_stream)
-            return
         buf = BytesIO()
         _original_save(buf)
         data = _inject_math(buf.getvalue())
         data = _inject_svg_layers(data)
+        data = _inject_metadata(data)
         if hasattr(path_or_stream, "write"):
             path_or_stream.write(data)
         else:
