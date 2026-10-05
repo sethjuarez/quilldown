@@ -129,6 +129,13 @@ model BlockQuote extends Block {
   blocks: Block[];
 }
 
+model AlertBlock extends Block {
+  kind: "alert";
+  alert_type: string;
+  title?: string;
+  blocks: Block[];
+}
+
 // A list item is modeled as a `Block` variant (rather than a standalone model)
 // so it is emitted into the same generated module as `Block`. A standalone
 // model that both references `Block` and is referenced by it produces a hard
@@ -174,13 +181,31 @@ model Document {
   footnotes?: FootnoteDefinition[];
 }
 
-// Reserved option bags (Core tier uses no options yet).
+// Lowering options. Core currently has only strict diagnostics.
 model ConvertOptions {
   strict?: boolean;
 }
 
+// Render options shared by emit/render runtimes. Field names mirror Rust
+// ConvertOptions (not necessarily CLI flags: CLI `--no-*` flags invert the
+// positive booleans here). Margin is inches; image_dpi is rasterization DPI.
 model RenderOptions {
   strict?: boolean;
+  image_dpi?: float64;
+  embed_svg?: boolean;
+  svg_light_mode?: boolean;
+  max_image_width_px?: uint32;
+  base_dir?: string;
+  highlight_code?: boolean;
+  theme?: string;
+  page_size?: string;
+  orientation?: string;
+  margin?: float64;
+  page_numbers?: boolean;
+  table_of_contents?: boolean;
+  language?: string;
+  allow_remote_images?: boolean;
+  captions?: boolean;
 }
 
 // Deterministic emit diagnostics — the observable contract for `emit`. The
@@ -205,6 +230,9 @@ interface Quilldown {
 
   @vector(EmitVectors)
   emit(doc: Document, options?: RenderOptions): RenderStats;
+
+  @vector(RenderVectors)
+  render(doc: Document, options?: RenderOptions): unknown;
 }
 
 // Emitter root-object: its closure pulls in the full model surface, and each

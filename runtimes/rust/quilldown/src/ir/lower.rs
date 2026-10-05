@@ -11,10 +11,10 @@
 //! [`Inline::Text`] (or their formatting is flattened) rather than dropped, mirroring how the
 //! reference engine degrades unsupported input.
 
-use comrak::nodes::{AstNode, ListType, NodeValue, TableAlignment};
+use comrak::nodes::{AlertType as ComrakAlertType, AstNode, ListType, NodeValue, TableAlignment};
 use comrak::{parse_document, Arena};
 
-use crate::ir::model::{Align, Block, Document, Inline, List, ListItem, Table};
+use crate::ir::model::{AlertType, Align, Block, Document, Inline, List, ListItem, Table};
 use crate::render::{comrak_options_pub, text_of};
 
 /// Lower a Markdown string into the portable [`Document`] IR.
@@ -70,12 +70,26 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
                 .next()
                 .filter(|s| !s.is_empty())
                 .map(str::to_string);
-            out.push(Block::CodeBlock {
-                language,
-                code: cb.literal.clone(),
-            });
+            if language.as_deref() == Some("math") {
+                out.push(Block::Paragraph {
+                    content: vec![Inline::Math {
+                        latex: cb.literal.clone(),
+                        display: true,
+                    }],
+                });
+            } else {
+                out.push(Block::CodeBlock {
+                    language,
+                    code: cb.literal.clone(),
+                });
+            }
         }
         NodeValue::BlockQuote => out.push(Block::BlockQuote {
+            blocks: lower_blocks(node),
+        }),
+        NodeValue::Alert(alert) => out.push(Block::Alert {
+            alert_type: map_alert_type(alert.alert_type),
+            title: alert.title,
             blocks: lower_blocks(node),
         }),
         NodeValue::List(list) => {
@@ -92,6 +106,16 @@ fn lower_block<'a>(node: &'a AstNode<'a>, out: &mut Vec<Block>) {
                 lower_block(child, out);
             }
         }
+    }
+}
+
+fn map_alert_type(alert_type: ComrakAlertType) -> AlertType {
+    match alert_type {
+        ComrakAlertType::Note => AlertType::Note,
+        ComrakAlertType::Tip => AlertType::Tip,
+        ComrakAlertType::Important => AlertType::Important,
+        ComrakAlertType::Warning => AlertType::Warning,
+        ComrakAlertType::Caution => AlertType::Caution,
     }
 }
 
@@ -297,6 +321,21 @@ mod tests {
                 Inline::Math { latex, display } if latex == "E = mc^2" && !*display
             )),
             "inline math must lower to an Inline::Math node, not text"
+        );
+    }
+
+    #[test]
+    fn preserves_fenced_math_as_display_math_node() {
+        let doc = lower("```math\nx^2 + y^2\n```\n");
+        let Block::Paragraph { content } = &doc.blocks[0] else {
+            panic!("expected a paragraph");
+        };
+        assert_eq!(
+            content,
+            &vec![Inline::Math {
+                latex: "x^2 + y^2\n".into(),
+                display: true,
+            }]
         );
     }
 

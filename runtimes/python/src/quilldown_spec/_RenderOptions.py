@@ -19,11 +19,56 @@ class RenderOptions:
     ----------
     strict : Optional[bool]
 
+    image_dpi : Optional[float]
+
+    embed_svg : Optional[bool]
+
+    svg_light_mode : Optional[bool]
+
+    max_image_width_px : Optional[Any]
+
+    base_dir : Optional[str]
+
+    highlight_code : Optional[bool]
+
+    theme : Optional[str]
+
+    page_size : Optional[str]
+
+    orientation : Optional[str]
+
+    margin : Optional[float]
+
+    page_numbers : Optional[bool]
+
+    table_of_contents : Optional[bool]
+
+    language : Optional[str]
+
+    allow_remote_images : Optional[bool]
+
+    captions : Optional[bool]
+
     """
 
     _shorthand_property: ClassVar[str | None] = None
 
     strict: bool | None = None
+    image_dpi: float | None = None
+    embed_svg: bool | None = None
+    svg_light_mode: bool | None = None
+    max_image_width_px: Any | None = None
+    base_dir: str | None = None
+    highlight_code: bool | None = None
+    theme: str | None = None
+    page_size: str | None = None
+    orientation: str | None = None
+    margin: float | None = None
+    page_numbers: bool | None = None
+    table_of_contents: bool | None = None
+    language: str | None = None
+    allow_remote_images: bool | None = None
+    captions: bool | None = None
 
     @staticmethod
     def load(data: Any, context: LoadContext | None = None) -> "RenderOptions":
@@ -48,6 +93,36 @@ class RenderOptions:
 
         if data is not None and "strict" in data:
             instance.strict = data["strict"]
+        if data is not None and "image_dpi" in data:
+            instance.image_dpi = data["image_dpi"]
+        if data is not None and "embed_svg" in data:
+            instance.embed_svg = data["embed_svg"]
+        if data is not None and "svg_light_mode" in data:
+            instance.svg_light_mode = data["svg_light_mode"]
+        if data is not None and "max_image_width_px" in data:
+            instance.max_image_width_px = data["max_image_width_px"]
+        if data is not None and "base_dir" in data:
+            instance.base_dir = data["base_dir"]
+        if data is not None and "highlight_code" in data:
+            instance.highlight_code = data["highlight_code"]
+        if data is not None and "theme" in data:
+            instance.theme = data["theme"]
+        if data is not None and "page_size" in data:
+            instance.page_size = data["page_size"]
+        if data is not None and "orientation" in data:
+            instance.orientation = data["orientation"]
+        if data is not None and "margin" in data:
+            instance.margin = data["margin"]
+        if data is not None and "page_numbers" in data:
+            instance.page_numbers = data["page_numbers"]
+        if data is not None and "table_of_contents" in data:
+            instance.table_of_contents = data["table_of_contents"]
+        if data is not None and "language" in data:
+            instance.language = data["language"]
+        if data is not None and "allow_remote_images" in data:
+            instance.allow_remote_images = data["allow_remote_images"]
+        if data is not None and "captions" in data:
+            instance.captions = data["captions"]
         if context is not None:
             instance = context.process_output(instance)
         return instance
@@ -68,6 +143,36 @@ class RenderOptions:
 
         if obj.strict is not None:
             result["strict"] = obj.strict
+        if obj.image_dpi is not None:
+            result["image_dpi"] = obj.image_dpi
+        if obj.embed_svg is not None:
+            result["embed_svg"] = obj.embed_svg
+        if obj.svg_light_mode is not None:
+            result["svg_light_mode"] = obj.svg_light_mode
+        if obj.max_image_width_px is not None:
+            result["max_image_width_px"] = obj.max_image_width_px
+        if obj.base_dir is not None:
+            result["base_dir"] = obj.base_dir
+        if obj.highlight_code is not None:
+            result["highlight_code"] = obj.highlight_code
+        if obj.theme is not None:
+            result["theme"] = obj.theme
+        if obj.page_size is not None:
+            result["page_size"] = obj.page_size
+        if obj.orientation is not None:
+            result["orientation"] = obj.orientation
+        if obj.margin is not None:
+            result["margin"] = obj.margin
+        if obj.page_numbers is not None:
+            result["page_numbers"] = obj.page_numbers
+        if obj.table_of_contents is not None:
+            result["table_of_contents"] = obj.table_of_contents
+        if obj.language is not None:
+            result["language"] = obj.language
+        if obj.allow_remote_images is not None:
+            result["allow_remote_images"] = obj.allow_remote_images
+        if obj.captions is not None:
+            result["captions"] = obj.captions
 
         if context is not None:
             result = context.process_dict(result)

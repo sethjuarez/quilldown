@@ -11,10 +11,10 @@ to assert exact nonempty `@sample` fixture roundtrips.
 ## Layout
 
 - `quilldown.tsp` — IR shapes (`Document`/`Block`/`Inline`/`List`/`Table`) and
-  the `Quilldown` interface (`lower`/`emit`).
+  the `Quilldown` interface (`lower`/`emit`/`render`).
 - `samples.tsp` — `@sample` fixtures that drive the generated shape tests.
-- `vectors.tsp` — the `@vector` corpus: `input` + `expected` pairs for `lower`
-  and `emit`, one per behavior.
+- `vectors.tsp` — the `@vector` corpus: `input` + `expected` pairs for
+  `lower`, `emit`, and styling-aware `render`, one per behavior.
 - `tspconfig.yaml` / `package.json` — typra emitter wiring (`npm run generate`).
 
 ## Authoring a vector
@@ -30,6 +30,27 @@ For the `lower` seam this is reproducible:
 printf '# One\n\n## Two\n' | cargo run -p quilldown --example lower_oracle
 # --pretty for readable indentation while authoring.
 ```
+
+For the `render` seam, derive the `input.doc` from the same `lower_oracle`, then
+pack that exact IR with the Rust IR emitter and inspect the resulting `.docx`
+with `runtimes/python/tests/doc_inspector.py::rendered_view`:
+
+```sh
+printf '# One\n\nBody\n' > rendered/render_one.md
+cargo run -p quilldown --example lower_oracle -- rendered/render_one.md > rendered/render_one.ir.json
+cargo run -p quilldown --example emit_oracle -- --no-highlight rendered/render_one.ir.json -o rendered/render_one.docx
+cd runtimes/python
+uv run python -c "import sys,json; sys.path.insert(0,'tests'); from doc_inspector import rendered_view; print(json.dumps(rendered_view(r'..\\..\\rendered\\render_one.docx'), indent=2, sort_keys=True))"
+```
+
+Pass the same render options to `emit_oracle` when deriving option-bearing render
+vectors, for example `--theme github --page-size a4 --orientation landscape
+--margin 0.5 --page-numbers`.
+
+Keep authored Markdown and generated IR byte-stable (`\n`, not host text-mode
+line ending translation) unless a vector is intentionally about CRLF
+preservation. The current render vectors use `--no-highlight` because syntax
+highlighting is Enhanced tier and will get its own governed vectors later.
 
 Install dependencies from the pinned package set, then regenerate:
 

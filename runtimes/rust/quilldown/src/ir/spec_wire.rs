@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::model::{Align, Block, Document, FootnoteDefinition, Inline};
+use super::model::{AlertType, Align, Block, Document, FootnoteDefinition, Inline};
 
 #[derive(Deserialize, Serialize)]
 pub struct SpecDocument {
@@ -30,6 +30,12 @@ pub enum SpecBlock {
         code: String,
     },
     BlockQuote {
+        blocks: Vec<SpecBlock>,
+    },
+    Alert {
+        alert_type: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
         blocks: Vec<SpecBlock>,
     },
     List {
@@ -123,6 +129,181 @@ impl From<&Document> for SpecDocument {
     }
 }
 
+impl SpecDocument {
+    /// Convert the shared TypeSpec wire shape back into the hand-authored Rust IR model.
+    ///
+    /// The lower oracle emits this wire shape for vector derivation; render-look vectors then
+    /// need to feed that exact JSON back into `ir::emit`, so the reverse projection lives beside
+    /// the forward projection instead of being reimplemented in tests.
+    pub fn into_model(self) -> Result<Document, String> {
+        Ok(Document {
+            blocks: self
+                .blocks
+                .into_iter()
+                .map(SpecBlock::into_model)
+                .collect::<Result<Vec<_>, _>>()?,
+            footnotes: self
+                .footnotes
+                .into_iter()
+                .map(SpecFootnoteDefinition::into_model)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+}
+
+impl SpecFootnoteDefinition {
+    fn into_model(self) -> Result<FootnoteDefinition, String> {
+        Ok(FootnoteDefinition {
+            label: self.label,
+            blocks: self
+                .blocks
+                .into_iter()
+                .map(SpecBlock::into_model)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+}
+
+impl SpecBlock {
+    fn into_model(self) -> Result<Block, String> {
+        Ok(match self {
+            SpecBlock::Heading { level, content } => Block::Heading {
+                level,
+                content: content
+                    .into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            SpecBlock::Paragraph { content } => Block::Paragraph {
+                content: content
+                    .into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            SpecBlock::CodeBlock { language, code } => Block::CodeBlock { language, code },
+            SpecBlock::BlockQuote { blocks } => Block::BlockQuote {
+                blocks: blocks
+                    .into_iter()
+                    .map(SpecBlock::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            SpecBlock::Alert {
+                alert_type,
+                title,
+                blocks,
+            } => Block::Alert {
+                alert_type: alert_type_from_str(&alert_type)?,
+                title,
+                blocks: blocks
+                    .into_iter()
+                    .map(SpecBlock::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            SpecBlock::List {
+                ordered,
+                start,
+                items,
+            } => Block::List(super::model::List {
+                ordered,
+                start,
+                items: items
+                    .into_iter()
+                    .map(SpecListItem::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            }),
+            SpecBlock::Table { align, head, rows } => Block::Table(super::model::Table {
+                align: align
+                    .into_iter()
+                    .map(|a| match a.as_str() {
+                        "none" => Ok(Align::None),
+                        "left" => Ok(Align::Left),
+                        "center" => Ok(Align::Center),
+                        "right" => Ok(Align::Right),
+                        other => Err(format!("unknown table alignment '{other}'")),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                head: head.into_cells()?,
+                rows: rows
+                    .into_iter()
+                    .map(SpecTableRow::into_cells)
+                    .collect::<Result<Vec<_>, _>>()?,
+            }),
+            SpecBlock::ThematicBreak => Block::ThematicBreak,
+        })
+    }
+}
+
+impl SpecListItem {
+    fn into_model(self) -> Result<super::model::ListItem, String> {
+        if self.kind != "list_item" {
+            return Err(format!("unknown list item kind '{}'", self.kind));
+        }
+        Ok(super::model::ListItem {
+            blocks: self
+                .blocks
+                .into_iter()
+                .map(SpecBlock::into_model)
+                .collect::<Result<Vec<_>, _>>()?,
+            task: self.task,
+        })
+    }
+}
+
+impl SpecTableRow {
+    fn into_cells(self) -> Result<Vec<Vec<Inline>>, String> {
+        self.cells
+            .into_iter()
+            .map(|cell| {
+                cell.content
+                    .into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect()
+    }
+}
+
+impl SpecInline {
+    fn into_model(self) -> Result<Inline, String> {
+        Ok(match self {
+            SpecInline::Text { data } => Inline::Text(data),
+            SpecInline::Strong { data } => Inline::Strong(
+                data.into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            SpecInline::Emphasis { data } => Inline::Emphasis(
+                data.into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            SpecInline::Strikethrough { data } => Inline::Strikethrough(
+                data.into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            SpecInline::Subscript { data } => Inline::Subscript(
+                data.into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            SpecInline::Code { data } => Inline::Code(data),
+            SpecInline::Link { href, content } => Inline::Link {
+                href,
+                content: content
+                    .into_iter()
+                    .map(SpecInline::into_model)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            SpecInline::Math { latex, display } => Inline::Math { latex, display },
+            SpecInline::Image { src, alt, title } => Inline::Image { src, alt, title },
+            SpecInline::FootnoteReference { label } => Inline::FootnoteReference { label },
+            SpecInline::SoftBreak => Inline::SoftBreak,
+            SpecInline::HardBreak => Inline::HardBreak,
+        })
+    }
+}
+
 impl From<&FootnoteDefinition> for SpecFootnoteDefinition {
     fn from(footnote: &FootnoteDefinition) -> Self {
         SpecFootnoteDefinition {
@@ -149,6 +330,15 @@ impl From<&Block> for SpecBlock {
             Block::BlockQuote { blocks } => SpecBlock::BlockQuote {
                 blocks: blocks.iter().map(SpecBlock::from).collect(),
             },
+            Block::Alert {
+                alert_type,
+                title,
+                blocks,
+            } => SpecBlock::Alert {
+                alert_type: alert_type_str(*alert_type).to_string(),
+                title: title.clone(),
+                blocks: blocks.iter().map(SpecBlock::from).collect(),
+            },
             Block::List(list) => SpecBlock::List {
                 ordered: list.ordered,
                 start: list.start,
@@ -173,6 +363,27 @@ impl From<&Block> for SpecBlock {
             },
             Block::ThematicBreak => SpecBlock::ThematicBreak,
         }
+    }
+}
+
+fn alert_type_str(alert_type: AlertType) -> &'static str {
+    match alert_type {
+        AlertType::Note => "note",
+        AlertType::Tip => "tip",
+        AlertType::Important => "important",
+        AlertType::Warning => "warning",
+        AlertType::Caution => "caution",
+    }
+}
+
+fn alert_type_from_str(alert_type: &str) -> Result<AlertType, String> {
+    match alert_type {
+        "note" => Ok(AlertType::Note),
+        "tip" => Ok(AlertType::Tip),
+        "important" => Ok(AlertType::Important),
+        "warning" => Ok(AlertType::Warning),
+        "caution" => Ok(AlertType::Caution),
+        other => Err(format!("unknown alert type '{other}'")),
     }
 }
 

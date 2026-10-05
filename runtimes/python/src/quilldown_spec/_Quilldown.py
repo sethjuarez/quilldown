@@ -5,7 +5,7 @@
 # ANY EDITS WILL BE LOST
 ##########################################
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from ._ConvertOptions import ConvertOptions
 from ._Document import Document
@@ -29,4 +29,10 @@ class Quilldown(Protocol):
     async def lower_async(
         self, markdown: str, options: ConvertOptions | None
     ) -> Document:
+        raise NotImplementedError
+
+    def render(self, doc: Document, options: RenderOptions | None) -> Any:
+        raise NotImplementedError
+
+    async def render_async(self, doc: Document, options: RenderOptions | None) -> Any:
         raise NotImplementedError

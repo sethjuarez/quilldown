@@ -20,16 +20,16 @@
 //!   registered; every anchor target has a matching heading bookmark). [`EmitState`] is the
 //!   "symbol table" that makes those invariants well-defined.
 //!
-//! Only the Core tier is emitted. Math and images reach this path as first-class IR nodes but are
-//! rendered as text fallbacks; native OMML, embedded images/SVG layers, and captions stay on the
-//! reference renderer's byte path.
+//! Only the Core tier plus portable field-based options are emitted. Math and images reach this
+//! path as first-class IR nodes but are rendered as text fallbacks; native OMML and embedded
+//! image/SVG layers stay on the reference renderer's byte path.
 
 use std::collections::HashMap;
 
 use docx_rs::*;
 
-use crate::ir::model::{Align, Block, Document, Inline, List, Table as IrTable};
-use crate::render::slugify;
+use crate::ir::model::{AlertType, Align, Block, Document, Inline, List, Table as IrTable};
+use crate::render::{captions, slugify};
 use crate::styles;
 use crate::{ConvertError, ConvertOptions, Theme};
 
@@ -40,9 +40,18 @@ struct Style {
     bold: bool,
     italic: bool,
     strike: bool,
+    quote: bool,
+    subscript: bool,
 }
 
 impl Style {
+    fn for_depth(depth: usize) -> Self {
+        Style {
+            quote: depth > 0,
+            ..Style::default()
+        }
+    }
+
     /// Apply the accumulated flags to a fresh run (text is added by the caller).
     fn apply(self, mut r: Run) -> Run {
         if self.bold {
@@ -53,6 +62,12 @@ impl Style {
         }
         if self.strike {
             r = r.strike();
+        }
+        if self.quote {
+            r = r.color(styles::QUOTE_TEXT_COLOR);
+        }
+        if self.subscript {
+            r.run_property = r.run_property.vert_align(VertAlignType::SubScript);
         }
         r
     }
@@ -73,6 +88,9 @@ struct EmitState {
     /// Ordered-list numbering definitions to register on the [`Docx`] before any paragraph
     /// references them (the "declare before use" invariant).
     numberings: Vec<Numbering>,
+    /// Raw caption label -> unique Word bookmark name, collected before emission so forward
+    /// `[text](#label)` references can become live `REF` fields.
+    caption_labels: HashMap<String, String>,
 }
 
 impl EmitState {
@@ -82,6 +100,7 @@ impl EmitState {
             next_num_id: styles::FIRST_LIST_NUM_ID,
             heading_slugs: HashMap::new(),
             numberings: Vec::new(),
+            caption_labels: HashMap::new(),
         }
     }
 
@@ -119,8 +138,98 @@ impl EmitState {
 /// One emitted top-level flow object. Boxed so the enum stays small (the two `docx-rs` builders
 /// differ greatly in size).
 enum Flow {
+    /// Plain body paragraph, tracked separately so a following block can zero its default
+    /// space-after before the explicit spacer paragraph, matching the direct renderer.
+    Body(Box<Paragraph>),
     Para(Box<Paragraph>),
     Table(Box<Table>),
+    Gap,
+}
+
+fn push_gap(flows: &mut Vec<Flow>) {
+    match flows.last() {
+        None | Some(Flow::Gap) => return,
+        Some(Flow::Body(_)) => {
+            if let Some(Flow::Body(p)) = flows.pop() {
+                flows.push(Flow::Body(Box::new(p.line_spacing(styles::tight_after()))));
+            }
+        }
+        _ => {}
+    }
+    flows.push(Flow::Gap);
+}
+
+fn collect_caption_labels(blocks: &[Block], state: &mut EmitState) {
+    for block in blocks {
+        let Block::Paragraph { content } = block else {
+            continue;
+        };
+        let Some(cap) = captions::caption_of(&caption_text(content)) else {
+            continue;
+        };
+        let Some(label) = cap.label else {
+            continue;
+        };
+        if state.caption_labels.contains_key(&label) {
+            continue;
+        }
+        let base = captions::bookmark_name(&label);
+        let name = if !state.caption_labels.values().any(|used| used == &base) {
+            base
+        } else {
+            (2..)
+                .map(|n| format!("{base}_{n}"))
+                .find(|candidate| !state.caption_labels.values().any(|used| used == candidate))
+                .expect("suffix search always terminates")
+        };
+        state.caption_labels.insert(label, name);
+    }
+}
+
+fn emit_caption(cap: &captions::Caption, state: &mut EmitState) -> Paragraph {
+    let word = match cap.kind {
+        captions::Kind::Figure => "Figure",
+        captions::Kind::Table => "Table",
+    };
+    let mut p = Paragraph::new().style("Caption");
+    let bookmark = cap
+        .label
+        .as_ref()
+        .and_then(|label| state.caption_labels.get(label).cloned())
+        .map(|name| (state.bookmark_id(), name));
+    if let Some((id, name)) = &bookmark {
+        p = p.add_bookmark_start(*id, name.clone());
+    }
+    p = p
+        .add_run(Run::new().bold().add_text(format!("{word} ")))
+        .add_run(seq_field(word));
+    if let Some((id, _)) = bookmark {
+        p = p.add_bookmark_end(id);
+    }
+    p = p.add_run(Run::new().bold().add_text(": "));
+    if !cap.text.is_empty() {
+        p = p.add_run(Run::new().add_text(&cap.text));
+    }
+    p
+}
+
+fn seq_field(kind: &str) -> Run {
+    Run::new()
+        .bold()
+        .add_field_char(FieldCharType::Begin, true)
+        .add_instr_text(InstrText::Unsupported(format!("SEQ {kind} \\* ARABIC")))
+        .add_field_char(FieldCharType::Separate, false)
+        .add_text("1")
+        .add_field_char(FieldCharType::End, false)
+}
+
+fn ref_field(name: &str, placeholder: &str) -> Run {
+    Run::new()
+        .add_field_char(FieldCharType::Begin, true)
+        .add_instr_text(InstrText::Unsupported(format!("REF {name} \\h")))
+        .add_field_char(FieldCharType::Separate, false)
+        .add_text(placeholder)
+        .add_field_char(FieldCharType::End, false)
 }
 
 /// Emit a portable [`Document`] into a `docx-rs` [`Docx`] builder.
@@ -129,23 +238,69 @@ enum Flow {
 /// `docx.build().pack(..)`. Errors are reserved for future legalization failures — Core emission
 /// is total, so this currently always returns `Ok`, but the fallible signature keeps the
 /// operation symmetric with the direct renderer and forward-compatible.
+///
+/// Supported [`ConvertOptions`] are intentionally narrower than the direct renderer: page setup,
+/// theme, `page_numbers`, `table_of_contents`, `captions`, and `highlight_code` (currently only
+/// the no-highlight/plain-code shape). Images, endnotes, native math, and semantic
+/// table-header-row injection remain direct-renderer/post-pack features.
 pub fn emit(doc: &Document, opts: &ConvertOptions) -> Result<Docx, ConvertError> {
     let mut state = EmitState::new();
+    if opts.captions {
+        collect_caption_labels(&doc.blocks, &mut state);
+    }
     let mut flows = Vec::new();
     emit_blocks(&doc.blocks, opts, 0, &mut state, &mut flows);
+    if matches!(flows.first(), Some(Flow::Gap)) {
+        flows.remove(0);
+    }
+    if matches!(flows.last(), Some(Flow::Gap)) {
+        flows.pop();
+    }
 
     let mut docx = styles::apply(Docx::new(), &opts.page, &opts.theme);
+    if opts.page_numbers {
+        docx = docx.footer(page_number_footer());
+    }
     // Invariant: register every numbering *before* the paragraphs that reference it.
     for numbering in std::mem::take(&mut state.numberings) {
         docx = docx.add_numbering(numbering);
     }
+    if opts.table_of_contents {
+        docx = docx.add_paragraph(table_of_contents_title());
+        docx = docx.add_table_of_contents(
+            TableOfContents::new()
+                .heading_styles_range(1, 3)
+                .hyperlink()
+                .dirty(),
+        );
+        docx = docx.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+    }
     for flow in flows {
         docx = match flow {
+            Flow::Body(p) => docx.add_paragraph(*p),
             Flow::Para(p) => docx.add_paragraph(*p),
             Flow::Table(t) => docx.add_table(*t),
+            Flow::Gap => docx.add_paragraph(styles::block_gap_paragraph()),
         };
     }
     Ok(docx)
+}
+
+fn page_number_footer() -> Footer {
+    let para = Paragraph::new()
+        .align(AlignmentType::Center)
+        .line_spacing(styles::tight_after())
+        .add_run(Run::new().add_text("Page "))
+        .add_page_num(PageNum::new())
+        .add_run(Run::new().add_text(" of "))
+        .add_num_pages(NumPages::new());
+    Footer::new().add_paragraph(para)
+}
+
+fn table_of_contents_title() -> Paragraph {
+    Paragraph::new()
+        .line_spacing(styles::body_spacing())
+        .add_run(Run::new().bold().size(28).add_text("Contents"))
 }
 
 /// Emit a sequence of blocks at block-quote nesting `depth`.
@@ -181,24 +336,79 @@ fn emit_block(
                 .keep_next(true)
                 .keep_lines(true)
                 .add_bookmark_start(bid, slug);
-            p = emit_inlines(p, content, Style::default(), theme);
+            p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
             p = p.add_bookmark_end(bid);
-            flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+            if depth > 0 {
+                p = quote_style(p, depth);
+            }
+            flows.push(Flow::Para(Box::new(p)));
         }
         Block::Paragraph { content } => {
-            let mut p = Paragraph::new().line_spacing(styles::body_spacing());
-            p = emit_inlines(p, content, Style::default(), theme);
-            flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+            if opts.captions && depth == 0 {
+                if let Some(cap) = captions::caption_of(&caption_text(content)) {
+                    flows.push(Flow::Para(Box::new(emit_caption(&cap, state))));
+                    return;
+                }
+            }
+            let mut p = Paragraph::new();
+            p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
+            if depth > 0 {
+                flows.push(Flow::Para(Box::new(quote_style(p, depth))));
+            } else {
+                flows.push(Flow::Body(Box::new(p)));
+            }
         }
         Block::CodeBlock { code, .. } => {
-            flows.push(Flow::Table(Box::new(emit_code_block(code, opts))));
+            push_gap(flows);
+            let mut t = emit_code_block(code, opts);
+            if depth > 0 {
+                t = t.indent(quote_indent(depth));
+            }
+            flows.push(Flow::Table(Box::new(t)));
+            push_gap(flows);
         }
-        Block::BlockQuote { blocks } => emit_blocks(blocks, opts, depth + 1, state, flows),
+        Block::BlockQuote { blocks } => {
+            let top_level = depth == 0;
+            if top_level {
+                push_gap(flows);
+            }
+            emit_blocks(blocks, opts, depth + 1, state, flows);
+            if top_level {
+                push_gap(flows);
+            }
+        }
+        Block::Alert {
+            alert_type,
+            title,
+            blocks,
+        } => {
+            push_gap(flows);
+            flows.push(Flow::Table(Box::new(emit_alert(
+                *alert_type,
+                title.as_deref(),
+                blocks,
+                opts,
+                state,
+            ))));
+            push_gap(flows);
+        }
         Block::List(list) => emit_list(list, opts, depth, 0, state, flows),
-        Block::Table(table) => flows.push(Flow::Table(Box::new(emit_table(table, opts)))),
-        Block::ThematicBreak => flows.push(Flow::Table(Box::new(horizontal_rule(
-            opts.page.content_width_dxa(),
-        )))),
+        Block::Table(table) => {
+            push_gap(flows);
+            let mut t = emit_table(table, opts, depth, state);
+            if depth > 0 {
+                t = t.indent(quote_indent(depth));
+            }
+            flows.push(Flow::Table(Box::new(t)));
+            push_gap(flows);
+        }
+        Block::ThematicBreak => {
+            push_gap(flows);
+            flows.push(Flow::Table(Box::new(horizontal_rule(
+                opts.page.content_width_dxa(),
+            ))));
+            push_gap(flows);
+        }
     }
 }
 
@@ -257,8 +467,11 @@ fn emit_list(
                             .numbering(NumberingId::new(num_id), IndentLevel::new(level))
                     };
                     marker_used = true;
-                    p = emit_inlines(p, content, Style::default(), theme);
-                    flows.push(Flow::Para(Box::new(quote_indent(p, depth))));
+                    p = emit_inlines(p, content, Style::for_depth(depth), theme, state);
+                    if depth > 0 {
+                        p = quote_border(p);
+                    }
+                    flows.push(Flow::Para(Box::new(p)));
                 }
                 Block::List(sub) => emit_list(sub, opts, depth, level + 1, state, flows),
                 other => emit_block(other, opts, depth, state, flows),
@@ -286,15 +499,81 @@ fn emit_code_block(code: &str, opts: &ConvertOptions) -> Table {
         .margins(styles::code_cell_margins())
 }
 
+/// Emit a GitHub alert/callout as a shaded single-cell table with a left accent border.
+fn emit_alert(
+    alert_type: AlertType,
+    title: Option<&str>,
+    blocks: &[Block],
+    opts: &ConvertOptions,
+    state: &mut EmitState,
+) -> Table {
+    let (accent, fill) = alert_palette(alert_type);
+    let label = title.unwrap_or_else(|| alert_type.default_title());
+    let mut cell = TableCell::new()
+        .shading(Shading::new().fill(fill))
+        .add_paragraph(
+            Paragraph::new().add_run(Run::new().bold().color(accent).add_text(label.to_string())),
+        );
+    let mut inner_flows = Vec::new();
+    emit_blocks(blocks, opts, 0, state, &mut inner_flows);
+    if matches!(inner_flows.first(), Some(Flow::Gap)) {
+        inner_flows.remove(0);
+    }
+    if matches!(inner_flows.last(), Some(Flow::Gap)) {
+        inner_flows.pop();
+    }
+    for flow in inner_flows {
+        cell = match flow {
+            Flow::Body(p) | Flow::Para(p) => cell.add_paragraph(*p),
+            Flow::Table(t) => cell.add_table(*t),
+            Flow::Gap => cell.add_paragraph(styles::block_gap_paragraph()),
+        };
+    }
+
+    use TableBorderPosition::*;
+    let left = TableBorder::new(Left)
+        .border_type(BorderType::Single)
+        .size(styles::ALERT_BORDER_SIZE)
+        .color(accent);
+    Table::new(vec![TableRow::new(vec![cell])])
+        .width(opts.page.content_width_dxa(), WidthType::Dxa)
+        .margins(styles::table_cell_margins())
+        .set_borders(TableBorders::with_empty().set(left))
+}
+
+fn alert_palette(alert_type: AlertType) -> (&'static str, &'static str) {
+    match alert_type {
+        AlertType::Note => styles::ALERT_NOTE,
+        AlertType::Tip => styles::ALERT_TIP,
+        AlertType::Important => styles::ALERT_IMPORTANT,
+        AlertType::Warning => styles::ALERT_WARNING,
+        AlertType::Caution => styles::ALERT_CAUTION,
+    }
+}
+
 /// Emit a GFM table: a bold, shaded header row plus body rows, with per-column alignment.
-fn emit_table(table: &IrTable, opts: &ConvertOptions) -> Table {
+fn emit_table(table: &IrTable, opts: &ConvertOptions, depth: usize, state: &EmitState) -> Table {
     let theme = &opts.theme;
     let mut rows = Vec::new();
     if !table.head.is_empty() {
-        rows.push(emit_table_row(&table.head, &table.align, true, theme));
+        rows.push(emit_table_row(
+            &table.head,
+            &table.align,
+            true,
+            theme,
+            depth,
+            state,
+        ));
     }
     for row in &table.rows {
-        rows.push(emit_table_row(row, &table.align, false, theme));
+        rows.push(emit_table_row(
+            row,
+            &table.align,
+            false,
+            theme,
+            depth,
+            state,
+        ));
     }
     Table::new(rows)
         .width(opts.page.content_width_dxa(), WidthType::Dxa)
@@ -309,6 +588,8 @@ fn emit_table_row(
     align: &[Align],
     is_header: bool,
     theme: &Theme,
+    depth: usize,
+    state: &EmitState,
 ) -> TableRow {
     let mut tcs = Vec::new();
     for (col, cell) in cells.iter().enumerate() {
@@ -318,9 +599,9 @@ fn emit_table_row(
         }
         let style = Style {
             bold: is_header,
-            ..Style::default()
+            ..Style::for_depth(depth)
         };
-        para = emit_inlines(para, cell, style, theme);
+        para = emit_inlines(para, cell, style, theme, state);
         let mut tc = TableCell::new().add_paragraph(para);
         if is_header {
             tc = tc.shading(Shading::new().fill(styles::TABLE_HEADER_FILL));
@@ -332,7 +613,13 @@ fn emit_table_row(
 
 /// Emit a flat run of inline content into `p`, recursively folding style-bearing shapes into the
 /// accumulated [`Style`] (composition-level operation). Links become native hyperlinks.
-fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Theme) -> Paragraph {
+fn emit_inlines(
+    mut p: Paragraph,
+    content: &[Inline],
+    style: Style,
+    theme: &Theme,
+    state: &EmitState,
+) -> Paragraph {
     for inline in content {
         p = match inline {
             Inline::Text(t) => p.add_run(style.apply(Run::new()).add_text(t)),
@@ -344,6 +631,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Emphasis(c) => emit_inlines(
                 p,
@@ -353,6 +641,7 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
             Inline::Strikethrough(c) => emit_inlines(
                 p,
@@ -362,20 +651,63 @@ fn emit_inlines(mut p: Paragraph, content: &[Inline], style: Style, theme: &Them
                     ..style
                 },
                 theme,
+                state,
             ),
-            Inline::Subscript(c) => emit_inlines(p, c, style, theme),
+            Inline::Subscript(c) => emit_inlines(
+                p,
+                c,
+                Style {
+                    subscript: true,
+                    ..style
+                },
+                theme,
+                state,
+            ),
             Inline::Code(c) => p.add_run(mono_run(c, theme.mono_font)),
             Inline::Link { href, content } => {
-                p.add_hyperlink(build_link(href, content, style, theme))
+                if let Some(label) = href.strip_prefix('#') {
+                    if let Some(name) = state.caption_labels.get(label) {
+                        let placeholder = caption_text(content);
+                        let shown = if placeholder.is_empty() {
+                            label
+                        } else {
+                            placeholder.as_str()
+                        };
+                        p.add_run(ref_field(name, shown))
+                    } else {
+                        p.add_hyperlink(build_link(href, content, style, theme))
+                    }
+                } else {
+                    p.add_hyperlink(build_link(href, content, style, theme))
+                }
             }
             // The Core emit path has no OMML/image embedding (that lives on the reference
             // engine's byte path); render the math source and image alt as plain runs so the
             // IR path stays lossless-to-text while carrying the structured node.
-            Inline::Math { latex, .. } => p.add_run(style.apply(Run::new()).add_text(latex)),
-            Inline::Image { alt, .. } => p.add_run(style.apply(Run::new()).add_text(alt)),
-            Inline::FootnoteReference { label } => {
-                p.add_run(style.apply(Run::new()).add_text(format!("[^{label}]")))
-            }
+            Inline::Math { latex, .. } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(latex),
+            ),
+            Inline::Image { alt, .. } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(alt),
+            ),
+            Inline::FootnoteReference { label } => p.add_run(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(format!("[^{label}]")),
+            ),
             Inline::SoftBreak => p.add_run(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => p.add_run(Run::new().add_break(BreakType::TextWrapping)),
         };
@@ -433,14 +765,41 @@ fn collect_runs(content: &[Inline], style: Style, theme: &Theme, out: &mut Vec<R
                 theme,
                 out,
             ),
-            Inline::Subscript(c) => collect_runs(c, style, theme, out),
+            Inline::Subscript(c) => collect_runs(
+                c,
+                Style {
+                    subscript: true,
+                    ..style
+                },
+                theme,
+                out,
+            ),
             Inline::Code(c) => out.push(mono_run(c, theme.mono_font)),
             Inline::Link { content, .. } => collect_runs(content, style, theme, out),
-            Inline::Math { latex, .. } => out.push(style.apply(Run::new()).add_text(latex)),
-            Inline::Image { alt, .. } => out.push(style.apply(Run::new()).add_text(alt)),
-            Inline::FootnoteReference { label } => {
-                out.push(style.apply(Run::new()).add_text(format!("[^{label}]")))
-            }
+            Inline::Math { latex, .. } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(latex),
+            ),
+            Inline::Image { alt, .. } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(alt),
+            ),
+            Inline::FootnoteReference { label } => out.push(
+                Style {
+                    quote: false,
+                    ..style
+                }
+                .apply(Run::new())
+                .add_text(format!("[^{label}]")),
+            ),
             Inline::SoftBreak => out.push(style.apply(Run::new()).add_text(" ")),
             Inline::HardBreak => out.push(Run::new().add_break(BreakType::TextWrapping)),
         }
@@ -472,6 +831,30 @@ fn inline_text(content: &[Inline]) -> String {
     s
 }
 
+/// Text extraction for caption detection and caption REF placeholders. This deliberately mirrors
+/// the direct renderer's `text_of` helper: literal text descendants and image alt text
+/// contribute. Code, math, footnote references, and explicit breaks do not.
+fn caption_text(content: &[Inline]) -> String {
+    let mut s = String::new();
+    for inline in content {
+        match inline {
+            Inline::Text(t) => s.push_str(t),
+            Inline::Strong(c)
+            | Inline::Emphasis(c)
+            | Inline::Strikethrough(c)
+            | Inline::Subscript(c) => s.push_str(&caption_text(c)),
+            Inline::Link { content, .. } => s.push_str(&caption_text(content)),
+            Inline::Image { alt, .. } => s.push_str(alt),
+            Inline::Code(_)
+            | Inline::Math { .. }
+            | Inline::FootnoteReference { .. }
+            | Inline::SoftBreak
+            | Inline::HardBreak => {}
+        }
+    }
+    s
+}
+
 /// A monospace run for inline code and code-block lines (mirrors the direct renderer).
 fn mono_run(text: &str, mono_font: &str) -> Run {
     Run::new()
@@ -480,19 +863,23 @@ fn mono_run(text: &str, mono_font: &str) -> Run {
         .add_text(text)
 }
 
-/// Indent a paragraph by the cumulative block-quote depth, so quoted content reads as distinct
-/// and nested quotes step further in.
-fn quote_indent(p: Paragraph, depth: usize) -> Paragraph {
-    if depth == 0 {
-        p
-    } else {
-        p.indent(
-            Some(styles::QUOTE_INDENT_DXA * depth as i32),
-            None,
-            None,
-            None,
-        )
-    }
+fn quote_style(p: Paragraph, depth: usize) -> Paragraph {
+    quote_border(p.indent(Some(quote_indent(depth)), None, None, None))
+}
+
+fn quote_border(mut p: Paragraph) -> Paragraph {
+    let border = ParagraphBorder::new(ParagraphBorderPosition::Left)
+        .size(styles::QUOTE_BORDER_SIZE)
+        .space(styles::QUOTE_BORDER_SPACE)
+        .color(styles::QUOTE_BORDER_COLOR);
+    p.property = p
+        .property
+        .set_borders(ParagraphBorders::with_empty().set(border));
+    p
+}
+
+fn quote_indent(depth: usize) -> i32 {
+    styles::QUOTE_INDENT_DXA * depth as i32
 }
 
 /// Light single-line borders on every edge and gridline, matching the direct renderer's tables.

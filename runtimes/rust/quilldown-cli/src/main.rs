@@ -113,6 +113,10 @@ struct Cli {
     #[arg(long, default_value_t = 1.0)]
     margin: f32,
 
+    /// Maximum rendered image width in pixels; larger images are scaled down.
+    #[arg(long, default_value_t = 600)]
+    max_image_width_px: u32,
+
     /// Style preset controlling fonts, heading accent, link color, and code appearance.
     #[arg(long, value_enum, default_value_t = ThemeArg::Default)]
     theme: ThemeArg,
@@ -171,6 +175,7 @@ fn main() -> Result<()> {
         embed_svg: !cli.no_embed_svg,
         svg_light_mode: !cli.no_svg_light_mode,
         highlight_code: !cli.no_highlight,
+        max_image_width_px: cli.max_image_width_px,
         base_dir: cli.base_dir.clone(),
         page,
         theme: cli.theme.into(),
@@ -179,7 +184,6 @@ fn main() -> Result<()> {
         language: cli.language.clone(),
         allow_remote_images: cli.allow_remote_images,
         captions: cli.captions,
-        ..ConvertOptions::default()
     };
 
     let converter = Converter::new(opts);
