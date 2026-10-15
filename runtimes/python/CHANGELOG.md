@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.4.0...quilldown-python-v0.5.0) (2026-10-15)
+
+
+### Features
+
+* **pptx:** add typra Office and PowerPoint lowering ([20fac78](https://github.com/sethjuarez/quilldown/commit/20fac7887f7612a41f118912b436e85796fb71b3))
+
 ## [0.4.0](https://github.com/sethjuarez/quilldown/compare/quilldown-python-v0.3.1...quilldown-python-v0.4.0) (2026-10-05)
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "quilldown"
-version = "0.4.0"
+version = "0.5.0"
 description = "Python runtime for the Quilldown shared contract (Markdown -> IR -> DOCX)."
 readme = "README.md"
 license = "MIT"
