@@ -1174,7 +1174,35 @@ async def test_vector_12_powerpointemitter_emitpowerpoint_powerpoint_two_hyperli
     await run_vector("PowerPointEmitter", "emitPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_13_powerpointemitter_lowerpowerpoint_powerpoint_consecutive_headings_split_lower():
+async def test_vector_13_powerpointemitter_lowerpowerpoint_powerpoint_alert_flattens_to_text_lower():
+    vector_json = r"""
+    {
+      "name": "powerpoint_alert_flattens_to_text-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "# Status\n\n> [!WARNING] Heads up\n> Check the release notes.\n"
+      },
+      "expected": {
+        "slides": [
+          {
+            "title": "Status",
+            "elements": [
+              {
+                "kind": "text_box",
+                "text": "Heads up\nCheck the release notes."
+              }
+            ]
+          }
+        ]
+      },
+      "operation": "lowerPowerPoint"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
+
+
+async def test_vector_14_powerpointemitter_lowerpowerpoint_powerpoint_consecutive_headings_split_lower():
     vector_json = r"""
     {
       "name": "powerpoint_consecutive_headings_split-lower",
@@ -1206,7 +1234,7 @@ async def test_vector_13_powerpointemitter_lowerpowerpoint_powerpoint_consecutiv
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_14_powerpointemitter_lowerpowerpoint_powerpoint_empty_heading_splits_consistently_lower():
+async def test_vector_15_powerpointemitter_lowerpowerpoint_powerpoint_empty_heading_splits_consistently_lower():
     vector_json = r"""
     {
       "name": "powerpoint_empty_heading_splits_consistently-lower",
@@ -1233,7 +1261,7 @@ async def test_vector_14_powerpointemitter_lowerpowerpoint_powerpoint_empty_head
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_15_powerpointemitter_lowerpowerpoint_powerpoint_front_matter_metadata_lower():
+async def test_vector_16_powerpointemitter_lowerpowerpoint_powerpoint_front_matter_metadata_lower():
     vector_json = r"""
     {
       "name": "powerpoint_front_matter_metadata-lower",
@@ -1269,7 +1297,7 @@ async def test_vector_15_powerpointemitter_lowerpowerpoint_powerpoint_front_matt
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_16_powerpointemitter_lowerpowerpoint_powerpoint_heading_slides_lower():
+async def test_vector_17_powerpointemitter_lowerpowerpoint_powerpoint_heading_slides_lower():
     vector_json = r"""
     {
       "name": "powerpoint_heading_slides-lower",
@@ -1306,7 +1334,7 @@ async def test_vector_16_powerpointemitter_lowerpowerpoint_powerpoint_heading_sl
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_17_powerpointemitter_lowerpowerpoint_powerpoint_inline_image_alt_flattens_lower():
+async def test_vector_18_powerpointemitter_lowerpowerpoint_powerpoint_inline_image_alt_flattens_lower():
     vector_json = r"""
     {
       "name": "powerpoint_inline_image_alt_flattens-lower",
@@ -1334,7 +1362,7 @@ async def test_vector_17_powerpointemitter_lowerpowerpoint_powerpoint_inline_ima
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_18_powerpointemitter_lowerpowerpoint_powerpoint_link_image_lower():
+async def test_vector_19_powerpointemitter_lowerpowerpoint_powerpoint_link_image_lower():
     vector_json = r"""
     {
       "name": "powerpoint_link_image-lower",
@@ -1367,7 +1395,7 @@ async def test_vector_18_powerpointemitter_lowerpowerpoint_powerpoint_link_image
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_19_powerpointemitter_lowerpowerpoint_powerpoint_list_notes_lower():
+async def test_vector_20_powerpointemitter_lowerpowerpoint_powerpoint_list_notes_lower():
     vector_json = r"""
     {
       "name": "powerpoint_list_notes-lower",
@@ -1403,7 +1431,7 @@ async def test_vector_19_powerpointemitter_lowerpowerpoint_powerpoint_list_notes
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_20_powerpointemitter_lowerpowerpoint_powerpoint_mixed_link_flattens_without_hyperlink_lower():
+async def test_vector_21_powerpointemitter_lowerpowerpoint_powerpoint_mixed_link_flattens_without_hyperlink_lower():
     vector_json = r"""
     {
       "name": "powerpoint_mixed_link_flattens_without_hyperlink-lower",
@@ -1431,7 +1459,7 @@ async def test_vector_20_powerpointemitter_lowerpowerpoint_powerpoint_mixed_link
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_21_powerpointemitter_lowerpowerpoint_powerpoint_no_heading_single_slide_lower():
+async def test_vector_22_powerpointemitter_lowerpowerpoint_powerpoint_no_heading_single_slide_lower():
     vector_json = r"""
     {
       "name": "powerpoint_no_heading_single_slide-lower",
@@ -1462,7 +1490,7 @@ async def test_vector_21_powerpointemitter_lowerpowerpoint_powerpoint_no_heading
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_22_powerpointemitter_lowerpowerpoint_powerpoint_notes_blank_lines_filtered_lower():
+async def test_vector_23_powerpointemitter_lowerpowerpoint_powerpoint_notes_blank_lines_filtered_lower():
     vector_json = r"""
     {
       "name": "powerpoint_notes_blank_lines_filtered-lower",
@@ -1489,7 +1517,7 @@ async def test_vector_22_powerpointemitter_lowerpowerpoint_powerpoint_notes_blan
     await run_vector("PowerPointEmitter", "lowerPowerPoint", vector, False, _SEAM)
 
 
-async def test_vector_23_quilldown_emit_anchor_link_emit():
+async def test_vector_24_quilldown_emit_anchor_link_emit():
     vector_json = r"""
     {
       "name": "anchor_link-emit",
@@ -1552,7 +1580,7 @@ async def test_vector_23_quilldown_emit_anchor_link_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_24_quilldown_emit_blockquote_emit():
+async def test_vector_25_quilldown_emit_blockquote_emit():
     vector_json = r"""
     {
       "name": "blockquote-emit",
@@ -1605,7 +1633,7 @@ async def test_vector_24_quilldown_emit_blockquote_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_25_quilldown_emit_bullet_list_emit():
+async def test_vector_26_quilldown_emit_bullet_list_emit():
     vector_json = r"""
     {
       "name": "bullet_list-emit",
@@ -1670,7 +1698,7 @@ async def test_vector_25_quilldown_emit_bullet_list_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_26_quilldown_emit_code_block_emit():
+async def test_vector_27_quilldown_emit_code_block_emit():
     vector_json = r"""
     {
       "name": "code_block-emit",
@@ -1705,7 +1733,111 @@ async def test_vector_26_quilldown_emit_code_block_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_27_quilldown_emit_external_link_emit():
+async def test_vector_28_quilldown_emit_contract_brief_emit():
+    vector_json = r"""
+    {
+      "name": "contract_brief-emit",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "heading",
+              "level": 1,
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Contract Brief"
+                }
+              ]
+            },
+            {
+              "kind": "heading",
+              "level": 2,
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Summary"
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "ordered": false,
+              "start": 1,
+              "items": [
+                {
+                  "kind": "list_item",
+                  "blocks": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "data": "Supplier: Aster Ridge"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "list_item",
+                  "blocks": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "data": "Monthly minimum: USD 125,000"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "heading",
+              "level": 2,
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Notes"
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Generated from Markdown with quilldown."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "headings": 3,
+        "paragraphs": 3,
+        "codeBlocks": 0,
+        "blockQuotes": 0,
+        "lists": 1,
+        "listItems": 2,
+        "tables": 0,
+        "links": 0,
+        "thematicBreaks": 0,
+        "warnings": []
+      },
+      "operation": "emit"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "emit", vector, False, _SEAM)
+
+
+async def test_vector_29_quilldown_emit_external_link_emit():
     vector_json = r"""
     {
       "name": "external_link-emit",
@@ -1758,7 +1890,7 @@ async def test_vector_27_quilldown_emit_external_link_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_28_quilldown_emit_heading_para_emit():
+async def test_vector_30_quilldown_emit_heading_para_emit():
     vector_json = r"""
     {
       "name": "heading_para-emit",
@@ -1820,7 +1952,7 @@ async def test_vector_28_quilldown_emit_heading_para_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_29_quilldown_emit_headings_emit():
+async def test_vector_31_quilldown_emit_headings_emit():
     vector_json = r"""
     {
       "name": "headings-emit",
@@ -1880,7 +2012,7 @@ async def test_vector_29_quilldown_emit_headings_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_30_quilldown_emit_invalid_heading_level_zero_emit():
+async def test_vector_32_quilldown_emit_invalid_heading_level_zero_emit():
     vector_json = r"""
     {
       "name": "invalid_heading_level_zero-emit",
@@ -1906,7 +2038,7 @@ async def test_vector_30_quilldown_emit_invalid_heading_level_zero_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_31_quilldown_emit_invalid_list_item_shape_emit():
+async def test_vector_33_quilldown_emit_invalid_list_item_shape_emit():
     vector_json = r"""
     {
       "name": "invalid_list_item_shape-emit",
@@ -1938,7 +2070,7 @@ async def test_vector_31_quilldown_emit_invalid_list_item_shape_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_32_quilldown_emit_invalid_missing_math_payload_emit():
+async def test_vector_34_quilldown_emit_invalid_missing_math_payload_emit():
     vector_json = r"""
     {
       "name": "invalid_missing_math_payload-emit",
@@ -1967,7 +2099,7 @@ async def test_vector_32_quilldown_emit_invalid_missing_math_payload_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_33_quilldown_emit_invalid_nested_heading_level_emit():
+async def test_vector_35_quilldown_emit_invalid_nested_heading_level_emit():
     vector_json = r"""
     {
       "name": "invalid_nested_heading_level-emit",
@@ -1998,7 +2130,7 @@ async def test_vector_33_quilldown_emit_invalid_nested_heading_level_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_34_quilldown_emit_invalid_nested_list_item_emit():
+async def test_vector_36_quilldown_emit_invalid_nested_list_item_emit():
     vector_json = r"""
     {
       "name": "invalid_nested_list_item-emit",
@@ -2028,7 +2160,7 @@ async def test_vector_34_quilldown_emit_invalid_nested_list_item_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_35_quilldown_emit_invalid_ordered_start_negative_emit():
+async def test_vector_37_quilldown_emit_invalid_ordered_start_negative_emit():
     vector_json = r"""
     {
       "name": "invalid_ordered_start_negative-emit",
@@ -2060,7 +2192,7 @@ async def test_vector_35_quilldown_emit_invalid_ordered_start_negative_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_36_quilldown_emit_invalid_ragged_table_emit():
+async def test_vector_38_quilldown_emit_invalid_ragged_table_emit():
     vector_json = r"""
     {
       "name": "invalid_ragged_table-emit",
@@ -2107,7 +2239,7 @@ async def test_vector_36_quilldown_emit_invalid_ragged_table_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_37_quilldown_emit_invalid_table_alignment_width_emit():
+async def test_vector_39_quilldown_emit_invalid_table_alignment_width_emit():
     vector_json = r"""
     {
       "name": "invalid_table_alignment_width-emit",
@@ -2145,7 +2277,7 @@ async def test_vector_37_quilldown_emit_invalid_table_alignment_width_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_38_quilldown_emit_invalid_table_alignment_emit():
+async def test_vector_40_quilldown_emit_invalid_table_alignment_emit():
     vector_json = r"""
     {
       "name": "invalid_table_alignment-emit",
@@ -2180,7 +2312,7 @@ async def test_vector_38_quilldown_emit_invalid_table_alignment_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_39_quilldown_emit_invalid_top_level_list_item_emit():
+async def test_vector_41_quilldown_emit_invalid_top_level_list_item_emit():
     vector_json = r"""
     {
       "name": "invalid_top_level_list_item-emit",
@@ -2205,7 +2337,7 @@ async def test_vector_39_quilldown_emit_invalid_top_level_list_item_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_40_quilldown_emit_link_in_heading_emit():
+async def test_vector_42_quilldown_emit_link_in_heading_emit():
     vector_json = r"""
     {
       "name": "link_in_heading-emit",
@@ -2255,7 +2387,7 @@ async def test_vector_40_quilldown_emit_link_in_heading_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_41_quilldown_emit_link_in_table_cells_emit():
+async def test_vector_43_quilldown_emit_link_in_table_cells_emit():
     vector_json = r"""
     {
       "name": "link_in_table_cells-emit",
@@ -2329,7 +2461,7 @@ async def test_vector_41_quilldown_emit_link_in_table_cells_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_42_quilldown_emit_link_nested_in_strong_emit():
+async def test_vector_44_quilldown_emit_link_nested_in_strong_emit():
     vector_json = r"""
     {
       "name": "link_nested_in_strong-emit",
@@ -2379,7 +2511,7 @@ async def test_vector_42_quilldown_emit_link_nested_in_strong_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_43_quilldown_emit_ordered_list_emit():
+async def test_vector_45_quilldown_emit_ordered_list_emit():
     vector_json = r"""
     {
       "name": "ordered_list-emit",
@@ -2458,7 +2590,7 @@ async def test_vector_43_quilldown_emit_ordered_list_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_44_quilldown_emit_ordered_start_emit():
+async def test_vector_46_quilldown_emit_ordered_start_emit():
     vector_json = r"""
     {
       "name": "ordered_start-emit",
@@ -2523,7 +2655,7 @@ async def test_vector_44_quilldown_emit_ordered_start_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_45_quilldown_emit_paragraph_inline_emit():
+async def test_vector_47_quilldown_emit_paragraph_inline_emit():
     vector_json = r"""
     {
       "name": "paragraph_inline-emit",
@@ -2609,7 +2741,7 @@ async def test_vector_45_quilldown_emit_paragraph_inline_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_46_quilldown_emit_table_emit():
+async def test_vector_48_quilldown_emit_table_emit():
     vector_json = r"""
     {
       "name": "table-emit",
@@ -2708,7 +2840,7 @@ async def test_vector_46_quilldown_emit_table_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_47_quilldown_emit_task_list_emit():
+async def test_vector_49_quilldown_emit_task_list_emit():
     vector_json = r"""
     {
       "name": "task_list-emit",
@@ -2775,7 +2907,7 @@ async def test_vector_47_quilldown_emit_task_list_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_48_quilldown_emit_thematic_break_emit():
+async def test_vector_50_quilldown_emit_thematic_break_emit():
     vector_json = r"""
     {
       "name": "thematic_break-emit",
@@ -2826,10 +2958,10 @@ async def test_vector_48_quilldown_emit_thematic_break_emit():
     await run_vector("Quilldown", "emit", vector, False, _SEAM)
 
 
-async def test_vector_49_quilldown_lower_alert_note_unwrap_lower():
+async def test_vector_51_quilldown_lower_alert_note_lower():
     vector_json = r"""
     {
-      "name": "alert_note_unwrap-lower",
+      "name": "alert_note-lower",
       "stage": "callable",
       "input": {
         "markdown": "> [!NOTE]\n> This is a note.\n"
@@ -2837,13 +2969,19 @@ async def test_vector_49_quilldown_lower_alert_note_unwrap_lower():
       "expected": {
         "blocks": [
           {
-            "content": [
+            "alert_type": "note",
+            "blocks": [
               {
-                "data": "This is a note.",
-                "kind": "text"
+                "content": [
+                  {
+                    "data": "This is a note.",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "paragraph"
               }
             ],
-            "kind": "paragraph"
+            "kind": "alert"
           }
         ]
       },
@@ -2854,24 +2992,31 @@ async def test_vector_49_quilldown_lower_alert_note_unwrap_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_50_quilldown_lower_alert_title_dropped_lower():
+async def test_vector_52_quilldown_lower_alert_title_lower():
     vector_json = r"""
     {
-      "name": "alert_title_dropped-lower",
+      "name": "alert_title-lower",
       "stage": "callable",
       "input": {
-        "markdown": "> [!TIP] a title here\n> body text\n"
+        "markdown": "> [!TIP] a &amp; \\[title\\]\n> body text\n"
       },
       "expected": {
         "blocks": [
           {
-            "content": [
+            "alert_type": "tip",
+            "blocks": [
               {
-                "data": "body text",
-                "kind": "text"
+                "content": [
+                  {
+                    "data": "body text",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "paragraph"
               }
             ],
-            "kind": "paragraph"
+            "kind": "alert",
+            "title": "a & [title]"
           }
         ]
       },
@@ -2882,7 +3027,7 @@ async def test_vector_50_quilldown_lower_alert_title_dropped_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_51_quilldown_lower_alert_unknown_kept_lower():
+async def test_vector_53_quilldown_lower_alert_unknown_kept_lower():
     vector_json = r"""
     {
       "name": "alert_unknown_kept-lower",
@@ -2922,7 +3067,55 @@ async def test_vector_51_quilldown_lower_alert_unknown_kept_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_52_quilldown_lower_anchor_link_lower():
+async def test_vector_54_quilldown_lower_alert_lower():
+    vector_json = r"""
+    {
+      "name": "alert-lower",
+      "stage": "callable",
+      "input": {
+        "markdown": "> [!WARNING] Contract risk\n> Review **pricing** before signing.\n"
+      },
+      "expected": {
+        "blocks": [
+          {
+            "alert_type": "warning",
+            "blocks": [
+              {
+                "content": [
+                  {
+                    "data": "Review ",
+                    "kind": "text"
+                  },
+                  {
+                    "data": [
+                      {
+                        "data": "pricing",
+                        "kind": "text"
+                      }
+                    ],
+                    "kind": "strong"
+                  },
+                  {
+                    "data": " before signing.",
+                    "kind": "text"
+                  }
+                ],
+                "kind": "paragraph"
+              }
+            ],
+            "kind": "alert",
+            "title": "Contract risk"
+          }
+        ]
+      },
+      "operation": "lower"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "lower", vector, False, _SEAM)
+
+
+async def test_vector_55_quilldown_lower_anchor_link_lower():
     vector_json = r"""
     {
       "name": "anchor_link-lower",
@@ -2974,7 +3167,7 @@ async def test_vector_52_quilldown_lower_anchor_link_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_53_quilldown_lower_autolink_bracket_suppressed_lower():
+async def test_vector_56_quilldown_lower_autolink_bracket_suppressed_lower():
     vector_json = r"""
     {
       "name": "autolink_bracket_suppressed-lower",
@@ -3015,7 +3208,7 @@ async def test_vector_53_quilldown_lower_autolink_bracket_suppressed_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_54_quilldown_lower_autolink_domain_reject_lower():
+async def test_vector_57_quilldown_lower_autolink_domain_reject_lower():
     vector_json = r"""
     {
       "name": "autolink_domain_reject-lower",
@@ -3043,7 +3236,7 @@ async def test_vector_54_quilldown_lower_autolink_domain_reject_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_55_quilldown_lower_autolink_email_lower():
+async def test_vector_58_quilldown_lower_autolink_email_lower():
     vector_json = r"""
     {
       "name": "autolink_email-lower",
@@ -3085,7 +3278,7 @@ async def test_vector_55_quilldown_lower_autolink_email_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_56_quilldown_lower_autolink_footnote_preceder_lower():
+async def test_vector_59_quilldown_lower_autolink_footnote_preceder_lower():
     vector_json = r"""
     {
       "name": "autolink_footnote_preceder-lower",
@@ -3142,7 +3335,7 @@ async def test_vector_56_quilldown_lower_autolink_footnote_preceder_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_57_quilldown_lower_autolink_url_parens_lower():
+async def test_vector_60_quilldown_lower_autolink_url_parens_lower():
     vector_json = r"""
     {
       "name": "autolink_url_parens-lower",
@@ -3184,7 +3377,7 @@ async def test_vector_57_quilldown_lower_autolink_url_parens_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_58_quilldown_lower_autolink_www_preceder_lower():
+async def test_vector_61_quilldown_lower_autolink_www_preceder_lower():
     vector_json = r"""
     {
       "name": "autolink_www_preceder-lower",
@@ -3216,7 +3409,7 @@ async def test_vector_58_quilldown_lower_autolink_www_preceder_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_59_quilldown_lower_autolink_www_lower():
+async def test_vector_62_quilldown_lower_autolink_www_lower():
     vector_json = r"""
     {
       "name": "autolink_www-lower",
@@ -3254,7 +3447,7 @@ async def test_vector_59_quilldown_lower_autolink_www_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_60_quilldown_lower_blockquote_lower():
+async def test_vector_63_quilldown_lower_blockquote_lower():
     vector_json = r"""
     {
       "name": "blockquote-lower",
@@ -3296,7 +3489,7 @@ async def test_vector_60_quilldown_lower_blockquote_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_61_quilldown_lower_bullet_list_lower():
+async def test_vector_64_quilldown_lower_bullet_list_lower():
     vector_json = r"""
     {
       "name": "bullet_list-lower",
@@ -3350,7 +3543,7 @@ async def test_vector_61_quilldown_lower_bullet_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_62_quilldown_lower_code_block_crlf_lower():
+async def test_vector_65_quilldown_lower_code_block_crlf_lower():
     vector_json = r"""
     {
       "name": "code_block_crlf-lower",
@@ -3374,7 +3567,7 @@ async def test_vector_62_quilldown_lower_code_block_crlf_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_63_quilldown_lower_code_block_lower():
+async def test_vector_66_quilldown_lower_code_block_lower():
     vector_json = r"""
     {
       "name": "code_block-lower",
@@ -3398,7 +3591,7 @@ async def test_vector_63_quilldown_lower_code_block_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_64_quilldown_lower_cross_marker_crossing_span_lower():
+async def test_vector_67_quilldown_lower_cross_marker_crossing_span_lower():
     vector_json = r"""
     {
       "name": "cross_marker_crossing_span-lower",
@@ -3439,7 +3632,7 @@ async def test_vector_64_quilldown_lower_cross_marker_crossing_span_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_65_quilldown_lower_cross_marker_flanking_skip_lower():
+async def test_vector_68_quilldown_lower_cross_marker_flanking_skip_lower():
     vector_json = r"""
     {
       "name": "cross_marker_flanking_skip-lower",
@@ -3485,7 +3678,7 @@ async def test_vector_65_quilldown_lower_cross_marker_flanking_skip_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_66_quilldown_lower_cross_marker_interleaved_lower():
+async def test_vector_69_quilldown_lower_cross_marker_interleaved_lower():
     vector_json = r"""
     {
       "name": "cross_marker_interleaved-lower",
@@ -3526,7 +3719,7 @@ async def test_vector_66_quilldown_lower_cross_marker_interleaved_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_67_quilldown_lower_cross_marker_repair_lower():
+async def test_vector_70_quilldown_lower_cross_marker_repair_lower():
     vector_json = r"""
     {
       "name": "cross_marker_repair-lower",
@@ -3563,7 +3756,7 @@ async def test_vector_67_quilldown_lower_cross_marker_repair_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_68_quilldown_lower_display_math_crlf_lower():
+async def test_vector_71_quilldown_lower_display_math_crlf_lower():
     vector_json = r"""
     {
       "name": "display_math_crlf-lower",
@@ -3592,7 +3785,7 @@ async def test_vector_68_quilldown_lower_display_math_crlf_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_69_quilldown_lower_display_math_lower():
+async def test_vector_72_quilldown_lower_display_math_lower():
     vector_json = r"""
     {
       "name": "display_math-lower",
@@ -3639,7 +3832,7 @@ async def test_vector_69_quilldown_lower_display_math_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_70_quilldown_lower_external_link_lower():
+async def test_vector_73_quilldown_lower_external_link_lower():
     vector_json = r"""
     {
       "name": "external_link-lower",
@@ -3681,7 +3874,7 @@ async def test_vector_70_quilldown_lower_external_link_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_71_quilldown_lower_fenced_math_code_block_lower():
+async def test_vector_74_quilldown_lower_fenced_math_code_block_lower():
     vector_json = r"""
     {
       "name": "fenced_math_code_block-lower",
@@ -3692,9 +3885,14 @@ async def test_vector_71_quilldown_lower_fenced_math_code_block_lower():
       "expected": {
         "blocks": [
           {
-            "code": "x^2 + y^2\n",
-            "kind": "code_block",
-            "language": "math"
+            "content": [
+              {
+                "display": true,
+                "kind": "math",
+                "latex": "x^2 + y^2\n"
+              }
+            ],
+            "kind": "paragraph"
           }
         ]
       },
@@ -3705,7 +3903,7 @@ async def test_vector_71_quilldown_lower_fenced_math_code_block_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_72_quilldown_lower_footnote_case_fold_lower():
+async def test_vector_75_quilldown_lower_footnote_case_fold_lower():
     vector_json = r"""
     {
       "name": "footnote_case_fold-lower",
@@ -3757,7 +3955,7 @@ async def test_vector_72_quilldown_lower_footnote_case_fold_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_73_quilldown_lower_footnote_inline_lower():
+async def test_vector_76_quilldown_lower_footnote_inline_lower():
     vector_json = r"""
     {
       "name": "footnote_inline-lower",
@@ -3785,7 +3983,7 @@ async def test_vector_73_quilldown_lower_footnote_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_74_quilldown_lower_footnote_ref_lower():
+async def test_vector_77_quilldown_lower_footnote_ref_lower():
     vector_json = r"""
     {
       "name": "footnote_ref-lower",
@@ -3837,7 +4035,7 @@ async def test_vector_74_quilldown_lower_footnote_ref_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_75_quilldown_lower_footnote_lower():
+async def test_vector_78_quilldown_lower_footnote_lower():
     vector_json = r"""
     {
       "name": "footnote-lower",
@@ -3902,7 +4100,7 @@ async def test_vector_75_quilldown_lower_footnote_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_76_quilldown_lower_front_matter_before_heading_lower():
+async def test_vector_79_quilldown_lower_front_matter_before_heading_lower():
     vector_json = r"""
     {
       "name": "front_matter_before_heading-lower",
@@ -3940,7 +4138,7 @@ async def test_vector_76_quilldown_lower_front_matter_before_heading_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_77_quilldown_lower_front_matter_no_close_literal_lower():
+async def test_vector_80_quilldown_lower_front_matter_no_close_literal_lower():
     vector_json = r"""
     {
       "name": "front_matter_no_close_literal-lower",
@@ -3978,7 +4176,7 @@ async def test_vector_77_quilldown_lower_front_matter_no_close_literal_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_78_quilldown_lower_front_matter_lower():
+async def test_vector_81_quilldown_lower_front_matter_lower():
     vector_json = r"""
     {
       "name": "front_matter-lower",
@@ -3987,6 +4185,9 @@ async def test_vector_78_quilldown_lower_front_matter_lower():
         "markdown": "---\ntitle: x\n---\n\nbody\n"
       },
       "expected": {
+        "metadata": {
+          "title": "x"
+        },
         "blocks": [
           {
             "content": [
@@ -4006,7 +4207,7 @@ async def test_vector_78_quilldown_lower_front_matter_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_79_quilldown_lower_hard_break_backslash_lower():
+async def test_vector_82_quilldown_lower_hard_break_backslash_lower():
     vector_json = r"""
     {
       "name": "hard_break_backslash-lower",
@@ -4041,7 +4242,7 @@ async def test_vector_79_quilldown_lower_hard_break_backslash_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_80_quilldown_lower_hard_break_spaces_lower():
+async def test_vector_83_quilldown_lower_hard_break_spaces_lower():
     vector_json = r"""
     {
       "name": "hard_break_spaces-lower",
@@ -4076,7 +4277,7 @@ async def test_vector_80_quilldown_lower_hard_break_spaces_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_81_quilldown_lower_heading_para_lower():
+async def test_vector_84_quilldown_lower_heading_para_lower():
     vector_json = r"""
     {
       "name": "heading_para-lower",
@@ -4127,7 +4328,7 @@ async def test_vector_81_quilldown_lower_heading_para_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_82_quilldown_lower_headings_lower():
+async def test_vector_85_quilldown_lower_headings_lower():
     vector_json = r"""
     {
       "name": "headings-lower",
@@ -4176,7 +4377,7 @@ async def test_vector_82_quilldown_lower_headings_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_83_quilldown_lower_image_alt_lower():
+async def test_vector_86_quilldown_lower_image_alt_lower():
     vector_json = r"""
     {
       "name": "image_alt-lower",
@@ -4214,7 +4415,7 @@ async def test_vector_83_quilldown_lower_image_alt_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_84_quilldown_lower_inline_math_lower():
+async def test_vector_87_quilldown_lower_inline_math_lower():
     vector_json = r"""
     {
       "name": "inline_math-lower",
@@ -4251,7 +4452,7 @@ async def test_vector_84_quilldown_lower_inline_math_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_85_quilldown_lower_math_code_lower():
+async def test_vector_88_quilldown_lower_math_code_lower():
     vector_json = r"""
     {
       "name": "math_code-lower",
@@ -4288,7 +4489,7 @@ async def test_vector_85_quilldown_lower_math_code_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_86_quilldown_lower_math_currency_lower():
+async def test_vector_89_quilldown_lower_math_currency_lower():
     vector_json = r"""
     {
       "name": "math_currency-lower",
@@ -4316,7 +4517,7 @@ async def test_vector_86_quilldown_lower_math_currency_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_87_quilldown_lower_math_digit_after_close_lower():
+async def test_vector_90_quilldown_lower_math_digit_after_close_lower():
     vector_json = r"""
     {
       "name": "math_digit_after_close-lower",
@@ -4344,7 +4545,7 @@ async def test_vector_87_quilldown_lower_math_digit_after_close_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_88_quilldown_lower_math_space_boundary_lower():
+async def test_vector_91_quilldown_lower_math_space_boundary_lower():
     vector_json = r"""
     {
       "name": "math_space_boundary-lower",
@@ -4372,7 +4573,7 @@ async def test_vector_88_quilldown_lower_math_space_boundary_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_89_quilldown_lower_ordered_list_lower():
+async def test_vector_92_quilldown_lower_ordered_list_lower():
     vector_json = r"""
     {
       "name": "ordered_list-lower",
@@ -4440,7 +4641,7 @@ async def test_vector_89_quilldown_lower_ordered_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_90_quilldown_lower_ordered_start_lower():
+async def test_vector_93_quilldown_lower_ordered_start_lower():
     vector_json = r"""
     {
       "name": "ordered_start-lower",
@@ -4494,7 +4695,7 @@ async def test_vector_90_quilldown_lower_ordered_start_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_91_quilldown_lower_paragraph_inline_lower():
+async def test_vector_94_quilldown_lower_paragraph_inline_lower():
     vector_json = r"""
     {
       "name": "paragraph_inline-lower",
@@ -4569,7 +4770,7 @@ async def test_vector_91_quilldown_lower_paragraph_inline_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_92_quilldown_lower_raw_html_block_lower():
+async def test_vector_95_quilldown_lower_raw_html_block_lower():
     vector_json = r"""
     {
       "name": "raw_html_block-lower",
@@ -4587,7 +4788,7 @@ async def test_vector_92_quilldown_lower_raw_html_block_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_93_quilldown_lower_raw_html_br_lower():
+async def test_vector_96_quilldown_lower_raw_html_br_lower():
     vector_json = r"""
     {
       "name": "raw_html_br-lower",
@@ -4619,7 +4820,7 @@ async def test_vector_93_quilldown_lower_raw_html_br_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_94_quilldown_lower_raw_inline_html_lower():
+async def test_vector_97_quilldown_lower_raw_inline_html_lower():
     vector_json = r"""
     {
       "name": "raw_inline_html-lower",
@@ -4655,7 +4856,7 @@ async def test_vector_94_quilldown_lower_raw_inline_html_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_95_quilldown_lower_subscript_in_strikethrough_lower():
+async def test_vector_98_quilldown_lower_subscript_in_strikethrough_lower():
     vector_json = r"""
     {
       "name": "subscript_in_strikethrough-lower",
@@ -4701,7 +4902,7 @@ async def test_vector_95_quilldown_lower_subscript_in_strikethrough_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_96_quilldown_lower_subscript_interior_star_lower():
+async def test_vector_99_quilldown_lower_subscript_interior_star_lower():
     vector_json = r"""
     {
       "name": "subscript_interior_star-lower",
@@ -4738,7 +4939,7 @@ async def test_vector_96_quilldown_lower_subscript_interior_star_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_97_quilldown_lower_subscript_mismatch_literal_lower():
+async def test_vector_100_quilldown_lower_subscript_mismatch_literal_lower():
     vector_json = r"""
     {
       "name": "subscript_mismatch_literal-lower",
@@ -4766,7 +4967,7 @@ async def test_vector_97_quilldown_lower_subscript_mismatch_literal_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_98_quilldown_lower_subscript_punct_bypass_lower():
+async def test_vector_101_quilldown_lower_subscript_punct_bypass_lower():
     vector_json = r"""
     {
       "name": "subscript_punct_bypass-lower",
@@ -4803,7 +5004,7 @@ async def test_vector_98_quilldown_lower_subscript_punct_bypass_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_99_quilldown_lower_subscript_termination_emphasis_lower():
+async def test_vector_102_quilldown_lower_subscript_termination_emphasis_lower():
     vector_json = r"""
     {
       "name": "subscript_termination_emphasis-lower",
@@ -4831,7 +5032,7 @@ async def test_vector_99_quilldown_lower_subscript_termination_emphasis_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_100_quilldown_lower_subscript_lower():
+async def test_vector_103_quilldown_lower_subscript_lower():
     vector_json = r"""
     {
       "name": "subscript-lower",
@@ -4872,7 +5073,7 @@ async def test_vector_100_quilldown_lower_subscript_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_101_quilldown_lower_subscript_lower():
+async def test_vector_104_quilldown_lower_subscript_lower():
     vector_json = r"""
     {
       "name": "subscript-lower",
@@ -4913,7 +5114,7 @@ async def test_vector_101_quilldown_lower_subscript_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_102_quilldown_lower_superscript_emphasis_lower():
+async def test_vector_105_quilldown_lower_superscript_emphasis_lower():
     vector_json = r"""
     {
       "name": "superscript_emphasis-lower",
@@ -4950,7 +5151,7 @@ async def test_vector_102_quilldown_lower_superscript_emphasis_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_103_quilldown_lower_superscript_image_alt_lower():
+async def test_vector_106_quilldown_lower_superscript_image_alt_lower():
     vector_json = r"""
     {
       "name": "superscript_image_alt-lower",
@@ -4980,7 +5181,7 @@ async def test_vector_103_quilldown_lower_superscript_image_alt_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_104_quilldown_lower_superscript_in_strong_lower():
+async def test_vector_107_quilldown_lower_superscript_in_strong_lower():
     vector_json = r"""
     {
       "name": "superscript_in_strong-lower",
@@ -5025,7 +5226,7 @@ async def test_vector_104_quilldown_lower_superscript_in_strong_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_105_quilldown_lower_superscript_link_label_lower():
+async def test_vector_108_quilldown_lower_superscript_link_label_lower():
     vector_json = r"""
     {
       "name": "superscript_link_label-lower",
@@ -5059,7 +5260,7 @@ async def test_vector_105_quilldown_lower_superscript_link_label_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_106_quilldown_lower_superscript_nested_emphasis_lower():
+async def test_vector_109_quilldown_lower_superscript_nested_emphasis_lower():
     vector_json = r"""
     {
       "name": "superscript_nested_emphasis-lower",
@@ -5096,7 +5297,7 @@ async def test_vector_106_quilldown_lower_superscript_nested_emphasis_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_107_quilldown_lower_superscript_lower():
+async def test_vector_110_quilldown_lower_superscript_lower():
     vector_json = r"""
     {
       "name": "superscript-lower",
@@ -5132,7 +5333,7 @@ async def test_vector_107_quilldown_lower_superscript_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_108_quilldown_lower_table_lower():
+async def test_vector_111_quilldown_lower_table_lower():
     vector_json = r"""
     {
       "name": "table-lower",
@@ -5220,7 +5421,7 @@ async def test_vector_108_quilldown_lower_table_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_109_quilldown_lower_task_list_lower():
+async def test_vector_112_quilldown_lower_task_list_lower():
     vector_json = r"""
     {
       "name": "task_list-lower",
@@ -5276,7 +5477,7 @@ async def test_vector_109_quilldown_lower_task_list_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_110_quilldown_lower_thematic_break_lower():
+async def test_vector_113_quilldown_lower_thematic_break_lower():
     vector_json = r"""
     {
       "name": "thematic_break-lower",
@@ -5316,7 +5517,3399 @@ async def test_vector_110_quilldown_lower_thematic_break_lower():
     await run_vector("Quilldown", "lower", vector, False, _SEAM)
 
 
-async def test_vector_111_wordemitter_emitword_word_dangling_anchor_strict_emit():
+async def test_vector_114_quilldown_render_render_alert():
+    vector_json = r"""
+    {
+      "name": "render_alert",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "alert_type": "warning",
+              "blocks": [
+                {
+                  "content": [
+                    {
+                      "data": "Review ",
+                      "kind": "text"
+                    },
+                    {
+                      "data": [
+                        {
+                          "data": "pricing",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "strong"
+                    },
+                    {
+                      "data": " before signing.",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "paragraph"
+                }
+              ],
+              "kind": "alert",
+              "title": "Contract risk"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": {
+              "left": {
+                "color": "9A6700",
+                "size": 24,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": {
+              "bottom": 40,
+              "left": 108,
+              "right": 108,
+              "top": 40
+            },
+            "columns": [],
+            "gapBefore": 0,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": true,
+                            "color": "9A6700",
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "Contract risk",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      },
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 160,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "Review ",
+                            "underline": null,
+                            "vertAlign": null
+                          },
+                          {
+                            "bold": true,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "pricing",
+                            "underline": null,
+                            "vertAlign": null
+                          },
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": " before signing.",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "FFF8C5",
+                    "span": 1,
+                    "trailingGap": 160,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_115_quilldown_render_render_option_captions():
+    vector_json = r"""
+    {
+      "name": "render_option_captions",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "See "
+                },
+                {
+                  "kind": "link",
+                  "href": "#flow",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "the figure"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": " and "
+                },
+                {
+                  "kind": "link",
+                  "href": "#summary",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "the table"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Figure: A flow diagram {#flow}"
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Table: Summary values {#summary}"
+                }
+              ]
+            },
+            {
+              "kind": "block_quote",
+              "blocks": [
+                {
+                  "kind": "paragraph",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "Figure: Quoted {#quoted}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Jump to "
+                },
+                {
+                  "kind": "link",
+                  "href": "#quoted",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "quoted"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "captions": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See {REF qd_cap_flow \\h} and {REF qd_cap_summary \\h}."
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "A flow diagram"
+              }
+            ],
+            "gapBefore": 200
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Table {SEQ Table \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Summary values"
+              }
+            ],
+            "gapBefore": 200
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 360,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": {
+              "left": {
+                "style": "single",
+                "size": 24,
+                "space": 12,
+                "color": "8B949E"
+              }
+            },
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": "57606A",
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure: Quoted {#quoted}"
+              }
+            ],
+            "gapBefore": 320
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Jump to "
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": "single",
+                "font": "Aptos",
+                "size": 24,
+                "color": "0563C1",
+                "vertAlign": null,
+                "link": "#quoted",
+                "text": "quoted"
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "."
+              }
+            ],
+            "gapBefore": 320
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_116_quilldown_render_render_option_captions_images():
+    vector_json = r"""
+    {
+      "name": "render_option_captions_images",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "See "
+                },
+                {
+                  "kind": "link",
+                  "href": "#flow",
+                  "content": [
+                    {
+                      "kind": "image",
+                      "src": "thumb.png",
+                      "alt": "thumb",
+                      "title": ""
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": "."
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Figure: See "
+                },
+                {
+                  "kind": "image",
+                  "src": "diagram.png",
+                  "alt": "diagram",
+                  "title": ""
+                },
+                {
+                  "kind": "text",
+                  "data": " here {#flow}"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "captions": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See {REF qd_cap_flow \\h}."
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "paragraph",
+            "style": "caption",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Figure {SEQ Figure \\* ARABIC}: "
+              },
+              {
+                "bold": false,
+                "italic": true,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 18,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "See diagram here"
+              }
+            ],
+            "gapBefore": 200
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_117_quilldown_render_render_option_page_geometry():
+    vector_json = r"""
+    {
+      "name": "render_option_page_geometry",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Body",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            }
+          ]
+        },
+        "options": {
+          "page_size": "legal",
+          "orientation": "landscape",
+          "margin": 1.25
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 20160,
+          "height": 12240,
+          "landscape": true,
+          "margins": {
+            "top": 1800,
+            "right": 1800,
+            "bottom": 1800,
+            "left": 1800,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Body"
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "table",
+            "width": {
+              "w": 16560,
+              "type": "dxa"
+            },
+            "columns": [],
+            "align": null,
+            "borders": {
+              "top": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "left": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "bottom": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "right": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideH": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideV": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              }
+            },
+            "cellMargins": {
+              "top": 80,
+              "left": 120,
+              "bottom": 80,
+              "right": 120
+            },
+            "rows": [
+              {
+                "header": false,
+                "cells": [
+                  {
+                    "width": null,
+                    "span": 1,
+                    "vMerge": null,
+                    "fill": "F2F2F2",
+                    "borders": null,
+                    "blocks": [
+                      {
+                        "kind": "paragraph",
+                        "style": "normal",
+                        "headingLevel": null,
+                        "list": null,
+                        "align": null,
+                        "line": 240,
+                        "lineRule": "auto",
+                        "indent": {
+                          "left": 0,
+                          "right": 0,
+                          "firstLine": 0,
+                          "hanging": 0
+                        },
+                        "keepNext": false,
+                        "keepLines": false,
+                        "borders": null,
+                        "fill": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "italic": false,
+                            "strike": false,
+                            "underline": null,
+                            "font": "Consolas",
+                            "size": 20,
+                            "color": null,
+                            "vertAlign": null,
+                            "link": null,
+                            "text": "x = 1"
+                          }
+                        ],
+                        "gapBefore": 0
+                      }
+                    ],
+                    "trailingGap": 0
+                  }
+                ]
+              }
+            ],
+            "gapBefore": 160
+          }
+        ],
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_118_quilldown_render_render_option_page_numbers():
+    vector_json = r"""
+    {
+      "name": "render_option_page_numbers",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Body",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            }
+          ]
+        },
+        "options": {
+          "page_numbers": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": [
+            {
+              "kind": "paragraph",
+              "style": "normal",
+              "headingLevel": null,
+              "list": null,
+              "align": "center",
+              "line": 259,
+              "lineRule": "auto",
+              "indent": {
+                "left": 0,
+                "right": 0,
+                "firstLine": 0,
+                "hanging": 0
+              },
+              "keepNext": false,
+              "keepLines": false,
+              "borders": null,
+              "fill": null,
+              "runs": [
+                {
+                  "bold": false,
+                  "italic": false,
+                  "strike": false,
+                  "underline": null,
+                  "font": "Aptos",
+                  "size": 24,
+                  "color": null,
+                  "vertAlign": null,
+                  "link": null,
+                  "text": "Page {PAGE} of {NUMPAGES}"
+                }
+              ],
+              "gapBefore": 0
+            }
+          ]
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Body"
+              }
+            ],
+            "gapBefore": 0
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_119_quilldown_render_render_option_table_of_contents():
+    vector_json = r"""
+    {
+      "name": "render_option_table_of_contents",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "One",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 1
+            },
+            {
+              "content": [
+                {
+                  "data": "Body",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "data": "Two",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 2
+            },
+            {
+              "content": [
+                {
+                  "data": "More",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "data": "Three",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 3
+            },
+            {
+              "content": [
+                {
+                  "data": "End",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "data": "Four",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 4
+            },
+            {
+              "content": [
+                {
+                  "data": "Not in TOC",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            }
+          ]
+        },
+        "options": {
+          "table_of_contents": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 28,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Contents"
+              }
+            ],
+            "gapBefore": 0
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [],
+            "gapBefore": 160
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "{TOC \\o \"1-3\" \\h}"
+              }
+            ],
+            "gapBefore": 160
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "\n"
+              }
+            ],
+            "gapBefore": 160
+          },
+          {
+            "kind": "paragraph",
+            "style": "heading1",
+            "headingLevel": 1,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 40,
+                "color": "2F5496",
+                "vertAlign": null,
+                "link": null,
+                "text": "One"
+              }
+            ],
+            "gapBefore": 520
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Body"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "paragraph",
+            "style": "heading2",
+            "headingLevel": 2,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 32,
+                "color": "2F5496",
+                "vertAlign": null,
+                "link": null,
+                "text": "Two"
+              }
+            ],
+            "gapBefore": 360
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "More"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "paragraph",
+            "style": "heading3",
+            "headingLevel": 3,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 28,
+                "color": "2F5496",
+                "vertAlign": null,
+                "link": null,
+                "text": "Three"
+              }
+            ],
+            "gapBefore": 320
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "End"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "paragraph",
+            "style": "heading4",
+            "headingLevel": 4,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 24,
+                "color": "2F5496",
+                "vertAlign": null,
+                "link": null,
+                "text": "Four"
+              }
+            ],
+            "gapBefore": 300
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "Not in TOC"
+              }
+            ],
+            "gapBefore": 80
+          }
+        ],
+        "trailingGap": 160
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_120_quilldown_render_render_option_theme_solarized():
+    vector_json = r"""
+    {
+      "name": "render_option_theme_solarized",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "Solarized",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 1
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "data": "link",
+                      "kind": "text"
+                    }
+                  ],
+                  "href": "https://example.com",
+                  "kind": "link"
+                },
+                {
+                  "data": " and ",
+                  "kind": "text"
+                },
+                {
+                  "data": "code",
+                  "kind": "code"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            }
+          ]
+        },
+        "options": {
+          "theme": "solarized"
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 12240,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "top": 1440,
+            "right": 1440,
+            "bottom": 1440,
+            "left": 1440,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": null
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "heading1",
+            "headingLevel": 1,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 40,
+                "color": "268BD2",
+                "vertAlign": null,
+                "link": null,
+                "text": "Solarized"
+              }
+            ],
+            "gapBefore": 360
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": "single",
+                "font": "Aptos",
+                "size": 24,
+                "color": "268BD2",
+                "vertAlign": null,
+                "link": "https://example.com",
+                "text": "link"
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": " and "
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Consolas",
+                "size": 20,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "code"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "table",
+            "width": {
+              "w": 9360,
+              "type": "dxa"
+            },
+            "columns": [],
+            "align": null,
+            "borders": {
+              "top": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "left": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "bottom": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "right": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideH": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideV": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              }
+            },
+            "cellMargins": {
+              "top": 80,
+              "left": 120,
+              "bottom": 80,
+              "right": 120
+            },
+            "rows": [
+              {
+                "header": false,
+                "cells": [
+                  {
+                    "width": null,
+                    "span": 1,
+                    "vMerge": null,
+                    "fill": "FDF6E3",
+                    "borders": null,
+                    "blocks": [
+                      {
+                        "kind": "paragraph",
+                        "style": "normal",
+                        "headingLevel": null,
+                        "list": null,
+                        "align": null,
+                        "line": 240,
+                        "lineRule": "auto",
+                        "indent": {
+                          "left": 0,
+                          "right": 0,
+                          "firstLine": 0,
+                          "hanging": 0
+                        },
+                        "keepNext": false,
+                        "keepLines": false,
+                        "borders": null,
+                        "fill": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "italic": false,
+                            "strike": false,
+                            "underline": null,
+                            "font": "Consolas",
+                            "size": 20,
+                            "color": null,
+                            "vertAlign": null,
+                            "link": null,
+                            "text": "x = 1"
+                          }
+                        ],
+                        "gapBefore": 0
+                      }
+                    ],
+                    "trailingGap": 0
+                  }
+                ]
+              }
+            ],
+            "gapBefore": 160
+          }
+        ],
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_121_quilldown_render_render_options_theme_page_numbers():
+    vector_json = r"""
+    {
+      "name": "render_options_theme_page_numbers",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "kind": "heading",
+              "level": 1,
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "GitHub"
+                }
+              ]
+            },
+            {
+              "kind": "paragraph",
+              "content": [
+                {
+                  "kind": "link",
+                  "href": "https://example.com",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "data": "link"
+                    }
+                  ]
+                },
+                {
+                  "kind": "text",
+                  "data": " and "
+                },
+                {
+                  "kind": "code",
+                  "data": "code"
+                }
+              ]
+            },
+            {
+              "kind": "code_block",
+              "code": "x = 1\n"
+            }
+          ]
+        },
+        "options": {
+          "theme": "github",
+          "page_size": "a4",
+          "orientation": "landscape",
+          "margin": 0.5,
+          "page_numbers": true
+        }
+      },
+      "expected": {
+        "page": {
+          "width": 16838,
+          "height": 11906,
+          "landscape": true,
+          "margins": {
+            "top": 720,
+            "right": 720,
+            "bottom": 720,
+            "left": 720,
+            "header": 720,
+            "footer": 720
+          },
+          "header": null,
+          "footer": [
+            {
+              "kind": "paragraph",
+              "style": "normal",
+              "headingLevel": null,
+              "list": null,
+              "align": "center",
+              "line": 259,
+              "lineRule": "auto",
+              "indent": {
+                "left": 0,
+                "right": 0,
+                "firstLine": 0,
+                "hanging": 0
+              },
+              "keepNext": false,
+              "keepLines": false,
+              "borders": null,
+              "fill": null,
+              "runs": [
+                {
+                  "bold": false,
+                  "italic": false,
+                  "strike": false,
+                  "underline": null,
+                  "font": "Aptos",
+                  "size": 24,
+                  "color": null,
+                  "vertAlign": null,
+                  "link": null,
+                  "text": "Page {PAGE} of {NUMPAGES}"
+                }
+              ],
+              "gapBefore": 0
+            }
+          ]
+        },
+        "body": [
+          {
+            "kind": "paragraph",
+            "style": "heading1",
+            "headingLevel": 1,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": true,
+            "keepLines": true,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": true,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos Display",
+                "size": 40,
+                "color": "0969DA",
+                "vertAlign": null,
+                "link": null,
+                "text": "GitHub"
+              }
+            ],
+            "gapBefore": 360
+          },
+          {
+            "kind": "paragraph",
+            "style": "normal",
+            "headingLevel": null,
+            "list": null,
+            "align": null,
+            "line": 259,
+            "lineRule": "auto",
+            "indent": {
+              "left": 0,
+              "right": 0,
+              "firstLine": 0,
+              "hanging": 0
+            },
+            "keepNext": false,
+            "keepLines": false,
+            "borders": null,
+            "fill": null,
+            "runs": [
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": "single",
+                "font": "Aptos",
+                "size": 24,
+                "color": "0969DA",
+                "vertAlign": null,
+                "link": "https://example.com",
+                "text": "link"
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Aptos",
+                "size": 24,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": " and "
+              },
+              {
+                "bold": false,
+                "italic": false,
+                "strike": false,
+                "underline": null,
+                "font": "Consolas",
+                "size": 20,
+                "color": null,
+                "vertAlign": null,
+                "link": null,
+                "text": "code"
+              }
+            ],
+            "gapBefore": 80
+          },
+          {
+            "kind": "table",
+            "width": {
+              "w": 15398,
+              "type": "dxa"
+            },
+            "columns": [],
+            "align": null,
+            "borders": {
+              "top": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "left": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "bottom": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "right": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideH": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              },
+              "insideV": {
+                "style": "single",
+                "size": 2,
+                "space": 0,
+                "color": "000000"
+              }
+            },
+            "cellMargins": {
+              "top": 80,
+              "left": 120,
+              "bottom": 80,
+              "right": 120
+            },
+            "rows": [
+              {
+                "header": false,
+                "cells": [
+                  {
+                    "width": null,
+                    "span": 1,
+                    "vMerge": null,
+                    "fill": "F6F8FA",
+                    "borders": null,
+                    "blocks": [
+                      {
+                        "kind": "paragraph",
+                        "style": "normal",
+                        "headingLevel": null,
+                        "list": null,
+                        "align": null,
+                        "line": 240,
+                        "lineRule": "auto",
+                        "indent": {
+                          "left": 0,
+                          "right": 0,
+                          "firstLine": 0,
+                          "hanging": 0
+                        },
+                        "keepNext": false,
+                        "keepLines": false,
+                        "borders": null,
+                        "fill": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "italic": false,
+                            "strike": false,
+                            "underline": null,
+                            "font": "Consolas",
+                            "size": 20,
+                            "color": null,
+                            "vertAlign": null,
+                            "link": null,
+                            "text": "x = 1"
+                          }
+                        ],
+                        "gapBefore": 0
+                      }
+                    ],
+                    "trailingGap": 0
+                  }
+                ]
+              }
+            ],
+            "gapBefore": 160
+          }
+        ],
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_122_quilldown_render_render_quotes_code_rule():
+    vector_json = r"""
+    {
+      "name": "render_quotes_code_rule",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "blocks": [
+                {
+                  "content": [
+                    {
+                      "data": "A quote with ",
+                      "kind": "text"
+                    },
+                    {
+                      "data": [
+                        {
+                          "data": "bold",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "strong"
+                    },
+                    {
+                      "data": " and ",
+                      "kind": "text"
+                    },
+                    {
+                      "data": "code",
+                      "kind": "code"
+                    },
+                    {
+                      "data": ".",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "paragraph"
+                }
+              ],
+              "kind": "block_quote"
+            },
+            {
+              "code": "x = 1\n",
+              "kind": "code_block"
+            },
+            {
+              "kind": "thematic_break"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": {
+              "left": {
+                "color": "8B949E",
+                "size": 24,
+                "space": 12,
+                "style": "single"
+              }
+            },
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 360,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "A quote with ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": true,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "bold",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": " and ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Consolas",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "code",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "57606A",
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ".",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideH": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideV": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "left": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "right": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "top": {
+                "color": "000000",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": {
+              "bottom": 80,
+              "left": 120,
+              "right": 120,
+              "top": 80
+            },
+            "columns": [],
+            "gapBefore": 320,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 240,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Consolas",
+                            "italic": false,
+                            "link": null,
+                            "size": 20,
+                            "strike": false,
+                            "text": "x = 1",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "F2F2F2",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "BFBFBF",
+                "size": 4,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": null,
+            "columns": [],
+            "gapBefore": 160,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 160,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_123_quilldown_render_render_tables_tasks():
+    vector_json = r"""
+    {
+      "name": "render_tables_tasks",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "items": [
+                {
+                  "blocks": [
+                    {
+                      "content": [
+                        {
+                          "data": "done",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "paragraph"
+                    }
+                  ],
+                  "kind": "list_item",
+                  "task": true
+                },
+                {
+                  "blocks": [
+                    {
+                      "content": [
+                        {
+                          "data": "todo",
+                          "kind": "text"
+                        }
+                      ],
+                      "kind": "paragraph"
+                    }
+                  ],
+                  "kind": "list_item",
+                  "task": false
+                }
+              ],
+              "kind": "list",
+              "ordered": false,
+              "start": 1
+            },
+            {
+              "align": [
+                "left",
+                "right"
+              ],
+              "head": {
+                "cells": [
+                  {
+                    "content": [
+                      {
+                        "data": "A",
+                        "kind": "text"
+                      }
+                    ]
+                  },
+                  {
+                    "content": [
+                      {
+                        "data": "B",
+                        "kind": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "kind": "table",
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "content": [
+                        {
+                          "data": "1",
+                          "kind": "text"
+                        }
+                      ]
+                    },
+                    {
+                      "content": [
+                        {
+                          "data": "2",
+                          "kind": "text"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 360,
+              "left": 720,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "☑\tdone",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 0,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 360,
+              "left": 720,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "☐\ttodo",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": {
+              "bottom": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideH": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "insideV": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "left": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "right": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              },
+              "top": {
+                "color": "BFBFBF",
+                "size": 2,
+                "space": 0,
+                "style": "single"
+              }
+            },
+            "cellMargins": {
+              "bottom": 40,
+              "left": 108,
+              "right": 108,
+              "top": 40
+            },
+            "columns": [],
+            "gapBefore": 160,
+            "kind": "table",
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": true,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "A",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "D9D9D9",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  },
+                  {
+                    "blocks": [
+                      {
+                        "align": "right",
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": true,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "B",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": "D9D9D9",
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": true
+              },
+              {
+                "cells": [
+                  {
+                    "blocks": [
+                      {
+                        "align": null,
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "1",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  },
+                  {
+                    "blocks": [
+                      {
+                        "align": "right",
+                        "borders": null,
+                        "fill": null,
+                        "gapBefore": 0,
+                        "headingLevel": null,
+                        "indent": {
+                          "firstLine": 0,
+                          "hanging": 0,
+                          "left": 0,
+                          "right": 0
+                        },
+                        "keepLines": false,
+                        "keepNext": false,
+                        "kind": "paragraph",
+                        "line": 259,
+                        "lineRule": "auto",
+                        "list": null,
+                        "runs": [
+                          {
+                            "bold": false,
+                            "color": null,
+                            "font": "Aptos",
+                            "italic": false,
+                            "link": null,
+                            "size": 24,
+                            "strike": false,
+                            "text": "2",
+                            "underline": null,
+                            "vertAlign": null
+                          }
+                        ],
+                        "style": "normal"
+                      }
+                    ],
+                    "borders": null,
+                    "fill": null,
+                    "span": 1,
+                    "trailingGap": 0,
+                    "vMerge": null,
+                    "width": null
+                  }
+                ],
+                "header": false
+              }
+            ],
+            "width": {
+              "type": "dxa",
+              "w": 9360
+            }
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 0
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_124_quilldown_render_render_typography():
+    vector_json = r"""
+    {
+      "name": "render_typography",
+      "stage": "callable",
+      "input": {
+        "doc": {
+          "blocks": [
+            {
+              "content": [
+                {
+                  "data": "H1",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 1
+            },
+            {
+              "content": [
+                {
+                  "data": "Body with ",
+                  "kind": "text"
+                },
+                {
+                  "data": [
+                    {
+                      "data": "bold",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "strong"
+                },
+                {
+                  "data": ", ",
+                  "kind": "text"
+                },
+                {
+                  "data": [
+                    {
+                      "data": "italic",
+                      "kind": "text"
+                    }
+                  ],
+                  "kind": "emphasis"
+                },
+                {
+                  "data": ", ",
+                  "kind": "text"
+                },
+                {
+                  "content": [
+                    {
+                      "data": "link",
+                      "kind": "text"
+                    }
+                  ],
+                  "href": "https://example.com",
+                  "kind": "link"
+                },
+                {
+                  "data": ", and ",
+                  "kind": "text"
+                },
+                {
+                  "data": "code",
+                  "kind": "code"
+                },
+                {
+                  "data": ".",
+                  "kind": "text"
+                }
+              ],
+              "kind": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "data": "H2",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 2
+            },
+            {
+              "content": [
+                {
+                  "data": "H3",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 3
+            },
+            {
+              "content": [
+                {
+                  "data": "H4",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 4
+            },
+            {
+              "content": [
+                {
+                  "data": "H5",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 5
+            },
+            {
+              "content": [
+                {
+                  "data": "H6",
+                  "kind": "text"
+                }
+              ],
+              "kind": "heading",
+              "level": 6
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": [
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 360,
+            "headingLevel": 1,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 40,
+                "strike": false,
+                "text": "H1",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading1"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 80,
+            "headingLevel": null,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": false,
+            "keepNext": false,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "Body with ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": true,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "bold",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": true,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "italic",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": "0563C1",
+                "font": "Aptos",
+                "italic": false,
+                "link": "https://example.com",
+                "size": 24,
+                "strike": false,
+                "text": "link",
+                "underline": "single",
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ", and ",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Consolas",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "code",
+                "underline": null,
+                "vertAlign": null
+              },
+              {
+                "bold": false,
+                "color": null,
+                "font": "Aptos",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": ".",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "normal"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 360,
+            "headingLevel": 2,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 32,
+                "strike": false,
+                "text": "H2",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading2"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 240,
+            "headingLevel": 3,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 28,
+                "strike": false,
+                "text": "H3",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading3"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 220,
+            "headingLevel": 4,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 24,
+                "strike": false,
+                "text": "H4",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading4"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 200,
+            "headingLevel": 5,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 22,
+                "strike": false,
+                "text": "H5",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading5"
+          },
+          {
+            "align": null,
+            "borders": null,
+            "fill": null,
+            "gapBefore": 200,
+            "headingLevel": 6,
+            "indent": {
+              "firstLine": 0,
+              "hanging": 0,
+              "left": 0,
+              "right": 0
+            },
+            "keepLines": true,
+            "keepNext": true,
+            "kind": "paragraph",
+            "line": 259,
+            "lineRule": "auto",
+            "list": null,
+            "runs": [
+              {
+                "bold": true,
+                "color": "2F5496",
+                "font": "Aptos Display",
+                "italic": false,
+                "link": null,
+                "size": 20,
+                "strike": false,
+                "text": "H6",
+                "underline": null,
+                "vertAlign": null
+              }
+            ],
+            "style": "heading6"
+          }
+        ],
+        "page": {
+          "footer": null,
+          "header": null,
+          "height": 15840,
+          "landscape": false,
+          "margins": {
+            "bottom": 1440,
+            "footer": 720,
+            "header": 720,
+            "left": 1440,
+            "right": 1440,
+            "top": 1440
+          },
+          "width": 12240
+        },
+        "trailingGap": 80
+      },
+      "operation": "render"
+    }
+    """
+    vector = json.loads(vector_json, strict=False)
+    await run_vector("Quilldown", "render", vector, False, _SEAM)
+
+
+async def test_vector_125_wordemitter_emitword_word_dangling_anchor_strict_emit():
     vector_json = r"""
     {
       "name": "word_dangling_anchor_strict-emit",
@@ -5363,7 +8956,7 @@ async def test_vector_111_wordemitter_emitword_word_dangling_anchor_strict_emit(
     await run_vector("WordEmitter", "emitWord", vector, False, _SEAM)
 
 
-async def test_vector_112_wordemitter_emitword_word_dangling_anchor_warning_emit():
+async def test_vector_126_wordemitter_emitword_word_dangling_anchor_warning_emit():
     vector_json = r"""
     {
       "name": "word_dangling_anchor_warning-emit",
@@ -5493,7 +9086,7 @@ async def test_vector_112_wordemitter_emitword_word_dangling_anchor_warning_emit
     await run_vector("WordEmitter", "emitWord", vector, False, _SEAM)
 
 
-async def test_vector_113_wordemitter_emitword_word_heading_link_manifest_emit():
+async def test_vector_127_wordemitter_emitword_word_heading_link_manifest_emit():
     vector_json = r"""
     {
       "name": "word_heading_link_manifest-emit",
@@ -5661,7 +9254,7 @@ async def test_vector_113_wordemitter_emitword_word_heading_link_manifest_emit()
     await run_vector("WordEmitter", "emitWord", vector, False, _SEAM)
 
 
-async def test_vector_114_wordemitter_emitword_word_image_fallback_media_warning_emit():
+async def test_vector_128_wordemitter_emitword_word_image_fallback_media_warning_emit():
     vector_json = r"""
     {
       "name": "word_image_fallback_media_warning-emit",
@@ -5787,7 +9380,7 @@ async def test_vector_114_wordemitter_emitword_word_image_fallback_media_warning
     await run_vector("WordEmitter", "emitWord", vector, False, _SEAM)
 
 
-async def test_vector_115_wordemitter_emitword_word_ordered_list_numbering_manifest_emit():
+async def test_vector_129_wordemitter_emitword_word_ordered_list_numbering_manifest_emit():
     vector_json = r"""
     {
       "name": "word_ordered_list_numbering_manifest-emit",

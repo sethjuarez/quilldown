@@ -7,6 +7,7 @@ dicts in the spec's wire shape; the runtime wraps them with the generated
 """
 from __future__ import annotations
 
+import html
 import re
 
 from markdown_it import MarkdownIt
@@ -165,6 +166,22 @@ _MD = (
 # comrak's inline-math delimiter rule differs from every dollarmath option combo;
 # swap in a faithful rule (its block rule and config are still used).
 _MD.inline.ruler.at("math_inline", _math_inline_comrak)
+_DEFAULT_VALIDATE_LINK = _MD.validateLink
+_DEFAULT_NORMALIZE_LINK = _MD.normalizeLink
+
+
+def _validate_link(url: str) -> bool:
+    return url.lower().startswith("data:image/") or _DEFAULT_VALIDATE_LINK(url)
+
+
+def _normalize_link(url: str) -> str:
+    if url.lower().startswith("data:image/"):
+        return url
+    return _DEFAULT_NORMALIZE_LINK(url)
+
+
+_MD.validateLink = _validate_link
+_MD.normalizeLink = _normalize_link
 
 
 # comrak's flanking test (parser/inlines.rs `scan_delims`/`get_before_char`)
@@ -380,7 +397,7 @@ class _DRun:
     its leftmost bytes, a closer its rightmost).
     """
 
-    __slots__ = ("marker", "per_char", "toks", "tok", "lo", "hi", "open", "close", "removed")
+    __slots__ = ("close", "hi", "lo", "marker", "open", "per_char", "removed", "tok", "toks")
 
     def __init__(self, marker, per_char, toks, tok, length, open_, close_):
         self.marker = marker
@@ -588,7 +605,7 @@ def _strip_front_matter(src: str, delimiter: str = "---") -> str:
     original source unchanged when there is no valid front matter (opening line
     not exactly the delimiter, or no closing delimiter line).
     """
-    s = src[1:] if src.startswith("\ufeff") else src
+    s = src.removeprefix("\ufeff")
     if not s.startswith(delimiter):
         return src
     start = len(delimiter)
@@ -624,9 +641,60 @@ def _strip_front_matter(src: str, delimiter: str = "---") -> str:
     return s[start:]
 
 
+def _front_matter_raw(src: str, delimiter: str = "---") -> str | None:
+    s = src.removeprefix("\ufeff")
+    if not s.startswith(delimiter):
+        return None
+    start = len(delimiter)
+    if s[start:].startswith("\n"):
+        start += 1
+    elif s[start:].startswith("\r\n"):
+        start += 2
+    else:
+        return None
+    rest = s[start:]
+    idx = -1
+    for pat in ("\n" + delimiter + "\r\n", "\n" + delimiter + "\n", "\n" + delimiter):
+        idx = rest.find(pat)
+        if idx != -1:
+            break
+    if idx == -1:
+        return None
+    return rest[:idx]
+
+
+def _parse_front_matter_metadata(src: str) -> dict:
+    raw = _front_matter_raw(src)
+    if raw is None:
+        return {}
+    meta = {}
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("---", "...")) or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if not value:
+            continue
+        key = key.strip().lower()
+        if key in {"title", "subject", "language", "lang", "date", "created"}:
+            meta[{"lang": "language", "date": "created"}.get(key, key)] = value
+        elif key in {"author", "authors", "creator"}:
+            meta["creator"] = value
+        elif key in {"description", "summary", "abstract"}:
+            meta["description"] = value
+        elif key in {"keywords", "tags"}:
+            stripped = value.strip()
+            meta["keywords"] = stripped[1:-1].strip() if stripped.startswith("[") and stripped.endswith("]") else value
+    return meta
+
+
 def markdown_to_ir(markdown: str) -> dict:
     # comrak strips a leading `---`-delimited front matter block before parsing
     # and ir::lower drops the node; mirror that so the body lowers identically.
+    metadata = _parse_front_matter_metadata(markdown)
     markdown = _strip_front_matter(markdown)
     # Seed the footnote registry with a case-insensitive refs map so label
     # matching mirrors comrak (see _CaseInsensitiveRefs).
@@ -645,6 +713,8 @@ def markdown_to_ir(markdown: str) -> dict:
     doc = {"blocks": _blocks(root.children)}
     if footnotes:
         doc["footnotes"] = footnotes
+    if metadata:
+        doc["metadata"] = metadata
     return doc
 
 
@@ -693,9 +763,9 @@ def _blocks(nodes) -> list:
     out = []
     for n in nodes:
         if n.type == "blockquote":
-            alert = _alert_body(n)
+            alert = _alert_block(n)
             if alert is not None:
-                out.extend(alert)
+                out.append(alert)
                 continue
         b = _block(n)
         if b is not None:
@@ -721,16 +791,14 @@ _ALERT_LINE_RE = re.compile(
 )
 
 
-def _alert_body(bq):
-    """If `bq` is a GFM alert, return its unwrapped body blocks; else ``None``.
+def _alert_block(bq):
+    """If `bq` is a GFM alert, return its structured alert block; else ``None``.
 
     comrak turns `> [!TYPE] ...` into an ``Alert`` node whose body is the
-    remaining quoted content -- the `[!TYPE]` marker line (and any title after
-    it) are consumed. ``ir::lower`` has no ``Alert`` arm, so its generic block
-    fallback recurses into the alert, promoting the body to the parent level.
-    markdown-it has no alert extension and keeps a plain ``block_quote`` whose
-    first paragraph opens with the literal `[!TYPE]`; we detect that and
-    reproduce comrak's unwrap-and-drop-marker legalization.
+    remaining quoted content -- the `[!TYPE]` marker line is consumed and any
+    title after it is carried separately. markdown-it has no alert extension and
+    keeps a plain ``block_quote`` whose first paragraph opens with the literal
+    marker; detect that and project the same structured IR shape.
     """
     kids = list(bq.children)
     if not kids or kids[0].type != "paragraph":
@@ -741,7 +809,8 @@ def _alert_body(bq):
     # Position check: the marker must open the first inline line (the trimmed
     # tokenized content), so a marker buried later in quote text is not an alert.
     first_line = (inline.content or "").split("\n", 1)[0]
-    if not _ALERT_RE.match(first_line):
+    match = _ALERT_RE.match(first_line)
+    if not match:
         return None
     # Whitespace-exactness check: the raw source line must carry exactly `> `
     # (one space) before the marker, which markdown-it's trimming hides.
@@ -752,6 +821,7 @@ def _alert_body(bq):
         return None
 
     body: list = []
+    title = _unescape_alert_title(first_line[match.end() :].strip())
     # Drop the marker line: inline tokens up to and including the first line
     # break. Lower the remainder with a fresh autolink cursor, mirroring comrak
     # parsing the alert body as its own inline container.
@@ -767,7 +837,15 @@ def _alert_body(bq):
         body.append({"kind": "paragraph", "content": _inlines(rest)[0]})
     # Sibling blocks after the marker paragraph are promoted unchanged.
     body.extend(_blocks(kids[1:]))
-    return body
+    block = {"kind": "alert", "alert_type": match.group(1).lower(), "blocks": body}
+    if title:
+        block["title"] = title
+    return block
+
+
+def _unescape_alert_title(title: str) -> str:
+    title = html.unescape(title)
+    return re.sub(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])", r"\1", title)
 
 
 def _block(n):
@@ -778,6 +856,13 @@ def _block(n):
         return {"kind": "paragraph", "content": _inline_children(n)}
     if t == "fence":
         info = (n.info or "").strip()
+        if info and info.split()[0] == "math":
+            return {
+                "kind": "paragraph",
+                "content": [
+                    {"kind": "math", "latex": _raw_fenced_content(n) or n.content, "display": True}
+                ],
+            }
         block = {"kind": "code_block", "code": _raw_fenced_content(n) or n.content}
         if info:
             block["language"] = info.split()[0]
@@ -824,6 +909,8 @@ def _raw_display_math_content(n) -> str:
         return ""
     open_line = _SRC_LINES_RAW[n.map[0]]
     after_opener = open_line.split("$$", 1)[1] if "$$" in open_line else ""
+    if "$$" in after_opener:
+        after_opener = after_opener.rsplit("$$", 1)[0]
     start = n.map[0] + 1
     end = max(start, n.map[1] - 1)
     return after_opener + "".join(_SRC_LINES_RAW[start:end])

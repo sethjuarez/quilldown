@@ -30,6 +30,12 @@ pub enum BlockKind {
     },
     /// `kind` = `"block_quote"`
     Quote { blocks: Vec<Block> },
+    /// `kind` = `"alert"`
+    Alert {
+        alert_type: String,
+        title: Option<String>,
+        blocks: Vec<Block>,
+    },
     /// `kind` = `"list_item"`
     ListItem {
         blocks: Vec<Block>,
@@ -141,6 +147,21 @@ impl Block {
                     .to_string(),
             },
             "block_quote" => BlockKind::Quote {
+                blocks: value
+                    .get("blocks")
+                    .map(|v| Self::load_blocks(v, ctx))
+                    .unwrap_or_default(),
+            },
+            "alert" => BlockKind::Alert {
+                alert_type: value
+                    .get("alert_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                title: value
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
                 blocks: value
                     .get("blocks")
                     .map(|v| Self::load_blocks(v, ctx))
@@ -260,6 +281,22 @@ impl Block {
                     }
                 }
             }
+            "alert" => {
+                if let Some(entries) = value
+                    .get("blocks")
+                    .and_then(|candidate| candidate.as_array())
+                {
+                    let collection_path = if path.is_empty() {
+                        "blocks".to_string()
+                    } else {
+                        format!("{}.blocks", path)
+                    };
+                    for (index, entry) in entries.iter().enumerate() {
+                        let entry_path = format!("{}[{}]", collection_path, index);
+                        Block::validate_input_at(entry, &entry_path)?;
+                    }
+                }
+            }
             "list_item" => {
                 if let Some(entries) = value
                     .get("blocks")
@@ -329,6 +366,7 @@ impl Block {
             BlockKind::Paragraph { .. } => "paragraph",
             BlockKind::Code { .. } => "code_block",
             BlockKind::Quote { .. } => "block_quote",
+            BlockKind::Alert { .. } => "alert",
             BlockKind::ListItem { .. } => "list_item",
             BlockKind::List { .. } => "list",
             BlockKind::Table { .. } => "table",
@@ -380,6 +418,26 @@ impl Block {
                 result.insert("code".to_string(), serde_json::Value::String(code.clone()));
             }
             BlockKind::Quote { blocks, .. } => {
+                result.insert(
+                    "blocks".to_string(),
+                    serde_json::Value::Array(
+                        blocks.iter().map(|item| item.to_value(ctx)).collect(),
+                    ),
+                );
+            }
+            BlockKind::Alert {
+                alert_type,
+                title,
+                blocks,
+                ..
+            } => {
+                result.insert(
+                    "alert_type".to_string(),
+                    serde_json::Value::String(alert_type.clone()),
+                );
+                if let Some(val) = title {
+                    result.insert("title".to_string(), serde_json::Value::String(val.clone()));
+                }
                 result.insert(
                     "blocks".to_string(),
                     serde_json::Value::Array(

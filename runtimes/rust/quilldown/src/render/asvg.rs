@@ -50,6 +50,15 @@ pub(crate) fn inject(docx: Vec<u8>, embeds: &[SvgEmbed]) -> Result<Vec<u8>, Conv
     if embeds.is_empty() {
         return Ok(docx);
     }
+    let mut unique = Vec::new();
+    for embed in embeds {
+        if !unique
+            .iter()
+            .any(|seen: &&SvgEmbed| seen.png_rid == embed.png_rid)
+        {
+            unique.push(embed);
+        }
+    }
 
     let mut entries = read_entries(&docx)?;
 
@@ -57,14 +66,14 @@ pub(crate) fn inject(docx: Vec<u8>, embeds: &[SvgEmbed]) -> Result<Vec<u8>, Conv
         match name.as_str() {
             "word/document.xml" => {
                 let mut s = String::from_utf8_lossy(bytes).into_owned();
-                for e in embeds {
+                for e in &unique {
                     s = rewrite_blip(&s, &e.png_rid, &e.svg_rid());
                 }
                 *bytes = s.into_bytes();
             }
             "word/_rels/document.xml.rels" => {
                 let mut inserts = String::new();
-                for e in embeds {
+                for e in &unique {
                     inserts.push_str(&format!(
                         r#"<Relationship Id="{rid}" Type="{ty}" Target="media/{rid}.svg" />"#,
                         rid = e.svg_rid(),
@@ -93,7 +102,7 @@ pub(crate) fn inject(docx: Vec<u8>, embeds: &[SvgEmbed]) -> Result<Vec<u8>, Conv
         }
     }
 
-    for e in embeds {
+    for e in unique {
         entries.push((format!("word/media/{}.svg", e.svg_rid()), e.svg.clone()));
     }
 
@@ -108,7 +117,7 @@ fn rewrite_blip(doc: &str, png_rid: &str, svg_rid: &str) -> String {
         uri = SVG_EXT_URI,
         ns = ASVG_NS,
     );
-    doc.replacen(&needle, &replacement, 1)
+    doc.replace(&needle, &replacement)
 }
 
 /// Read every file entry (skipping directory entries) out of a zip into memory.

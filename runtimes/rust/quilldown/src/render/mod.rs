@@ -17,7 +17,7 @@ use crate::{ConvertError, ConvertOptions};
 
 mod alerts;
 mod asvg;
-mod captions;
+pub(crate) mod captions;
 mod colormap;
 mod endnotes;
 mod frontmatter;

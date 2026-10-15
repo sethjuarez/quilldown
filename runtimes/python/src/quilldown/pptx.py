@@ -162,6 +162,11 @@ def markdown_to_presentation(markdown: str) -> dict:
             if text:
                 current["elements"].append({"kind": "text_box", "text": text})
             continue
+        if kind == "alert":
+            text = _alert_text(block)
+            if text:
+                current["elements"].append({"kind": "text_box", "text": text})
+            continue
         if kind == "table":
             current["elements"].append({"kind": "text_box", "text": _table_text(block)})
 
@@ -249,9 +254,17 @@ def _blocks_text(blocks: list[dict]) -> str:
             lines.append(block.get("code", ""))
         elif kind == "block_quote":
             lines.append(_blocks_text(block.get("blocks", [])))
+        elif kind == "alert":
+            lines.append(_alert_text(block))
         elif kind == "table":
             lines.append(_table_text(block))
     return "\n".join(line for line in lines if line)
+
+
+def _alert_text(block: dict) -> str:
+    title = block.get("title") or str(block.get("alert_type", "")).upper()
+    body = _blocks_text(block.get("blocks", []))
+    return "\n".join(part for part in (title, body) if part)
 
 
 def _table_text(block: dict) -> str:

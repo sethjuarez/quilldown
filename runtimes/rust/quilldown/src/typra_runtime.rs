@@ -57,7 +57,10 @@ const OFFICE_REL_NS: &str = "http://schemas.openxmlformats.org/officeDocument/20
 type TypraResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub fn lower(markdown: &str) -> TypraResult<spec::Document> {
-    let wire = serde_json::to_value(SpecDocument::from(&crate::ir::lower(markdown)))?;
+    let mut wire = serde_json::to_value(SpecDocument::from(&crate::ir::lower(markdown)))?;
+    if let Some(metadata) = front_matter_metadata(markdown) {
+        wire["metadata"] = metadata;
+    }
     Ok(spec::Document::try_load_from_value(
         &wire,
         &LoadContext::default(),
@@ -132,6 +135,19 @@ pub fn lower_powerpoint(markdown: &str) -> TypraResult<spec::Presentation> {
             }
             ir::Block::BlockQuote { blocks } => {
                 let text = blocks_text(blocks);
+                if !text.is_empty() {
+                    current["elements"]
+                        .as_array_mut()
+                        .expect("slide elements")
+                        .push(json!({"kind": "text_box", "text": text}));
+                }
+            }
+            ir::Block::Alert {
+                alert_type,
+                title,
+                blocks,
+            } => {
+                let text = alert_text(*alert_type, title.as_deref(), blocks);
                 if !text.is_empty() {
                     current["elements"]
                         .as_array_mut()
@@ -263,6 +279,11 @@ fn blocks_text(blocks: &[ir::Block]) -> String {
                 }
                 ir::Block::CodeBlock { code, .. } => code.clone(),
                 ir::Block::BlockQuote { blocks } => blocks_text(blocks),
+                ir::Block::Alert {
+                    alert_type,
+                    title,
+                    blocks,
+                } => alert_text(*alert_type, title.as_deref(), blocks),
                 ir::Block::List(list) => list_bullets(list)
                     .into_iter()
                     .filter(|item| !item.is_empty())
@@ -298,6 +319,16 @@ fn note_lines(code: &str) -> Vec<String> {
         .filter(|line| !line.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+fn alert_text(alert_type: ir::AlertType, title: Option<&str>, blocks: &[ir::Block]) -> String {
+    let title = title.unwrap_or_else(|| alert_type.default_title());
+    let body = blocks_text(blocks);
+    [title, body.as_str()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn front_matter_metadata(markdown: &str) -> Option<Value> {
@@ -650,6 +681,15 @@ fn ir_block(block: &spec::Block) -> TypraResult<ir::Block> {
         spec::BlockKind::Quote { blocks } => ir::Block::BlockQuote {
             blocks: blocks.iter().map(ir_block).collect::<TypraResult<_>>()?,
         },
+        spec::BlockKind::Alert {
+            alert_type,
+            title,
+            blocks,
+        } => ir::Block::Alert {
+            alert_type: ir_alert_type(alert_type)?,
+            title: title.clone(),
+            blocks: blocks.iter().map(ir_block).collect::<TypraResult<_>>()?,
+        },
         spec::BlockKind::List {
             ordered,
             start,
@@ -669,6 +709,17 @@ fn ir_block(block: &spec::Block) -> TypraResult<ir::Block> {
             return Err("unsupported block in this position".into());
         }
     })
+}
+
+fn ir_alert_type(alert_type: &str) -> TypraResult<ir::AlertType> {
+    match alert_type {
+        "note" => Ok(ir::AlertType::Note),
+        "tip" => Ok(ir::AlertType::Tip),
+        "important" => Ok(ir::AlertType::Important),
+        "warning" => Ok(ir::AlertType::Warning),
+        "caution" => Ok(ir::AlertType::Caution),
+        _ => Err(format!("unsupported alert type {alert_type:?}").into()),
+    }
 }
 
 fn ir_list_item(block: &spec::Block) -> TypraResult<ir::ListItem> {
@@ -2021,6 +2072,9 @@ fn count_blocks(blocks: &[ir::Block], stats: &mut Stats) {
             ir::Block::CodeBlock { .. } => stats.code_blocks += 1,
             ir::Block::BlockQuote { blocks } => {
                 stats.block_quotes += 1;
+                count_blocks(blocks, stats);
+            }
+            ir::Block::Alert { blocks, .. } => {
                 count_blocks(blocks, stats);
             }
             ir::Block::List(list) => {

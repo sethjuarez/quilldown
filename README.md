@@ -117,6 +117,7 @@ let docx = converter.convert_str("# Hello\n\nWorld")?;
 | `--language <BCP-47>` | Proofing/editing language for spellcheck | `en-US` |
 | `--no-highlight` | Uniform monospace code (no colors/labels) | highlight on |
 | `--dpi <N>` | DPI when rasterizing SVG to PNG | `192` (2×) |
+| `--max-image-width-px <N>` | Maximum rendered image width in pixels | `600` |
 | `--base-dir <DIR>` | Resolve relative image paths against this dir | input's dir |
 | `--no-embed-svg` | Skip the original SVG (`<asvg>`) layer, embed only the PNG | on |
 | `--no-svg-light-mode` | Embed SVGs with authored colors (skip the light remap) | remap on |

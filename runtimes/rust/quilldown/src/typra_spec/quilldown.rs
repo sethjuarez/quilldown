@@ -30,4 +30,9 @@ pub trait Quilldown: Send + Sync {
         markdown: &String,
         options: &Option<ConvertOptions>,
     ) -> Result<Document, Box<dyn std::error::Error + Send + Sync>>;
+    async fn render(
+        &self,
+        doc: &Document,
+        options: &Option<RenderOptions>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>;
 }

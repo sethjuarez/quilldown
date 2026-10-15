@@ -74,6 +74,8 @@ class Block(ABC):
             return CodeBlock.load(data, context)
         elif discriminator_value == "block_quote":
             return BlockQuote.load(data, context)
+        elif discriminator_value == "alert":
+            return AlertBlock.load(data, context)
         elif discriminator_value == "list_item":
             return ListItemBlock.load(data, context)
         elif discriminator_value == "list":
@@ -633,6 +635,148 @@ class BlockQuote(Block):
 
     def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
         """Convert the BlockQuote instance to a JSON string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+            indent (int): Number of spaces for indentation. Defaults to 2.
+        Returns:
+            str: The JSON string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_json(self.save(context), indent)
+
+
+@dataclass
+class AlertBlock(Block):
+    """
+
+    Attributes
+    ----------
+    kind : str
+
+    alert_type : str
+
+    title : Optional[str]
+
+    blocks : list[Block]
+
+    """
+
+    _shorthand_property: ClassVar[str | None] = None
+
+    kind: str = field(default="alert")
+    alert_type: str = field(default="")
+    title: str | None = None
+    blocks: list[Block] = field(default_factory=list)
+
+    @staticmethod
+    def load(data: Any, context: LoadContext | None = None) -> "AlertBlock":
+        """Load a AlertBlock instance.
+        Args:
+            data (Any): The data to load the instance from.
+            context (Optional[LoadContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            AlertBlock: The loaded AlertBlock instance.
+
+        """
+
+        if context is None:
+            context = LoadContext()
+        data = context.process_input(data)
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid data for AlertBlock: {data}")
+
+        # create new instance
+        instance = AlertBlock()
+
+        if data is not None and "kind" in data:
+            instance.kind = data["kind"]
+        if data is not None and "alert_type" in data:
+            instance.alert_type = data["alert_type"]
+        if data is not None and "title" in data:
+            instance.title = data["title"]
+        if data is not None and "blocks" in data:
+            instance.blocks = AlertBlock.load_blocks(
+                data["blocks"], context.at("blocks")
+            )
+        if context is not None:
+            instance = context.process_output(instance)
+        return instance
+
+    @staticmethod
+    def load_blocks(data: dict | list, context: LoadContext | None) -> list[Block]:
+        if context is None:
+            context = LoadContext(path="blocks")
+        if isinstance(data, dict):
+            # convert simple named blocks to list of Block
+            result = []
+            for k, v in data.items():
+                if isinstance(v, list):
+                    raise TypeError(
+                        f"{context.at(k).path}: invalid named collection entry category array"
+                    )
+                if isinstance(v, dict):
+                    # value is an object, spread its properties
+                    result.append(Block.load({"name": k, **v}, context.at(k)))
+                else:
+                    # value is a scalar, use it as the primary property
+                    result.append(Block.load({"name": k, "kind": v}, context.at(k)))
+            return result
+        return [
+            Block.load(item, context.at_index(index)) for index, item in enumerate(data)
+        ]
+
+    @staticmethod
+    def save_blocks(
+        items: list[Block], context: SaveContext | None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        if context is None:
+            context = SaveContext()
+
+        # The schema declares an ordered collection, so preserve array format
+        return [item.save(context) for item in items]
+
+    def save(self, context: SaveContext | None = None) -> dict[str, Any]:
+        """Save the AlertBlock instance to a dictionary.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            dict[str, Any]: The dictionary representation of this instance.
+
+        """
+        obj = self
+        if context is not None:
+            obj = context.process_object(obj)
+
+        # Start with parent class properties
+        result = super().save(context)
+
+        if obj.kind is not None:
+            result["kind"] = obj.kind
+        if obj.alert_type is not None:
+            result["alert_type"] = obj.alert_type
+        if obj.title is not None:
+            result["title"] = obj.title
+        if obj.blocks is not None:
+            result["blocks"] = AlertBlock.save_blocks(obj.blocks, context)
+        return result
+
+    def to_yaml(self, context: SaveContext | None = None) -> str:
+        """Convert the AlertBlock instance to a YAML string.
+        Args:
+            context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
+        Returns:
+            str: The YAML string representation of this instance.
+
+        """
+        if context is None:
+            context = SaveContext()
+        return context.to_yaml(self.save(context))
+
+    def to_json(self, context: SaveContext | None = None, indent: int = 2) -> str:
+        """Convert the AlertBlock instance to a JSON string.
         Args:
             context (Optional[SaveContext]): Optional context with pre/post processing callbacks.
             indent (int): Number of spaces for indentation. Defaults to 2.

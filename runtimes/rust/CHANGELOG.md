@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.4.0](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.3.1...quilldown-v1.4.0) (2026-10-05)
+
+
+### Features
+
+* **ir:** preserve gfm alert callouts ([183c787](https://github.com/sethjuarez/quilldown/commit/183c787ffc6bb2be631f7945ea14c0c21a3a88f0))
+* **render:** add captions parity ([fa44f66](https://github.com/sethjuarez/quilldown/commit/fa44f66a56fc3ce2bd462480903ab3c74a514334))
+* **render:** add native math parity ([d377e62](https://github.com/sethjuarez/quilldown/commit/d377e62bc22066afe25e153742d78890ab214149))
+* **render:** add svg parity ([5582464](https://github.com/sethjuarez/quilldown/commit/558246420cfb581b2544751039e0261ecee44565))
+* **render:** add toc parity ([32994af](https://github.com/sethjuarez/quilldown/commit/32994afdd5bc9288bd1720cc00da27db80d14fa5))
+* **render:** complete option surface parity ([35e791c](https://github.com/sethjuarez/quilldown/commit/35e791c90e70446acd6fbf8d79b05103012e2ccb))
+* **render:** complete Python DOCX parity ([2a52f02](https://github.com/sethjuarez/quilldown/commit/2a52f025e5f6dab5f608d16508dce667cf3ab6dc))
+* **render:** support page and theme options ([9750f44](https://github.com/sethjuarez/quilldown/commit/9750f44d6e9c46851b28eaf6d8e68fe1dfdd3e82))
+
+## [1.3.1](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.3.0...quilldown-v1.3.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **python:** emit strict-valid docx packages ([129a9f9](https://github.com/sethjuarez/quilldown/commit/129a9f9aa33ffcd091346b0cb3af437d1f872b07))
+* **python:** emit strict-valid docx packages ([03e5e58](https://github.com/sethjuarez/quilldown/commit/03e5e58f6c4ab042ccd6a412fe6b828d0add6ef3))
+
 ## [1.3.0](https://github.com/sethjuarez/quilldown/compare/quilldown-v1.2.0...quilldown-v1.3.0) (2026-09-11)
 
 

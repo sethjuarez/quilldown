@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from docx_invariants import assert_strict_ooxml_invariants
 from doc_normalizer import normalize_docx
 from quilldown import compute_stats, render_docx
 
@@ -35,6 +36,33 @@ def _rendered_vector(name: str) -> dict:
     out = io.BytesIO()
     render_docx(doc).save(out)
     return normalize_docx(out.getvalue())
+
+
+def _rendered_vector_bytes(name: str) -> bytes:
+    vector = _emit_vector(name)
+    doc = vector["input"]["doc"]
+    assert compute_stats(doc) == vector["expected"]
+
+    out = io.BytesIO()
+    render_docx(doc).save(out)
+    return out.getvalue()
+
+
+def _successful_emit_vector_names() -> list[str]:
+    manifest = json.loads(VECTORS_JSON.read_text(encoding="utf-8"))
+    return [
+        entry["vector"]["name"]
+        for entry in manifest["vectors"]
+        if entry["contract"] == "Quilldown"
+        and entry["operation"] == "emit"
+        and entry["vector"]["stage"] == "callable"
+        and "expected" in entry["vector"]
+    ]
+
+
+@pytest.mark.parametrize("name", _successful_emit_vector_names())
+def test_emit_vectors_satisfy_strict_ooxml_package_invariants(name: str) -> None:
+    assert_strict_ooxml_invariants(_rendered_vector_bytes(name))
 
 
 def test_emit_vector_renders_external_link_relationship() -> None:

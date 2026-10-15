@@ -34,12 +34,41 @@ pub enum Block {
     },
     /// A block quote wrapping nested blocks (quotes can nest arbitrarily).
     BlockQuote { blocks: Vec<Block> },
+    /// A GitHub-style alert/callout (`> [!NOTE]`, `> [!WARNING]`, ...).
+    Alert {
+        alert_type: AlertType,
+        title: Option<String>,
+        blocks: Vec<Block>,
+    },
     /// An ordered or unordered list.
     List(List),
     /// A GFM table.
     Table(Table),
     /// A thematic break (`---`).
     ThematicBreak,
+}
+
+/// GitHub alert/callout kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlertType {
+    Note,
+    Tip,
+    Important,
+    Warning,
+    Caution,
+}
+
+impl AlertType {
+    pub fn default_title(self) -> &'static str {
+        match self {
+            AlertType::Note => "NOTE",
+            AlertType::Tip => "TIP",
+            AlertType::Important => "IMPORTANT",
+            AlertType::Warning => "WARNING",
+            AlertType::Caution => "CAUTION",
+        }
+    }
 }
 
 /// An ordered or unordered list.

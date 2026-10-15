@@ -48,6 +48,91 @@ fn document_rels(docx: &[u8]) -> String {
     entry(docx, "word/_rels/document.xml.rels").expect("rels must exist")
 }
 
+fn assert_strict_ooxml_invariants(docx: &[u8]) {
+    let document_xml = entry(docx, "word/document.xml").expect("word/document.xml must exist");
+    let document = roxmltree::Document::parse(&document_xml).expect("document.xml parses");
+    for paragraph in document
+        .descendants()
+        .filter(|node| node.is_element() && node.tag_name().name() == "p")
+    {
+        let element_children = paragraph.children().filter(|node| node.is_element());
+        if let Some(ppr) = paragraph
+            .children()
+            .find(|node| node.is_element() && node.tag_name().name() == "pPr")
+        {
+            let first = element_children
+                .into_iter()
+                .next()
+                .expect("paragraph with pPr has children");
+            assert_eq!(first, ppr, "w:pPr must be the first paragraph child");
+        }
+    }
+
+    let numbering_xml = entry(docx, "word/numbering.xml").expect("word/numbering.xml must exist");
+    let numbering = roxmltree::Document::parse(&numbering_xml).expect("numbering.xml parses");
+    let mut seen_num = false;
+    for child in numbering
+        .root_element()
+        .children()
+        .filter(|node| node.is_element())
+    {
+        match child.tag_name().name() {
+            "num" => seen_num = true,
+            "abstractNum" => {
+                assert!(
+                    !seen_num,
+                    "w:abstractNum must not appear after w:num in numbering.xml"
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let settings_xml = entry(docx, "word/settings.xml").expect("word/settings.xml must exist");
+    let settings = roxmltree::Document::parse(&settings_xml).expect("settings.xml parses");
+    let zoom = settings
+        .descendants()
+        .find(|node| node.is_element() && node.tag_name().name() == "zoom")
+        .expect("settings.xml has w:zoom");
+    assert!(
+        zoom.attribute((W_NS, "percent")).is_some(),
+        "w:zoom must carry required w:percent"
+    );
+
+    let font_table = {
+        let mut archive =
+            zip::ZipArchive::new(Cursor::new(docx)).expect("output should be a valid zip");
+        let mut file = archive
+            .by_name("word/fontTable.xml")
+            .expect("word/fontTable.xml must exist");
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf).expect("read fontTable.xml");
+        buf
+    };
+    assert!(
+        !font_table
+            .iter()
+            .any(|byte| matches!(byte, 0x81 | 0x8D | 0x8F | 0x90 | 0x9D)),
+        "fontTable.xml must not contain bytes undefined in Windows-1252"
+    );
+}
+
+const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+#[test]
+fn ir_emit_repro_docx_satisfies_strict_ooxml_invariants() {
+    let bytes = ir_docx(
+        "# Contract Brief\n\n\
+         ## Summary\n\n\
+         - Supplier: Aster Ridge\n\
+         - Monthly minimum: USD 125,000\n\n\
+         ## Notes\n\n\
+         Generated from Markdown with quilldown.\n",
+    );
+
+    assert_strict_ooxml_invariants(&bytes);
+}
+
 #[test]
 fn headings_land_as_native_styles_with_bookmarks() {
     let xml = document_xml(&ir_docx("# One\n\n## Two\n\n### Three\n"));

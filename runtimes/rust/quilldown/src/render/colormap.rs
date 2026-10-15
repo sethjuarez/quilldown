@@ -29,7 +29,7 @@ pub(crate) fn to_light_mode(svg: &str) -> String {
                 i += len;
                 continue;
             }
-        } else if starts_with_ci(&bytes[i..], b"rgb") {
+        } else if is_rgb_function_start(bytes, i) {
             if let Some(parsed) = parse_rgb(&svg[i..]) {
                 let (r, g, b) = flip_lightness(parsed.rgb);
                 match parsed.alpha {
@@ -51,6 +51,15 @@ pub(crate) fn to_light_mode(svg: &str) -> String {
 /// Case-insensitive ASCII prefix test.
 fn starts_with_ci(haystack: &[u8], prefix: &[u8]) -> bool {
     haystack.len() >= prefix.len() && haystack[..prefix.len()].eq_ignore_ascii_case(prefix)
+}
+
+fn is_rgb_function_start(bytes: &[u8], i: usize) -> bool {
+    let starts_token =
+        starts_with_ci(&bytes[i..], b"rgb(") || starts_with_ci(&bytes[i..], b"rgba(");
+    if !starts_token {
+        return false;
+    }
+    i == 0 || !matches!(bytes[i - 1], b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-')
 }
 
 /// Parse a leading `#rgb` or `#rrggbb` color. Returns `(r,g,b)` and the total token length
@@ -260,6 +269,18 @@ mod tests {
     fn rewrites_rgb_function() {
         let out = to_light_mode("fill:rgb(0, 0, 0)");
         assert_eq!(out, "fill:rgb(255, 255, 255)");
+    }
+
+    #[test]
+    fn does_not_treat_srgb_attribute_as_rgb_function() {
+        let src = r##"<filter color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="1"/></filter><rect fill="rgb(13, 17, 23)"/>"##;
+        let out = to_light_mode(src);
+        assert!(
+            out.contains(r#"color-interpolation-filters="sRGB""#),
+            "{out}"
+        );
+        assert!(out.contains("<feGaussianBlur"), "{out}");
+        assert!(out.contains(r#"fill="rgb(232, 236, 242)""#), "{out}");
     }
 
     #[test]

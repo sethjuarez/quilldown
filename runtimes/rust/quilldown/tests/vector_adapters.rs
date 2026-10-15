@@ -85,7 +85,10 @@ pub fn adapters() -> HashMap<&'static str, Adapter> {
 }
 
 pub fn waivers() -> HashMap<&'static str, &'static str> {
-    HashMap::new()
+    HashMap::from([(
+        "Quilldown.render",
+        "Rust render DOCX structural vectors are exercised by the Python harness with the shared doc_inspector; the Rust generated vector harness has no native rendered-view inspector.",
+    )])
 }
 
 pub fn doubles() -> Value {

@@ -15,6 +15,21 @@ use super::context::{LoadContext, SaveContext};
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RenderOptions {
     pub strict: Option<bool>,
+    pub image_dpi: Option<f64>,
+    pub embed_svg: Option<bool>,
+    pub svg_light_mode: Option<bool>,
+    pub max_image_width_px: Option<i32>,
+    pub base_dir: Option<String>,
+    pub highlight_code: Option<bool>,
+    pub theme: Option<String>,
+    pub page_size: Option<String>,
+    pub orientation: Option<String>,
+    pub margin: Option<f64>,
+    pub page_numbers: Option<bool>,
+    pub table_of_contents: Option<bool>,
+    pub language: Option<String>,
+    pub allow_remote_images: Option<bool>,
+    pub captions: Option<bool>,
 }
 
 impl RenderOptions {
@@ -61,6 +76,39 @@ impl RenderOptions {
         }
         Self {
             strict: value.get("strict").and_then(|v| v.as_bool()),
+            image_dpi: value.get("image_dpi").and_then(|v| v.as_f64()),
+            embed_svg: value.get("embed_svg").and_then(|v| v.as_bool()),
+            svg_light_mode: value.get("svg_light_mode").and_then(|v| v.as_bool()),
+            max_image_width_px: value
+                .get("max_image_width_px")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
+            base_dir: value
+                .get("base_dir")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            highlight_code: value.get("highlight_code").and_then(|v| v.as_bool()),
+            theme: value
+                .get("theme")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            page_size: value
+                .get("page_size")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            orientation: value
+                .get("orientation")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            margin: value.get("margin").and_then(|v| v.as_f64()),
+            page_numbers: value.get("page_numbers").and_then(|v| v.as_bool()),
+            table_of_contents: value.get("table_of_contents").and_then(|v| v.as_bool()),
+            language: value
+                .get("language")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            allow_remote_images: value.get("allow_remote_images").and_then(|v| v.as_bool()),
+            captions: value.get("captions").and_then(|v| v.as_bool()),
         }
     }
 
@@ -76,6 +124,82 @@ impl RenderOptions {
         // Write base fields
         if let Some(val) = self.strict.as_ref() {
             result.insert("strict".to_string(), serde_json::Value::Bool(*val));
+        }
+        if let Some(val) = self.image_dpi.as_ref() {
+            result.insert(
+                "image_dpi".to_string(),
+                serde_json::Number::from_f64(*val as f64)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
+        if let Some(val) = self.embed_svg.as_ref() {
+            result.insert("embed_svg".to_string(), serde_json::Value::Bool(*val));
+        }
+        if let Some(val) = self.svg_light_mode.as_ref() {
+            result.insert("svg_light_mode".to_string(), serde_json::Value::Bool(*val));
+        }
+        if let Some(val) = self.max_image_width_px.as_ref() {
+            result.insert(
+                "max_image_width_px".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(*val)),
+            );
+        }
+        if let Some(val) = self.base_dir.as_ref() {
+            result.insert(
+                "base_dir".to_string(),
+                serde_json::Value::String(val.clone()),
+            );
+        }
+        if let Some(val) = self.highlight_code.as_ref() {
+            result.insert("highlight_code".to_string(), serde_json::Value::Bool(*val));
+        }
+        if let Some(val) = self.theme.as_ref() {
+            result.insert("theme".to_string(), serde_json::Value::String(val.clone()));
+        }
+        if let Some(val) = self.page_size.as_ref() {
+            result.insert(
+                "page_size".to_string(),
+                serde_json::Value::String(val.clone()),
+            );
+        }
+        if let Some(val) = self.orientation.as_ref() {
+            result.insert(
+                "orientation".to_string(),
+                serde_json::Value::String(val.clone()),
+            );
+        }
+        if let Some(val) = self.margin.as_ref() {
+            result.insert(
+                "margin".to_string(),
+                serde_json::Number::from_f64(*val as f64)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
+        if let Some(val) = self.page_numbers.as_ref() {
+            result.insert("page_numbers".to_string(), serde_json::Value::Bool(*val));
+        }
+        if let Some(val) = self.table_of_contents.as_ref() {
+            result.insert(
+                "table_of_contents".to_string(),
+                serde_json::Value::Bool(*val),
+            );
+        }
+        if let Some(val) = self.language.as_ref() {
+            result.insert(
+                "language".to_string(),
+                serde_json::Value::String(val.clone()),
+            );
+        }
+        if let Some(val) = self.allow_remote_images.as_ref() {
+            result.insert(
+                "allow_remote_images".to_string(),
+                serde_json::Value::Bool(*val),
+            );
+        }
+        if let Some(val) = self.captions.as_ref() {
+            result.insert("captions".to_string(), serde_json::Value::Bool(*val));
         }
         ctx.process_dict(serde_json::Value::Object(result))
     }
