@@ -25,7 +25,7 @@ class RenderOptions:
 
     svg_light_mode : Optional[bool]
 
-    max_image_width_px : Optional[Any]
+    max_image_width_px : Optional[int]
 
     base_dir : Optional[str]
 
@@ -57,7 +57,7 @@ class RenderOptions:
     image_dpi: float | None = None
     embed_svg: bool | None = None
     svg_light_mode: bool | None = None
-    max_image_width_px: Any | None = None
+    max_image_width_px: int | None = None
     base_dir: str | None = None
     highlight_code: bool | None = None
     theme: str | None = None

@@ -31,6 +31,10 @@ jobs:
         run: |
           npm ci
           npm run generate
+      - name: verify generated outputs are current
+        run: |
+          git add -AN -- spec runtimes/python runtimes/rust/quilldown/src/typra_spec runtimes/rust/quilldown/tests
+          git diff --exit-code -- spec runtimes/python runtimes/rust/quilldown/src/typra_spec runtimes/rust/quilldown/tests
       - name: rustfmt
         run: cargo fmt --all --check
       - name: test
@@ -60,13 +64,18 @@ jobs:
           cache: npm
           cache-dependency-path: spec/package-lock.json
       - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - name: generate TypeSpec outputs
         working-directory: spec
         run: |
           npm ci
           npm run generate
       - name: verify generated outputs are current
-        run: git diff --exit-code -- runtimes/python spec
+        run: |
+          git add -AN -- spec runtimes/python runtimes/rust/quilldown/src/typra_spec runtimes/rust/quilldown/tests
+          git diff --exit-code -- spec runtimes/python runtimes/rust/quilldown/src/typra_spec runtimes/rust/quilldown/tests
       - name: conformance (pytest)
         working-directory: runtimes/python
         run: uv run pytest -q -rs

@@ -31,6 +31,8 @@ use docx_rs::Docx;
 pub mod ir;
 mod render;
 mod styles;
+pub mod typra_runtime;
+pub mod typra_spec;
 
 pub use render::RenderStats;
 

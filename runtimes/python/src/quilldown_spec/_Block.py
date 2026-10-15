@@ -162,7 +162,7 @@ class Heading(Block):
     ----------
     kind : str
 
-    level : Any
+    level : int
 
     content : list[Inline]
 
@@ -171,7 +171,7 @@ class Heading(Block):
     _shorthand_property: ClassVar[str | None] = None
 
     kind: str = field(default="heading")
-    level: Any = field(default=None)
+    level: int = field(default=0)
     content: list[Inline] = field(default_factory=list)
 
     @staticmethod
@@ -934,9 +934,9 @@ class ListBlock(Block):
 
     ordered : bool
 
-    start : Any
+    start : int
 
-    items : list[ListItemBlock]
+    items : list[Block]
 
     """
 
@@ -944,8 +944,8 @@ class ListBlock(Block):
 
     kind: str = field(default="list")
     ordered: bool = field(default=False)
-    start: Any = field(default=None)
-    items: list[ListItemBlock] = field(default_factory=list)
+    start: int = field(default=0)
+    items: list[Block] = field(default_factory=list)
 
     @staticmethod
     def load(data: Any, context: LoadContext | None = None) -> "ListBlock":
@@ -981,13 +981,11 @@ class ListBlock(Block):
         return instance
 
     @staticmethod
-    def load_items(
-        data: dict | list, context: LoadContext | None
-    ) -> list[ListItemBlock]:
+    def load_items(data: dict | list, context: LoadContext | None) -> list[Block]:
         if context is None:
             context = LoadContext(path="items")
         if isinstance(data, dict):
-            # convert simple named items to list of ListItemBlock
+            # convert simple named items to list of Block
             result = []
             for k, v in data.items():
                 if isinstance(v, list):
@@ -996,21 +994,18 @@ class ListBlock(Block):
                     )
                 if isinstance(v, dict):
                     # value is an object, spread its properties
-                    result.append(ListItemBlock.load({"name": k, **v}, context.at(k)))
+                    result.append(Block.load({"name": k, **v}, context.at(k)))
                 else:
                     # value is a scalar, use it as the primary property
-                    result.append(
-                        ListItemBlock.load({"name": k, "kind": v}, context.at(k))
-                    )
+                    result.append(Block.load({"name": k, "kind": v}, context.at(k)))
             return result
         return [
-            ListItemBlock.load(item, context.at_index(index))
-            for index, item in enumerate(data)
+            Block.load(item, context.at_index(index)) for index, item in enumerate(data)
         ]
 
     @staticmethod
     def save_items(
-        items: list[ListItemBlock], context: SaveContext | None
+        items: list[Block], context: SaveContext | None
     ) -> dict[str, Any] | list[dict[str, Any]]:
         if context is None:
             context = SaveContext()

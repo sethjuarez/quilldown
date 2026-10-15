@@ -1,9 +1,8 @@
 use std::io::{Cursor, Read};
 
 use quilldown::ir::{
-    emit, lower,
+    emit,
     model::{Align, Block, Document, FootnoteDefinition, Inline, List, ListItem, Table},
-    spec_wire::SpecDocument,
 };
 use quilldown::ConvertOptions;
 use serde::Deserialize;
@@ -48,8 +47,9 @@ fn rust_lower_conforms_to_generated_vector_corpus() {
             .expected
             .as_ref()
             .unwrap_or_else(|| panic!("{} must include expected", entry.vector.name));
-        let observed = serde_json::to_value(SpecDocument::from(&lower(markdown)))
-            .expect("project observed IR to spec wire JSON");
+        let observed = quilldown::typra_runtime::lower(markdown)
+            .expect("project observed IR to spec wire JSON")
+            .to_value(&quilldown::typra_spec::SaveContext::default());
 
         assert_eq!(
             &observed, expected,

@@ -17,23 +17,23 @@ class RenderStats:
 
     Attributes
     ----------
-    headings : Any
+    headings : int
 
-    paragraphs : Any
+    paragraphs : int
 
-    code_blocks : Any
+    code_blocks : int
 
-    block_quotes : Any
+    block_quotes : int
 
-    lists : Any
+    lists : int
 
-    list_items : Any
+    list_items : int
 
-    tables : Any
+    tables : int
 
-    links : Any
+    links : int
 
-    thematic_breaks : Any
+    thematic_breaks : int
 
     warnings : list[str]
 
@@ -41,15 +41,15 @@ class RenderStats:
 
     _shorthand_property: ClassVar[str | None] = None
 
-    headings: Any = field(default=None)
-    paragraphs: Any = field(default=None)
-    code_blocks: Any = field(default=None)
-    block_quotes: Any = field(default=None)
-    lists: Any = field(default=None)
-    list_items: Any = field(default=None)
-    tables: Any = field(default=None)
-    links: Any = field(default=None)
-    thematic_breaks: Any = field(default=None)
+    headings: int = field(default=0)
+    paragraphs: int = field(default=0)
+    code_blocks: int = field(default=0)
+    block_quotes: int = field(default=0)
+    lists: int = field(default=0)
+    list_items: int = field(default=0)
+    tables: int = field(default=0)
+    links: int = field(default=0)
+    thematic_breaks: int = field(default=0)
     warnings: list[str] = field(default_factory=list)
 
     @staticmethod

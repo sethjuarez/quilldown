@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import base64
 import binascii
+import io
 import math
+import posixpath
 import re
 import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 from xml.etree import ElementTree as ET
 
 import resvg
@@ -31,6 +34,51 @@ from pygments.token import (
     Token,
 )
 from pygments.util import ClassNotFound
+
+DOCX_DOCUMENT_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+)
+DOCX_STYLES_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"
+)
+DOCX_NUMBERING_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"
+)
+CORE_PROPERTIES_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
+PACKAGE_RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.relationships+xml"
+XML_CONTENT_TYPE = "application/xml"
+OFFICE_DOCUMENT_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+)
+CORE_PROPERTIES_REL_TYPE = (
+    "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
+)
+HYPERLINK_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+)
+CONTENT_TYPES_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
+RELATIONSHIPS_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+DC_NS = "{http://purl.org/dc/elements/1.1/}"
+DCTERMS_NS = "{http://purl.org/dc/terms/}"
+CORE_PROPERTIES_NS = "{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}"
+WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+OFFICE_REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+WORD_PART_ROLES = {
+    "/word/document.xml": "document",
+    "/word/styles.xml": "styles",
+    "/word/numbering.xml": "numbering",
+    "/docProps/core.xml": "core-properties",
+}
+WORD_PART_CONTENT_TYPES = {
+    "/word/document.xml": DOCX_DOCUMENT_CONTENT_TYPE,
+    "/word/styles.xml": DOCX_STYLES_CONTENT_TYPE,
+    "/word/numbering.xml": DOCX_NUMBERING_CONTENT_TYPE,
+    "/docProps/core.xml": CORE_PROPERTIES_CONTENT_TYPE,
+}
+
+REQUIRED_WORD_PART_ROLES = {
+    name: role for name, role in WORD_PART_ROLES.items() if role != "numbering"
+}
 
 
 def _count_links(inlines) -> int:
@@ -85,13 +133,13 @@ def validate_document(doc: dict) -> None:
         for i, inl in enumerate(inlines):
             validate_inline(inl, f"{path}[{i}]")
 
-    def validate_block(block: dict, path: str, top_level: bool) -> None:
+    def validate_block(block: dict, path: str, inside_list: bool) -> None:
         kind = block.get("kind")
-        if top_level and kind == "list_item":
+        if not inside_list and kind == "list_item":
             fail(f"{path} list_item is only valid inside a list")
         if kind == "heading":
             level = block.get("level")
-            if not isinstance(level, int) or level < 1 or level > 6:
+            if isinstance(level, bool) or not isinstance(level, int) or level < 1 or level > 6:
                 fail(f"{path}.level must be between 1 and 6")
             validate_inlines(block.get("content", []), f"{path}.content")
         elif kind == "paragraph":
@@ -108,8 +156,13 @@ def validate_document(doc: dict) -> None:
             for i, child in enumerate(block.get("blocks", [])):
                 validate_block(child, f"{path}.blocks[{i}]", False)
         elif kind == "list":
+            start = block.get("start", 1)
+            if isinstance(start, bool) or not isinstance(start, int) or start < 1:
+                fail(f"{path}.start must be greater than or equal to 1")
             for i, item in enumerate(block.get("items", [])):
-                validate_block(item, f"{path}.items[{i}]", False)
+                if item.get("kind") != "list_item":
+                    fail(f"{path}.items[{i}] must be list_item")
+                validate_block(item, f"{path}.items[{i}]", True)
         elif kind == "list_item":
             for i, child in enumerate(block.get("blocks", [])):
                 validate_block(child, f"{path}.blocks[{i}]", False)
@@ -132,7 +185,7 @@ def validate_document(doc: dict) -> None:
             fail(f"{path} has unsupported block kind {kind!r}")
 
     for i, block in enumerate(doc.get("blocks", [])):
-        validate_block(block, f"blocks[{i}]", True)
+        validate_block(block, f"blocks[{i}]", False)
     for i, footnote in enumerate(doc.get("footnotes", [])):
         require_keys(footnote, ("label", "blocks"), f"footnotes[{i}]")
         for j, block in enumerate(footnote["blocks"]):
@@ -169,6 +222,457 @@ def _slugify(text: str) -> str:
             slug.append("-")
             last_dash = True
     return "".join(slug).strip("-")
+
+
+def _iter_inlines(inlines):
+    for inl in inlines:
+        yield inl
+        kind = inl.get("kind")
+        if kind in ("strong", "emphasis", "strikethrough", "subscript"):
+            yield from _iter_inlines(inl.get("data", []))
+        elif kind == "link":
+            yield from _iter_inlines(inl.get("content", []))
+
+
+def _iter_blocks(blocks):
+    for block in blocks:
+        yield block
+        kind = block.get("kind")
+        if kind == "block_quote":
+            yield from _iter_blocks(block.get("blocks", []))
+        elif kind == "list":
+            for item in block.get("items", []):
+                yield from _iter_blocks(item.get("blocks", []))
+
+
+def _iter_all_blocks(doc: dict):
+    yield from _iter_blocks(doc.get("blocks", []))
+    for footnote in doc.get("footnotes", []):
+        yield from _iter_blocks(footnote.get("blocks", []))
+
+
+def _iter_block_inlines(block: dict):
+    if block.get("kind") in ("heading", "paragraph"):
+        yield block.get("content", [])
+    elif block.get("kind") == "table":
+        for cell in block.get("head", {}).get("cells", []):
+            yield cell.get("content", [])
+        for row in block.get("rows", []):
+            for cell in row.get("cells", []):
+                yield cell.get("content", [])
+
+
+def _iter_link_hrefs(doc: dict):
+    for block in _iter_all_blocks(doc):
+        for inlines in _iter_block_inlines(block):
+            for inl in _iter_inlines(inlines):
+                if inl.get("kind") == "link":
+                    yield inl.get("href", "")
+
+
+def _iter_images(doc: dict):
+    for block in _iter_all_blocks(doc):
+        for inlines in _iter_block_inlines(block):
+            for inl in _iter_inlines(inlines):
+                if inl.get("kind") == "image":
+                    yield inl
+
+
+def _external_links(doc: dict) -> list[str]:
+    return [href for href in _iter_link_hrefs(doc) if href and not href.startswith("#")]
+
+
+def _anchor_links(doc: dict) -> list[str]:
+    return [href[1:] for href in _iter_link_hrefs(doc) if href.startswith("#")]
+
+
+def _required_word_part_roles(doc: dict, inspected: dict | None = None) -> dict[str, str]:
+    required = dict(REQUIRED_WORD_PART_ROLES)
+    if compute_stats(doc)["lists"] or (inspected and _numbering_references(inspected)):
+        required["/word/numbering.xml"] = "numbering"
+    return required
+
+
+def _content_type_for_part(part: str, overrides: dict[str, str], defaults: dict[str, str]) -> str | None:
+    if part in overrides:
+        return overrides[part]
+    ext = part.rsplit(".", 1)[-1] if "." in part else ""
+    return defaults.get(ext)
+
+
+def _role_for_part(part: str) -> str | None:
+    return WORD_PART_ROLES.get(part)
+
+
+def _source_part_for_rels(name: str) -> str | None:
+    if name == "_rels/.rels":
+        return None
+    if "/_rels/" not in name or not name.endswith(".rels"):
+        return None
+    prefix, rel_name = name.split("/_rels/", 1)
+    return "/" + posixpath.join(prefix, rel_name[:-5])
+
+
+def _relationship_target_part(source_part: str | None, target: str) -> str:
+    if target.startswith("/"):
+        return target
+    if source_part is None:
+        return "/" + target
+    return posixpath.normpath(posixpath.join(posixpath.dirname(source_part), target))
+
+
+def _inspect_docx_package(doc: dict) -> dict:
+    out = io.BytesIO()
+    render_docx(doc).save(out)
+    with zipfile.ZipFile(io.BytesIO(out.getvalue())) as package:
+        names = sorted(package.namelist())
+        content_types_xml = package.read("[Content_Types].xml")
+        core_xml = package.read("docProps/core.xml")
+        document_xml = package.read("word/document.xml")
+        try:
+            numbering_xml = package.read("word/numbering.xml")
+        except KeyError:
+            numbering_xml = b""
+        styles_xml = package.read("word/styles.xml")
+        content_types_root = ElementTree.fromstring(content_types_xml)
+        defaults = {
+            node.attrib["Extension"]: node.attrib["ContentType"]
+            for node in content_types_root.findall(f"{CONTENT_TYPES_NS}Default")
+        }
+        overrides = {
+            node.attrib["PartName"]: node.attrib["ContentType"]
+            for node in content_types_root.findall(f"{CONTENT_TYPES_NS}Override")
+        }
+        relationship_sets = []
+        for name in names:
+            if not name.endswith(".rels"):
+                continue
+            source_part = _source_part_for_rels(name)
+            rels_root = ElementTree.fromstring(package.read(name))
+            relationships = []
+            for rel in rels_root.findall(f"{RELATIONSHIPS_NS}Relationship"):
+                relationships.append(
+                    {
+                        "id": rel.attrib["Id"],
+                        "type": rel.attrib["Type"],
+                        "target": rel.attrib["Target"],
+                        **({"targetMode": rel.attrib["TargetMode"]} if "TargetMode" in rel.attrib else {}),
+                    }
+                )
+            item = {"relationships": relationships}
+            if source_part is not None:
+                item["sourcePart"] = source_part
+            relationship_sets.append(item)
+    part_names = {"/" + name for name in names if not name.endswith("/")}
+    parts = []
+    for part in sorted(part_names):
+        role = _role_for_part(part)
+        if role is None:
+            continue
+        content_type = _content_type_for_part(part, overrides, defaults)
+        if content_type:
+            parts.append({"name": part, "contentType": content_type, "role": role})
+    content_types = [
+        {"extension": ext, "contentType": content_type}
+        for ext, content_type in sorted(defaults.items())
+    ]
+    content_types.extend(
+        {"partName": part, "contentType": content_type}
+        for part, content_type in sorted(overrides.items())
+        if part in {entry["name"] for entry in parts}
+    )
+    return {
+        "partNames": part_names,
+        "parts": parts,
+        "relationships": relationship_sets,
+        "contentTypes": content_types,
+        "defaults": defaults,
+        "overrides": overrides,
+        "coreXml": core_xml,
+        "documentXml": document_xml,
+        "numberingXml": numbering_xml,
+        "stylesXml": styles_xml,
+    }
+
+
+def _normalized_relationship_sets(inspected: dict) -> list[dict]:
+    wanted = {OFFICE_DOCUMENT_REL_TYPE, CORE_PROPERTIES_REL_TYPE, HYPERLINK_REL_TYPE}
+    sets = []
+    for rel_set in inspected["relationships"]:
+        relationships = []
+        seen_relationships = set()
+        for rel in rel_set["relationships"]:
+            if rel["type"] not in wanted:
+                continue
+            key = (rel["type"], rel["target"], rel.get("targetMode", ""))
+            if key in seen_relationships:
+                continue
+            seen_relationships.add(key)
+            item = {
+                "type": rel["type"],
+                "target": rel["target"],
+                **({"targetMode": rel["targetMode"]} if "targetMode" in rel else {}),
+            }
+            relationships.append(item)
+        relationships.sort(key=lambda item: (item["type"], item["target"], item.get("targetMode", "")))
+        if relationships:
+            item = {"relationships": relationships}
+            if "sourcePart" in rel_set:
+                item["sourcePart"] = rel_set["sourcePart"]
+            sets.append(item)
+    sets.sort(key=lambda item: item.get("sourcePart", ""))
+    return sets
+
+
+def _relationship_resolves(rel_set: dict, rel: dict, part_names: set[str]) -> bool:
+    if rel.get("targetMode") == "External":
+        return True
+    target = _relationship_target_part(rel_set.get("sourcePart"), rel["target"])
+    return target in part_names
+
+
+def _has_media_relationship(inspected: dict) -> bool:
+    return any(
+        rel["type"].endswith("/image")
+        for rel_set in inspected["relationships"]
+        for rel in rel_set["relationships"]
+    )
+
+
+def _required_parts_declared(doc: dict, inspected: dict) -> bool:
+    return all(name in inspected["partNames"] for name in _required_word_part_roles(doc, inspected))
+
+
+def _required_content_types_declared(doc: dict, inspected: dict) -> bool:
+    for name in _required_word_part_roles(doc, inspected):
+        if inspected["overrides"].get(name) != WORD_PART_CONTENT_TYPES[name]:
+            return False
+    return True
+
+
+def _document_relationships(inspected: dict) -> dict[str, dict]:
+    for rel_set in inspected["relationships"]:
+        if rel_set.get("sourcePart") == "/word/document.xml":
+            return {rel["id"]: rel for rel in rel_set["relationships"]}
+    return {}
+
+
+def _document_root(inspected: dict):
+    return ElementTree.fromstring(inspected["documentXml"])
+
+
+def _numbering_root(inspected: dict):
+    if not inspected["numberingXml"]:
+        return ElementTree.Element("numbering")
+    return ElementTree.fromstring(inspected["numberingXml"])
+
+
+def _hyperlink_rids(inspected: dict) -> list[str]:
+    root = _document_root(inspected)
+    return [
+        value
+        for node in root.iter(f"{WORD_NS}hyperlink")
+        if (value := node.attrib.get(f"{OFFICE_REL_NS}id"))
+    ]
+
+
+def _bookmark_names(inspected: dict) -> set[str]:
+    root = _document_root(inspected)
+    return {
+        value
+        for node in root.iter(f"{WORD_NS}bookmarkStart")
+        if (value := node.attrib.get(f"{WORD_NS}name"))
+    }
+
+
+def _numbering_references(inspected: dict) -> list[str]:
+    root = _document_root(inspected)
+    return [
+        value
+        for node in root.iter(f"{WORD_NS}numId")
+        if (value := node.attrib.get(f"{WORD_NS}val"))
+    ]
+
+
+def _defined_numberings(inspected: dict) -> set[str]:
+    root = _numbering_root(inspected)
+    return {
+        value
+        for node in root.iter(f"{WORD_NS}num")
+        if (value := node.attrib.get(f"{WORD_NS}numId"))
+    }
+
+
+def _all_table_first_rows_marked(inspected: dict) -> bool:
+    root = _document_root(inspected)
+    for table in root.iter(f"{WORD_NS}tbl"):
+        first_row = next((child for child in table if child.tag == f"{WORD_NS}tr"), None)
+        if first_row is None:
+            return False
+        row_props = next((child for child in first_row if child.tag == f"{WORD_NS}trPr"), None)
+        if row_props is None or not any(child.tag == f"{WORD_NS}tblHeader" for child in row_props):
+            return False
+    return True
+
+
+def _proofing_language(inspected: dict) -> str | None:
+    root = ElementTree.fromstring(inspected["stylesXml"])
+    lang = root.find(f".//{WORD_NS}docDefaults/{WORD_NS}rPrDefault/{WORD_NS}rPr/{WORD_NS}lang")
+    if lang is None:
+        return None
+    return lang.attrib.get(f"{WORD_NS}val")
+
+
+def _text_child(root, tag: str) -> str | None:
+    node = root.find(tag)
+    if node is None or node.text is None:
+        return None
+    text = node.text.strip()
+    return text or None
+
+
+def _core_properties(inspected: dict) -> dict:
+    root = ElementTree.fromstring(inspected["coreXml"])
+    properties = {}
+    mappings = {
+        "title": f"{DC_NS}title",
+        "creator": f"{DC_NS}creator",
+        "subject": f"{DC_NS}subject",
+        "description": f"{DC_NS}description",
+        "language": f"{DC_NS}language",
+        "created": f"{DCTERMS_NS}created",
+    }
+    for field, tag in mappings.items():
+        if value := _text_child(root, tag):
+            properties[field] = value
+    if keywords := _text_child(root, f"{CORE_PROPERTIES_NS}keywords"):
+        properties["keywords"] = [item.strip() for item in keywords.split(",") if item.strip()]
+    return properties
+
+
+def word_package_manifest(doc: dict, inspected: dict | None = None) -> dict:
+    """Return the target-neutral manifest facts a DOCX emitter must satisfy."""
+    validate_document(doc)
+    inspected = inspected or _inspect_docx_package(doc)
+    required_roles = _required_word_part_roles(doc, inspected)
+    parts = [
+        part
+        for part in inspected["parts"]
+        if part["name"] in required_roles
+    ]
+    content_types = [
+        entry
+        for entry in inspected["contentTypes"]
+        if entry.get("extension") in {"rels", "xml"}
+        or entry.get("partName") in required_roles
+    ]
+    result = {
+        "kind": "docx",
+        "parts": parts,
+        "relationships": _normalized_relationship_sets(inspected),
+        "contentTypes": content_types,
+    }
+    requested_metadata = doc.get("metadata") or {}
+    core_properties = _core_properties(inspected)
+    requested_core_properties = {
+        field: core_properties[field]
+        for field in requested_metadata
+        if field in core_properties
+    }
+    if requested_core_properties:
+        result["coreProperties"] = requested_core_properties
+    return result
+
+
+def word_invariants(doc: dict, inspected: dict | None = None) -> dict:
+    """Return deterministic DOCX package/semantic invariants for conformance."""
+    validate_document(doc)
+    inspected = inspected or _inspect_docx_package(doc)
+    anchors = _anchor_links(doc)
+    bookmarks = _bookmark_names(inspected)
+    document_relationships = _document_relationships(inspected)
+    hyperlink_rids = _hyperlink_rids(inspected)
+    relationship_ids_unique = all(
+        len(ids := [rel["id"] for rel in rel_set["relationships"]]) == len(set(ids))
+        for rel_set in inspected["relationships"]
+    )
+    relationships_resolve = all(
+        _relationship_resolves(rel_set, rel, inspected["partNames"])
+        for rel_set in inspected["relationships"]
+        for rel in rel_set["relationships"]
+    )
+    has_images = any(True for _ in _iter_images(doc))
+    numbering_refs = _numbering_references(inspected)
+    defined_numberings = _defined_numberings(inspected)
+    result = {
+        "allRelationshipIdsResolve": relationships_resolve,
+        "allContentTypesDeclared": _required_content_types_declared(doc, inspected),
+        "noDuplicateRelationshipIds": relationship_ids_unique,
+        "allMediaPartsReachable": (not has_images) or _has_media_relationship(inspected),
+        "noOrphanRequiredParts": _required_parts_declared(doc, inspected),
+        "allHyperlinksHaveRelationships": all(
+            document_relationships.get(rid, {}).get("type") == HYPERLINK_REL_TYPE
+            for rid in hyperlink_rids
+        ),
+        "allAnchorLinksHaveBookmarks": all(anchor in bookmarks for anchor in anchors),
+        "allNumberingReferencesDefined": all(ref in defined_numberings for ref in numbering_refs),
+        "allTableHeadersMarked": _all_table_first_rows_marked(inspected),
+    }
+    requested_language = (doc.get("metadata") or {}).get("language")
+    if requested_language:
+        result["defaultProofingLanguageSet"] = _proofing_language(inspected) == requested_language
+    return result
+
+
+def _warnings_for_word(doc: dict, invariants: dict) -> list[dict]:
+    warnings = []
+    if (doc.get("metadata") or {}).get("language") and not invariants.get("defaultProofingLanguageSet", True):
+        warnings.append(
+            {
+                "code": "word.proofing-language-unsupported",
+                "severity": "warning",
+                "message": "Requested proofing language is not set in the package.",
+                "path": "metadata.language",
+            }
+        )
+    invariant_codes = {
+        "allRelationshipIdsResolve": "word.relationships-unresolved",
+        "allContentTypesDeclared": "word.content-types-missing",
+        "noDuplicateRelationshipIds": "word.relationship-ids-duplicate",
+        "allMediaPartsReachable": "word.media-unreachable",
+        "noOrphanRequiredParts": "word.required-parts-missing",
+        "allHyperlinksHaveRelationships": "word.hyperlinks-unresolved",
+        "allAnchorLinksHaveBookmarks": "word.anchors-unresolved",
+        "allNumberingReferencesDefined": "word.numbering-unresolved",
+        "allTableHeadersMarked": "word.table-headers-unmarked",
+    }
+    for name, code in invariant_codes.items():
+        if invariants.get(name) is False:
+            warnings.append(
+                {
+                    "code": code,
+                    "severity": "warning",
+                    "message": f"Word invariant failed: {name}.",
+                    "path": "invariants." + name,
+                }
+            )
+    return warnings
+
+
+def emit_word_result(doc: dict, strict: bool = False) -> dict:
+    validate_document(doc)
+    inspected = _inspect_docx_package(doc)
+    manifest = word_package_manifest(doc, inspected)
+    invariants = word_invariants(doc, inspected)
+    warnings = _warnings_for_word(doc, invariants)
+    if strict and warnings:
+        raise ValidationError(warnings[0]["message"])
+    return {
+        "stats": compute_stats(doc),
+        "manifest": manifest,
+        "invariants": invariants,
+        "warnings": warnings,
+    }
 
 
 def compute_stats(doc: dict) -> dict:
@@ -301,6 +805,7 @@ def render_docx(doc: dict, options: dict | None = None) -> Any:
         "warning": ("9A6700", "FFF8C5", "WARNING"),
         "caution": ("CF222E", "FFEBE9", "CAUTION"),
     }
+
     bookmark_id = 1
     heading_slugs: dict[str, int] = {}
     caption_labels: dict[str, str] = {}

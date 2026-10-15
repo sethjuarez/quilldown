@@ -41,7 +41,45 @@ from ._TableRow import TableRow
 
 from ._FootnoteDefinition import FootnoteDefinition
 
+from ._DocumentMetadata import DocumentMetadata
+
+from ._AssetReference import AssetReference
+
 from ._Document import Document
+
+from ._Diagnostic import Diagnostic
+
+from ._PackagePart import PackagePart
+
+from ._Relationship import Relationship
+
+from ._PackageRelationshipSet import PackageRelationshipSet
+
+from ._ContentTypeDeclaration import ContentTypeDeclaration
+
+from ._OfficePackageManifest import OfficePackageManifest
+
+from ._WordInvariants import WordInvariants
+
+from ._RenderStats import RenderStats
+
+from ._WordRenderResult import WordRenderResult
+
+from ._SlideElement import (
+    SlideElement,
+    TextBoxElement,
+    SlideImageElement,
+)
+
+from ._Slide import Slide
+
+from ._Presentation import Presentation
+
+from ._PresentationStats import PresentationStats
+
+from ._PowerPointInvariants import PowerPointInvariants
+
+from ._PowerPointRenderResult import PowerPointRenderResult
 
 from ._Samples import Samples
 
@@ -49,9 +87,15 @@ from ._ConvertOptions import ConvertOptions
 
 from ._RenderOptions import RenderOptions
 
-from ._RenderStats import RenderStats
+from ._WordRenderOptions import WordRenderOptions
+
+from ._PowerPointRenderOptions import PowerPointRenderOptions
+
+from ._PowerPointEmitter import PowerPointEmitter
 
 from ._Quilldown import Quilldown
+
+from ._WordEmitter import WordEmitter
 
 __all__ = [
     "LoadContext",
@@ -77,15 +121,37 @@ __all__ = [
     "TableRow",
     "TableBlock",
     "ThematicBreak",
-    "ListItemBlock",
     "ListBlock",
+    "ListItemBlock",
     "AlertBlock",
     "BlockQuote",
     "FootnoteDefinition",
+    "DocumentMetadata",
+    "AssetReference",
     "Document",
+    "Diagnostic",
+    "PackagePart",
+    "Relationship",
+    "PackageRelationshipSet",
+    "ContentTypeDeclaration",
+    "OfficePackageManifest",
+    "WordInvariants",
+    "RenderStats",
+    "WordRenderResult",
+    "SlideElement",
+    "TextBoxElement",
+    "SlideImageElement",
+    "Slide",
+    "Presentation",
+    "PresentationStats",
+    "PowerPointInvariants",
+    "PowerPointRenderResult",
     "Samples",
     "ConvertOptions",
     "RenderOptions",
-    "RenderStats",
+    "WordRenderOptions",
+    "PowerPointRenderOptions",
+    "PowerPointEmitter",
     "Quilldown",
+    "WordEmitter",
 ]
